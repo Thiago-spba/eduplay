@@ -1,0 +1,333 @@
+const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { defineSecret } = require('firebase-functions/params')
+const Anthropic = require('@anthropic-ai/sdk')
+
+const ANTHROPIC_KEY = defineSecret('ANTHROPIC_API_KEY')
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDUPLAY — Cloud Function: Gerador de Conteúdo com IA
+// Baseado no Currículo Municipal de SP + Currículo Paulista (BNCC)
+// Psicologia Educacional: Erikson (11-13 anos) + Teoria do Fluxo
+// ═══════════════════════════════════════════════════════════════════════
+
+const DISCIPLINAS_PERMITIDAS = [
+  'historia', 'geografia', 'matematica', 'ciencias', 'portugues'
+]
+const SERIES_PERMITIDAS     = ['6ano', '7ano', '8ano', '9ano']
+const BIMESTRES_PERMITIDOS  = ['1bimestre', '2bimestre', '3bimestre', '4bimestre']
+const TEMA_MAX_CHARS        = 120
+
+// ── Currículo Municipal SP + Paulista por série e bimestre ────────────
+const CURRICULO = {
+  historia: {
+    '6ano': {
+      '1bimestre': 'Pré-História: origem da humanidade, nômades, domínio do fogo, pinturas rupestres, Homo sapiens',
+      '2bimestre': 'Povos da Antiguidade: Mesopotâmia, Egito Antigo, escrita cuneiforme, hieróglifos, civilizações do Oriente',
+      '3bimestre': 'Grécia Antiga: pólis, democracia ateniense, mitologia, filosofia, Olimpíadas',
+      '4bimestre': 'Roma Antiga: República, Império, direito romano, cristianismo, queda do Império Romano',
+    },
+    '7ano': {
+      '1bimestre': 'Idade Média: feudalismo, Igreja Católica, Cruzadas, vida no feudo, servos e senhores',
+      '2bimestre': 'Povos da África e América antes da colonização: impérios africanos, astecas, maias, incas',
+      '3bimestre': 'Grandes Navegações: Portugal, Espanha, rotas marítimas, chegada ao Brasil em 1500',
+      '4bimestre': 'Colonização do Brasil: pau-brasil, capitanias hereditárias, escravidão indígena e africana',
+    },
+    '8ano': {
+      '1bimestre': 'Iluminismo e Revoluções: Revolução Francesa, Revolução Industrial, direitos humanos',
+      '2bimestre': 'Brasil Colônia e Independência: Dom João VI, Grito do Ipiranga, Dom Pedro I',
+      '3bimestre': 'Brasil Império: abolição da escravidão, Lei Áurea, imigração europeia',
+      '4bimestre': 'República Velha: Proclamação da República, café com leite, coronelismo',
+    },
+    '9ano': {
+      '1bimestre': 'Primeira Guerra Mundial: causas, trincheiras, consequências, Tratado de Versalhes',
+      '2bimestre': 'Era Vargas e Segunda Guerra Mundial: totalitarismo, nazismo, fascismo, Holocausto',
+      '3bimestre': 'Guerra Fria: EUA vs URSS, corrida espacial, Cuba, Berlin',
+      '4bimestre': 'Brasil Contemporâneo: ditadura militar, redemocratização, Constituição 1988',
+    },
+  },
+  geografia: {
+    '6ano': {
+      '1bimestre': 'Orientação e localização: pontos cardeais, coordenadas geográficas, fusos horários, escalas',
+      '2bimestre': 'Brasil: localização, fronteiras, território, estados, capitais, regiões brasileiras',
+      '3bimestre': 'Relevo, clima e hidrografia do Brasil: biomas, bacias hidrográficas, Amazônia',
+      '4bimestre': 'População brasileira: diversidade cultural, migrações internas, urbanização',
+    },
+    '7ano': {
+      '1bimestre': 'América Latina: localização, países, relevo, clima, diversidade cultural',
+      '2bimestre': 'América do Norte: EUA, Canadá, México, economia, urbanização',
+      '3bimestre': 'Europa: localização, países, União Europeia, relevo, clima',
+      '4bimestre': 'África: localização, diversidade, colonização, desafios contemporâneos',
+    },
+    '8ano': {
+      '1bimestre': 'Ásia: localização, países, relevo, clima, tigres asiáticos, China, Índia',
+      '2bimestre': 'Oceania e Antártida: localização, características físicas, povos originários',
+      '3bimestre': 'Globalização: comércio mundial, blocos econômicos, multinacionais',
+      '4bimestre': 'Geopolítica mundial: conflitos, refugiados, terrorismo, organismos internacionais',
+    },
+    '9ano': {
+      '1bimestre': 'Urbanização brasileira: metrópoles, problemas urbanos, mobilidade, São Paulo',
+      '2bimestre': 'Agropecuária e indústria no Brasil: agronegócio, desmatamento, desenvolvimento',
+      '3bimestre': 'Energia e meio ambiente: fontes de energia, aquecimento global, sustentabilidade',
+      '4bimestre': 'Brasil no contexto mundial: BRICS, desigualdade social, desafios do século XXI',
+    },
+  },
+  matematica: {
+    '6ano': {
+      '1bimestre': 'Números naturais: sistema de numeração decimal, operações, potenciação, radiciação',
+      '2bimestre': 'Números inteiros: representação, operações, situações-problema com temperaturas e dívidas',
+      '3bimestre': 'Frações e números decimais: operações, porcentagem, razão e proporção',
+      '4bimestre': 'Geometria: figuras planas, perímetro, área, ângulos, simetria',
+    },
+    '7ano': {
+      '1bimestre': 'Números racionais: operações, potências de base 10, notação científica',
+      '2bimestre': 'Expressões algébricas: variáveis, equações do 1º grau, inequações',
+      '3bimestre': 'Proporcionalidade: regra de três simples e composta, grandezas proporcionais',
+      '4bimestre': 'Geometria: círculo, circunferência, área, volume de prismas',
+    },
+    '8ano': {
+      '1bimestre': 'Números reais: raízes quadradas, potências, produtos notáveis',
+      '2bimestre': 'Equações do 2º grau: resolução, fórmula de Bhaskara, aplicações',
+      '3bimestre': 'Sistemas de equações: métodos de resolução, aplicações práticas',
+      '4bimestre': 'Teorema de Pitágoras: triângulos retângulos, trigonometria básica',
+    },
+    '9ano': {
+      '1bimestre': 'Funções: definição, função afim, função quadrática, gráficos',
+      '2bimestre': 'Geometria analítica: plano cartesiano, distância entre pontos, equação da reta',
+      '3bimestre': 'Estatística e probabilidade: média, moda, mediana, gráficos, eventos',
+      '4bimestre': 'Progressões aritméticas e geométricas: razão, soma dos termos',
+    },
+  },
+  ciencias: {
+    '6ano': {
+      '1bimestre': 'Universo e Terra: sistema solar, planetas, satélites, movimentos da Terra, estações',
+      '2bimestre': 'Matéria e energia: estados físicos, mudanças de estado, calor, temperatura',
+      '3bimestre': 'Ser humano e saúde: células, tecidos, órgãos, sistemas do corpo humano',
+      '4bimestre': 'Ecossistemas: cadeias alimentares, ciclos biogeoquímicos, biodiversidade',
+    },
+    '7ano': {
+      '1bimestre': 'Vida e evolução: teorias da origem da vida, evolução, Darwin, seleção natural',
+      '2bimestre': 'Classificação dos seres vivos: reinos, vírus, bactérias, fungos, protistas',
+      '3bimestre': 'Plantas: estrutura, fotossíntese, reprodução, importância ecológica',
+      '4bimestre': 'Animais: características, classificação, adaptações, biodiversidade brasileira',
+    },
+    '8ano': {
+      '1bimestre': 'Reprodução humana: sistema reprodutor, puberdade, métodos contraceptivos, ISTs',
+      '2bimestre': 'Genética: DNA, cromossomos, hereditariedade, Mendel, biotecnologia',
+      '3bimestre': 'Ondas: som, luz, espectro eletromagnético, óptica',
+      '4bimestre': 'Eletricidade: cargas elétricas, circuitos, energia elétrica, segurança',
+    },
+    '9ano': {
+      '1bimestre': 'Química: átomos, tabela periódica, ligações químicas, reações',
+      '2bimestre': 'Substâncias e misturas: soluções, concentração, separação de misturas',
+      '3bimestre': 'Tecnologia e sociedade: nanotecnologia, inteligência artificial, impactos ambientais',
+      '4bimestre': 'Radioatividade e energia nuclear: fissão, fusão, aplicações e riscos',
+    },
+  },
+  portugues: {
+    '6ano': {
+      '1bimestre': 'Leitura e interpretação: gêneros textuais, inferências, vocabulário em contexto',
+      '2bimestre': 'Gramática: substantivo, adjetivo, artigo, pronome, classes gramaticais',
+      '3bimestre': 'Produção textual: narração, descrição, coesão e coerência textual',
+      '4bimestre': 'Verbo: conjugação, tempos verbais, concordância verbal e nominal',
+    },
+    '7ano': {
+      '1bimestre': 'Gêneros argumentativos: artigo de opinião, carta de leitor, argumentação',
+      '2bimestre': 'Sintaxe: sujeito, predicado, objeto direto e indireto, adjuntos',
+      '3bimestre': 'Literatura brasileira: cordel, crônica, conto, autores brasileiros',
+      '4bimestre': 'Ortografia e pontuação: regras ortográficas, uso da vírgula, ponto e vírgula',
+    },
+    '8ano': {
+      '1bimestre': 'Variedades linguísticas: dialetos, registros formais e informais, preconceito linguístico',
+      '2bimestre': 'Texto dissertativo-argumentativo: estrutura, tese, argumentos, conclusão',
+      '3bimestre': 'Literatura: Romantismo, Realismo, principais autores brasileiros',
+      '4bimestre': 'Período composto: orações coordenadas e subordinadas, conjunções',
+    },
+    '9ano': {
+      '1bimestre': 'Redação: ENEM, estrutura, competências, repertório sociocultural',
+      '2bimestre': 'Modernismo brasileiro: semana de 22, vanguardas europeias, autores',
+      '3bimestre': 'Análise linguística: figuras de linguagem, intertextualidade, ironia',
+      '4bimestre': 'Revisão geral: gramática, produção textual, literatura, preparação para o ensino médio',
+    },
+  },
+}
+
+// ── Nomes amigáveis para o prompt ─────────────────────────────────────
+const NOMES = {
+  disciplina: {
+    historia: 'História', geografia: 'Geografia',
+    matematica: 'Matemática', ciencias: 'Ciências', portugues: 'Português',
+  },
+  serie: {
+    '6ano': '6º ano', '7ano': '7º ano',
+    '8ano': '8º ano', '9ano': '9º ano',
+  },
+  bimestre: {
+    '1bimestre': '1º Bimestre', '2bimestre': '2º Bimestre',
+    '3bimestre': '3º Bimestre', '4bimestre': '4º Bimestre',
+  },
+}
+
+exports.gerarMissao = onCall(
+  { secrets: [ANTHROPIC_KEY], region: 'us-central1' },
+  async (request) => {
+
+    // ── Verificar autenticação ────────────────────────────────────
+    if (!request.auth) {
+      throw new HttpsError('unauthenticated', 'Login necessário.')
+    }
+
+    const { disciplina, serie, bimestre, tema } = request.data
+
+    // ── Validar inputs — whitelist rígida, previne injeção ────────
+    if (!DISCIPLINAS_PERMITIDAS.includes(disciplina))
+      throw new HttpsError('invalid-argument', 'Disciplina inválida.')
+
+    if (!SERIES_PERMITIDAS.includes(serie))
+      throw new HttpsError('invalid-argument', 'Série inválida.')
+
+    if (!BIMESTRES_PERMITIDOS.includes(bimestre))
+      throw new HttpsError('invalid-argument', 'Bimestre inválido.')
+
+    if (!tema || typeof tema !== 'string' || tema.length > TEMA_MAX_CHARS)
+      throw new HttpsError('invalid-argument', 'Tema inválido.')
+
+    // Sanitizar — remove caracteres perigosos
+    const temaSanitizado = tema.replace(/[<>{}[\]\\\/]/g, '').trim()
+
+    if (temaSanitizado.length < 3)
+      throw new HttpsError('invalid-argument', 'Tema muito curto.')
+
+    // ── Buscar currículo específico ───────────────────────────────
+    const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
+
+    // ── Montar prompt pedagógico ──────────────────────────────────
+    const prompt = `Você é um especialista em educação básica brasileira e psicologia do desenvolvimento infantil.
+
+Crie uma missão educacional para o EduPlay — Instituto do Saber.
+
+CONTEXTO PEDAGÓGICO:
+- Faixa etária: 11-13 anos (Ensino Fundamental II)
+- Fase do desenvolvimento: identidade em construção (Erikson)
+- A criança é um "Agente Pesquisador" que investiga mistérios
+- Tom: investigativo, desafiador, respeitoso — NÃO infantilizado
+- Linguagem: direta, curiosa, que valoriza a inteligência da criança
+
+DADOS DA MISSÃO:
+- Disciplina: ${NOMES.disciplina[disciplina]}
+- Série: ${NOMES.serie[serie]}
+- Bimestre: ${NOMES.bimestre[bimestre]}
+- Tema específico: ${temaSanitizado}
+- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}
+
+PRINCÍPIOS PSICOLÓGICOS A APLICAR:
+1. Efeito Zeigarnik: termine com gancho — deixe o aluno querendo saber mais
+2. Curiosidade epistêmica: a pergunta central deve ser genuinamente instigante
+3. Zona de desenvolvimento proximal (Vygotsky): desafiador mas alcançável
+4. Narrativa progressiva: cada resposta correta revela algo novo
+5. Autonomia: o aluno sente que está descobrindo, não memorizando
+
+Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
+{
+  "titulo": "título investigativo da missão (max 50 chars)",
+  "subtitulo": "subtítulo curto e direto (max 60 chars)",
+  "perguntaCentral": "pergunta genuinamente intrigante que só é respondida ao completar a missão (max 100 chars)",
+  "icone": "emoji único e representativo",
+  "xp": número entre 80 e 200,
+  "video": {
+    "titulo": "título do podcast no estilo investigação (max 60 chars)",
+    "duracao": "X min"
+  },
+  "atividades": {
+    "quiz": [
+      {
+        "pergunta": "pergunta clara, contextualizada, sem pegadinha",
+        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
+        "correta": índice_correto_entre_0_e_3,
+        "explicacao": "explicação que revela o porquê, não só o quê — 1-2 frases instigantes"
+      },
+      {
+        "pergunta": "segunda pergunta — nível ligeiramente maior",
+        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
+        "correta": índice_correto_entre_0_e_3,
+        "explicacao": "explicação com dado curioso ou conexão com o presente"
+      },
+      {
+        "pergunta": "terceira pergunta — conexão com realidade do aluno",
+        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
+        "correta": índice_correto_entre_0_e_3,
+        "explicacao": "explicação que amplia a visão de mundo do aluno"
+      }
+    ],
+    "forca": {
+      "palavra": "PALAVRA_CHAVE_EM_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
+      "dica": "dica que instiga sem entregar — max 60 chars"
+    },
+    "caca": {
+      "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
+    }
+  },
+  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos, começa com situação intrigante, desenvolve o conteúdo com conexões reais, termina com gancho para as atividades. Última frase: 'Missão registrada, Agente!'"
+}
+
+REGRAS INVIOLÁVEIS:
+- Conteúdo 100% alinhado ao currículo municipal de São Paulo
+- Factualmente correto e verificável
+- Palavras da forca: apenas letras maiúsculas A-Z, sem acentos, sem espaços
+- 4 opções no quiz sempre, apenas uma correta
+- Responda APENAS o JSON puro, sem nenhum texto antes ou depois`
+
+    // ── Chamar Claude API ─────────────────────────────────────────
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+
+    let resposta
+    try {
+      const msg = await client.messages.create({
+        model:      'claude-haiku-4-5-20251001',
+        max_tokens: 2500,
+        messages:   [{ role: 'user', content: prompt }],
+      })
+      resposta = msg.content[0].text
+    } catch (err) {
+      console.error('Erro Anthropic:', err.message)
+      throw new HttpsError('internal', 'Erro ao gerar conteúdo.')
+    }
+
+    // ── Parsear e validar JSON ────────────────────────────────────
+    let missao
+    try {
+      const json = resposta.replace(/```json|```/g, '').trim()
+      missao = JSON.parse(json)
+    } catch (err) {
+      console.error('Erro parse JSON:', resposta)
+      throw new HttpsError('internal', 'Resposta inválida da IA.')
+    }
+
+    // Validar estrutura mínima
+    if (
+      !missao.titulo ||
+      !missao.perguntaCentral ||
+      !Array.isArray(missao.atividades?.quiz) ||
+      missao.atividades.quiz.length < 3 ||
+      !missao.atividades?.forca?.palavra ||
+      !missao.roteiroPodcast
+    ) {
+      throw new HttpsError('internal', 'Estrutura da missão incompleta.')
+    }
+
+    // ── Retornar missão completa ──────────────────────────────────
+    return {
+      ok: true,
+      missao: {
+        ...missao,
+        id:           `${disciplina}_${serie}_${bimestre}_${Date.now()}`,
+        disciplina,
+        serie,
+        bimestre,
+        tema:         temaSanitizado,
+        geradaPorIA:  true,
+        desbloqueada: true,
+        criadaEm:     new Date().toISOString(),
+      }
+    }
+  }
+)

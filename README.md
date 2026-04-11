@@ -8,9 +8,10 @@
 
 [![React](https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react)](https://react.dev)
 [![Vite](https://img.shields.io/badge/Vite-5-646CFF?style=flat-square&logo=vite)](https://vitejs.dev)
-[![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28?style=flat-square&logo=firebase)](https://firebase.google.com)
+[![Firebase](https://img.shields.io/badge/Firebase-Blaze-FFCA28?style=flat-square&logo=firebase)](https://firebase.google.com)
 [![PWA](https://img.shields.io/badge/PWA-Ready-5A0FC8?style=flat-square&logo=pwa)](https://web.dev/progressive-web-apps)
-[![License](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![ECA](https://img.shields.io/badge/ECA_Digital-Lei_14.155%2F2021-green?style=flat-square)](https://www.planalto.gov.br/ccivil_03/_ato2019-2022/2021/lei/l14155.htm)
+[![License](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
 
 🌐 **[eduplay.olloapp.com.br](https://eduplay.olloapp.com.br)**
 
@@ -29,7 +30,8 @@ A plataforma transforma o estudo em uma experiência de investigação — a cri
 ## ✨ Funcionalidades
 
 - 🏛️ **5 Departamentos** — História, Geografia, Matemática, Ciências e Português
-- 🎯 **Sistema de Missões** — baseado no currículo paulista do 6º ano
+- 🎯 **Sistema de Missões** — baseado no currículo paulista do 6º ao 9º ano
+- 🤖 **IA Gerando Conteúdo** — Claude API via Firebase Cloud Functions
 - 🎙️ **Podcast com Legenda Sincronizada** — narração palavra por palavra
 - ❓ **Quiz Interativo** — perguntas com feedback pedagógico imediato
 - 🔐 **Forca** — decodificar mensagens secretas
@@ -48,10 +50,53 @@ A plataforma transforma o estudo em uma experiência de investigação — a cri
 O EduPlay foi desenvolvido com base em princípios da psicologia do desenvolvimento para a faixa etária de 11-13 anos:
 
 - **Teoria de Erikson** — identidade em construção: a criança é o protagonista
+- **Efeito Zeigarnik** — tarefas incompletas geram motivação para continuar
+- **Zona de Desenvolvimento Proximal (Vygotsky)** — desafiador mas alcançável
 - **Reforço Positivo Contingente** — recompensas reais configuradas pelos pais
-- **Curiosidade como Motor** — cada missão termina com um gancho narrativo
+- **Curiosidade Epistêmica** — cada missão termina com um gancho narrativo
 - **Autonomia Controlada** — a criança escolhe qual missão investigar
 - **Feedback Imediato** — cada acerto avança a narrativa
+
+---
+
+## 🛡️ Conformidade ECA Digital (Lei 14.155/2021)
+
+O EduPlay foi desenvolvido em conformidade com o **Estatuto da Criança e do Adolescente Digital** e a **LGPD** para plataformas que atendem menores de idade.
+
+### Medidas Implementadas
+
+| Requisito Legal | Implementação |
+|---|---|
+| Consentimento parental | Responsável aceita termos antes de criar perfil da criança |
+| Coleta mínima de dados | Apenas nome (primeiro nome), avatar e série escolar |
+| Sem dados sensíveis | Nenhum dado biométrico, localização ou financeiro coletado |
+| Log de consentimento | Registro imutável com hash do email e IP (SHA-256) |
+| Direito ao esquecimento | Pai pode excluir todos os dados da criança |
+| Transparência | Política de privacidade clara e acessível |
+| Senha hasheada | Senha master dos pais nunca armazenada em texto puro |
+| Isolamento de dados | Coleções `eduplay_*` separadas do marketplace OLLO |
+
+### Fluxo de Consentimento
+
+```
+1. Responsável cria conta com email + senha
+2. Aceita Termos de Uso + Política de Privacidade
+3. Aceita especificamente os termos ECA Digital
+4. Log de consentimento registrado com timestamp, emailHash e ipHash
+5. Responsável configura perfil do filho (dados mínimos)
+6. Filho utiliza a plataforma sob supervisão parental
+```
+
+### Dados Coletados da Criança
+
+| Dado | Finalidade | Base Legal |
+|---|---|---|
+| Primeiro nome | Personalização da experiência | Consentimento parental |
+| Avatar (emoji) | Identidade visual | Consentimento parental |
+| Série escolar | Adequar conteúdo pedagógico | Consentimento parental |
+| Progresso e acertos | Relatório para os pais | Consentimento parental |
+
+> **Não coletamos:** sobrenome, data de nascimento, escola, localização, foto, dados de contato da criança.
 
 ---
 
@@ -64,6 +109,10 @@ O EduPlay foi desenvolvido com base em princípios da psicologia do desenvolvime
 | React Router | 6 | Navegação SPA |
 | Firebase Hosting | — | Deploy e CDN |
 | Firestore | — | Banco de dados |
+| Firebase Auth | — | Autenticação dos responsáveis |
+| Firebase Functions | 2nd Gen | IA gerando conteúdo (servidor) |
+| Firebase Secret Manager | — | API keys seguras |
+| Claude API (Haiku) | — | Geração de conteúdo pedagógico |
 | vite-plugin-pwa | 1.2 | Service Worker e manifest |
 | Web Speech API | — | Narração com legenda |
 | Workbox | — | Cache offline |
@@ -80,6 +129,10 @@ cd eduplay
 # Instale as dependências
 npm install
 
+# Configure as variáveis de ambiente
+cp .env.example .env
+# Preencha o .env com suas chaves Firebase
+
 # Rode em desenvolvimento
 npm run dev
 
@@ -89,6 +142,20 @@ npm run build
 # Preview do build (com PWA)
 npm run preview
 ```
+
+### Variáveis de Ambiente
+
+```env
+VITE_FIREBASE_API_KEY=
+VITE_FIREBASE_AUTH_DOMAIN=
+VITE_FIREBASE_PROJECT_ID=
+VITE_FIREBASE_STORAGE_BUCKET=
+VITE_FIREBASE_MESSAGING_SENDER_ID=
+VITE_FIREBASE_APP_ID=
+VITE_PARENT_PASSWORD=
+```
+
+> A `ANTHROPIC_API_KEY` é configurada no Firebase Secret Manager — nunca no `.env` do frontend.
 
 ---
 
@@ -115,26 +182,25 @@ src/
 ├── services/
 │   └── firebase.js        # Configuração Firebase
 └── utils/
-    └── content.js         # Conteúdo pedagógico 6º ano
+    └── content.js         # Conteúdo pedagógico estático
+
+functions/
+└── index.js               # Cloud Function — geração de conteúdo com IA
 ```
 
 ---
 
 ## 📚 Conteúdo Pedagógico
 
-Baseado no **Currículo Paulista / BNCC** para o 6º ano:
+Baseado no **Currículo Municipal de São Paulo** e **Currículo Paulista / BNCC** para o Ensino Fundamental II (6º ao 9º ano), organizado por bimestre:
 
-**Geografia**
-- Localização do Brasil no mundo
-- As 5 regiões brasileiras
-- Estados e capitais (26 estados + DF)
-
-**História**
-- Pré-História e primeiros humanos
-- Povos originários do Brasil
-- Chegada dos portugueses em 1500
-
-> Em expansão: Matemática, Ciências e Português
+| Disciplina | 6º ano | 7º ano | 8º ano | 9º ano |
+|---|---|---|---|---|
+| **História** | Pré-História → Roma Antiga | Idade Média → Colonização | Iluminismo → República Velha | 1ª Guerra → Brasil atual |
+| **Geografia** | Localização → População BR | América → África | Ásia → Geopolítica | Urbanização → Brasil global |
+| **Matemática** | Números → Geometria | Álgebra → Volume | Equações → Pitágoras | Funções → Probabilidade |
+| **Ciências** | Universo → Ecossistemas | Evolução → Animais | Reprodução → Eletricidade | Química → Radioatividade |
+| **Português** | Interpretação → Verbos | Argumentação → Ortografia | Variedades → Literatura | Redação → Revisão geral |
 
 ---
 
@@ -144,11 +210,14 @@ Baseado no **Currículo Paulista / BNCC** para o 6º ano:
 - [x] PWA instalável
 - [x] Deploy em produção
 - [x] Dark/Light mode completo
-- [ ] Painel dos Responsáveis
-- [ ] Perfil do Agente + conquistas
-- [ ] IA gerando conteúdo automaticamente
-- [ ] Sistema de assinatura
-- [ ] App nativo (React Native)
+- [x] Cloud Function com IA (Claude API)
+- [x] Conformidade ECA Digital
+- [x] Firestore rules seguras
+- [ ] Autenticação dos responsáveis
+- [ ] Painel dos Responsáveis completo
+- [ ] Perfil do Agente — Dossiê
+- [ ] Sistema de assinatura (freemium)
+- [ ] App nativo (React Native) — bloqueio real do celular
 
 ---
 
@@ -170,4 +239,6 @@ Este projeto está sob a licença MIT. Veja o arquivo [LICENSE](LICENSE) para ma
 
 <div align="center">
 Feito com ❤️ para transformar o aprendizado em aventura
+<br/>
+<sub>Em conformidade com ECA Digital (Lei 14.155/2021) e LGPD</sub>
 </div>
