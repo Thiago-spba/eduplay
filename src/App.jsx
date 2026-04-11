@@ -6,6 +6,7 @@ import RegisterPage from "./pages/RegisterPage";
 import HomePage from "./pages/HomePage";
 import SubjectPage from "./pages/SubjectPage";
 import LockScreen from "./components/LockScreen";
+import FooterEduPlay from "./components/FooterEduPlay";
 
 function EmConstrucao({ titulo }) {
   return (
@@ -16,7 +17,7 @@ function EmConstrucao({ titulo }) {
       <h2>{titulo}</h2>
       <p style={{ color: "#7A7A7A", marginBottom: "2rem" }}>Em construção...</p>
       <a href="/" style={{ color: "#00D4AA", fontWeight: 700 }}>
-        ← Voltar ao Início
+        &larr; Voltar ao Início
       </a>
     </div>
   );
@@ -31,21 +32,30 @@ export default function App() {
   if (timer.bloqueado) return <LockScreen timer={timer} lock={lock} />;
 
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={<HomePage playerName={playerName} timer={timer} />}
-      />
-      <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
-      <Route
-        path="/perfil"
-        element={<EmConstrucao titulo="Perfil do Agente" />}
-      />
-      <Route
-        path="/pais"
-        element={<EmConstrucao titulo="Painel dos Responsáveis" />}
-      />
-      <Route path="*" element={<Navigate to="/" />} />
-    </Routes>
+    <div className="flex flex-col min-h-screen">
+      <div className="flex-1 pb-20">
+        {" "}
+        <Routes>
+          <Route
+            path="/"
+            element={<HomePage playerName={playerName} timer={timer} />}
+          />
+          <Route
+            path="/:disciplinaId"
+            element={<SubjectPage timer={timer} />}
+          />
+          <Route
+            path="/perfil"
+            element={<EmConstrucao titulo="Perfil do Agente" />}
+          />
+          <Route
+            path="/pais"
+            element={<EmConstrucao titulo="Painel dos Responsáveis" />}
+          />
+          <Route path="*" element={<Navigate to="/" />} />
+        </Routes>
+      </div>
+      <FooterEduPlay />
+    </div>
   );
 }
