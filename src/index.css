@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:wght@400;500;600;700&display=swap');
+
+/* ── TEMA CLARO ─────────────────────────────────────────────── */
+:root,
+[data-tema="claro"] {
+  --bg-principal:       #F7F5F0;
+  --bg-card:            #FFFFFF;
+  --bg-secundario:      #EDE8DF;
+  --bg-terciario:       #E5E0D5;
+
+  --verde-azulado:      #5A8F8C;
+  --verde-escuro:       #3D6B6A;
+  --verde-claro:        #A8C5C3;
+  --verde-muito-claro:  #D4E5E4;
+
+  --accent:             #D4A574;
+  --accent-claro:       #E8D5C4;
+
+  --text-principal:     #4A4A4A;
+  --text-secundario:    #7A7A7A;
+  --text-muted:         #9A9A9A;
+
+  --borda:              #E5E0D5;
+  --borda-forte:        #A8C5C3;
+
+  --sombra:             0 4px 16px rgba(90,143,140,0.12);
+  --sombra-forte:       0 8px 24px rgba(90,143,140,0.18);
+
+  --danger-bg:          #F5E6E6;
+  --danger-text:        #A65D5D;
+  --danger-borda:       #D4A5A5;
+}
+
+/* ── TEMA ESCURO ─────────────────────────────────────────────── */
+[data-tema="escuro"] {
+  --bg-principal:       #1A1F2E;
+  --bg-card:            #242938;
+  --bg-secundario:      #2D3347;
+  --bg-terciario:       #363D54;
+
+  --verde-azulado:      #6BA8A5;
+  --verde-escuro:       #8ECBC8;
+  --verde-claro:        #4A7A77;
+  --verde-muito-claro:  #2A4A48;
+
+  --accent:             #E8B88A;
+  --accent-claro:       #3D2E22;
+
+  --text-principal:     #E8E6E0;
+  --text-secundario:    #A8A49C;
+  --text-muted:         #6B6760;
+
+  --borda:              #363D54;
+  --borda-forte:        #4A7A77;
+
+  --sombra:             0 4px 16px rgba(0,0,0,0.3);
+  --sombra-forte:       0 8px 24px rgba(0,0,0,0.4);
+
+  --danger-bg:          #2D1F1F;
+  --danger-text:        #E8A0A0;
+  --danger-borda:       #6B3A3A;
+}
+
+/* ── RESET ───────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background: var(--bg-principal);
+  color: var(--text-principal);
+  min-height: 100vh;
+  font-size: 15px;
+  line-height: 1.5;
+  transition: background 0.3s, color 0.3s;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fredoka', sans-serif;
+  font-weight: 600;
+  color: var(--verde-escuro);
+}
+
+button {
+  font-family: 'Nunito', sans-serif;
+  cursor: pointer;
+}
+
+input {
+  font-family: 'Nunito', sans-serif;
+}
+
+/* ── ANIMAÇÕES ───────────────────────────────────────────────── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes flutuar {
+  0%, 100% { transform: translateY(0px); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes pulsar {
+  0%, 100% { transform: scale(1); }
+  50%       { transform: scale(1.05); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes brilho {
+  0%, 100% { opacity: 0.5; }
+  50%       { opacity: 1; }
+}
+
+/* ── SCROLLBAR ───────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-principal); }
+::-webkit-scrollbar-thumb { background: var(--verde-claro); border-radius: 3px; }

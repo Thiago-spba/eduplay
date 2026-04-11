@@ -1,0 +1,14 @@
+node_modules
+dist-eduplay
+.env
+.env.local
+.firebase
+*.log
+
+dist
+dist-edu
+.firebaserc
+firebase-debug.log
+*.local
+.DS_Store
+Thumbs.db
