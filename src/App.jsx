@@ -5,6 +5,8 @@ import { useParentLock } from "./hooks/useParentLock";
 import RegisterPage from "./pages/RegisterPage";
 import HomePage from "./pages/HomePage";
 import SubjectPage from "./pages/SubjectPage";
+import PrivacidadePage from "./pages/PrivacidadePage";
+import TermosPage from "./pages/TermosPage";
 import LockScreen from "./components/LockScreen";
 import FooterEduPlay from "./components/FooterEduPlay";
 
@@ -34,7 +36,6 @@ export default function App() {
   return (
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 pb-20">
-        {" "}
         <Routes>
           <Route
             path="/"
@@ -52,6 +53,8 @@ export default function App() {
             path="/pais"
             element={<EmConstrucao titulo="Painel dos Responsáveis" />}
           />
+          <Route path="/privacidade" element={<PrivacidadePage />} />
+          <Route path="/termos" element={<TermosPage />} />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>
