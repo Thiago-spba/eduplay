@@ -1,0 +1,22 @@
+{
+  "name": "EduPlay — Instituto do Saber",
+  "short_name": "EduPlay",
+  "description": "Plataforma educacional gamificada para o Ensino Fundamental II",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D1820",
+  "theme_color": "#00D4AA",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

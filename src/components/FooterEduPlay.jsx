@@ -1,21 +1,18 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 
 export default function FooterEduPlay() {
   const [aberto, setAberto] = useState(false);
   const { tema } = useTema();
-  const escuro = tema === "escuro";
+  const e = tema === "escuro";
   const Y = new Date().getFullYear();
 
   const cor = {
-    bg: escuro ? "#0D1820" : "#FFFFFF",
-    borda: escuro ? "#1A2B3C" : "#EEF5FF",
-    label: escuro ? "#4A6A7A" : "#A0B8C8",
-    texto: escuro ? "#6B8A9A" : "#7A9AAA",
-    cardBg: escuro ? "#1A2B3C" : "#F0F9FF",
-    cardBorda: escuro ? "#1A3347" : "#EEF5FF",
-    link: escuro ? "#6B8A9A" : "#4A6A7A",
+    bg: e ? "#080f16" : "#F8FAFB",
+    borda: e ? "#1A2B3C" : "#E0EEF5",
+    label: e ? "#4A6A7A" : "#A0B8C8",
+    texto: e ? "#6B8A9A" : "#7A9AAA",
+    link: e ? "#6B8A9A" : "#4A6A7A",
   };
 
   return (
@@ -24,177 +21,121 @@ export default function FooterEduPlay() {
         width: "100%",
         background: cor.bg,
         borderTop: `1px solid ${cor.borda}`,
-        marginBottom: "80px",
-        fontFamily: "sans-serif",
+        fontFamily: "'Nunito', sans-serif",
       }}
     >
-      <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 16px" }}>
-        {/* ── LINHA DE TOGGLE ── */}
+      <div style={{ maxWidth: 900, margin: "0 auto", padding: "0 16px" }}>
+        {/* ── Toggle ── */}
         <button
           onClick={() => setAberto(!aberto)}
           aria-expanded={aberto}
-          aria-label={aberto ? "Recolher rodapé" : "Expandir rodapé"}
+          aria-label={aberto ? "Recolher" : "Expandir"}
           style={{
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            gap: "6px",
+            gap: 6,
             width: "100%",
             padding: "10px 0",
             background: "transparent",
             border: "none",
             cursor: "pointer",
             color: cor.label,
-            fontSize: "11px",
+            fontSize: 11,
             fontWeight: 700,
-            letterSpacing: "1px",
-            transition: "color 0.2s",
+            letterSpacing: 1,
           }}
         >
+          <span style={{ flex: 1, height: 1, background: cor.borda }} />
           <span
             style={{
-              flex: 1,
-              height: "1px",
-              background: cor.borda,
+              whiteSpace: "nowrap",
+              padding: "0 10px",
+              transition: "transform 0.3s",
+              transform: aberto ? "rotate(180deg)" : "rotate(0)",
+              display: "inline-block",
             }}
-          />
-          <span style={{ whiteSpace: "nowrap", padding: "0 10px" }}>
-            {aberto ? "▲" : "▼"}
+          >
+            ▼
           </span>
-          <span
-            style={{
-              flex: 1,
-              height: "1px",
-              background: cor.borda,
-            }}
-          />
+          <span style={{ flex: 1, height: 1, background: cor.borda }} />
         </button>
 
-        {/* ── CONTEÚDO EXPANDIDO ── */}
+        {/* ── Conteúdo expandido — justificado ── */}
         {aberto && (
-          <>
-            {/* Grid de seções */}
+          <div
+            style={{
+              padding: "12px 0 16px",
+              borderTop: `1px solid ${cor.borda}`,
+              animation: "fadeInUp 0.3s ease",
+            }}
+          >
+            {/* Linha 1: Logo à esquerda, links à direita */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
-                gap: "24px",
-                padding: "20px 0",
-                borderTop: `1px solid ${cor.borda}`,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                flexWrap: "wrap",
+                gap: 10,
+                marginBottom: 12,
               }}
             >
-              <div>
-                <p
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <img
+                  src="/icons/icon-192.png"
+                  alt="EduPlay"
+                  width={22}
+                  height={22}
+                  style={{ objectFit: "contain", borderRadius: 5 }}
+                  onError={(ev) => {
+                    ev.target.style.display = "none";
+                  }}
+                />
+                <span
                   style={{
-                    fontSize: "11px",
+                    fontFamily: "'Fredoka', sans-serif",
                     fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "2px",
-                    color: cor.label,
-                    marginBottom: "10px",
+                    fontSize: "0.85rem",
+                    color: "#00C896",
                   }}
                 >
-                  Instituto do Saber
-                </p>
-                <p
-                  style={{
-                    fontSize: "13px",
-                    color: cor.texto,
-                    lineHeight: "1.6",
-                  }}
-                >
-                  Plataforma educacional gamificada para o Ensino Fundamental
-                  II, com equipe pedagógica especializada em TEA e letramento.
-                </p>
+                  EduPlay
+                </span>
               </div>
 
-              <div>
-                <p
+              <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                <a
+                  href="/termos"
                   style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "2px",
-                    color: cor.label,
-                    marginBottom: "10px",
+                    fontSize: 12,
+                    color: cor.link,
+                    textDecoration: "none",
+                    fontWeight: 600,
                   }}
                 >
-                  Navegação
-                </p>
-                {[
-                  { to: "/", label: "Início" },
-                  {
-                    to: "/privacidade",
-                    label: "Privacidade e Proteção Infantil",
-                  },
-                  { to: "/termos", label: "Termos de Uso" },
-                ].map(({ to, label }) => (
-                  <Link
-                    key={to}
-                    to={to}
-                    style={{
-                      display: "block",
-                      fontSize: "13px",
-                      color: cor.texto,
-                      textDecoration: "none",
-                      marginBottom: "8px",
-                    }}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
-
-              <div>
-                <p
+                  Termos de Uso
+                </a>
+                <span style={{ color: cor.borda }}>·</span>
+                <a
+                  href="/privacidade"
                   style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "2px",
-                    color: cor.label,
-                    marginBottom: "10px",
+                    fontSize: 12,
+                    color: cor.link,
+                    textDecoration: "none",
+                    fontWeight: 600,
                   }}
                 >
-                  Conformidade
-                </p>
-                {[
-                  "✅ ECA (Lei 8.069/1990)",
-                  "🔒 LGPD (Lei 13.709/2018)",
-                  "📚 Currículo Paulista",
-                ].map((item) => (
-                  <p
-                    key={item}
-                    style={{
-                      fontSize: "13px",
-                      color: cor.texto,
-                      marginBottom: "6px",
-                    }}
-                  >
-                    {item}
-                  </p>
-                ))}
-              </div>
-
-              <div>
-                <p
-                  style={{
-                    fontSize: "11px",
-                    fontWeight: 700,
-                    textTransform: "uppercase",
-                    letterSpacing: "2px",
-                    color: cor.label,
-                    marginBottom: "10px",
-                  }}
-                >
-                  Contato
-                </p>
+                  Privacidade
+                </a>
+                <span style={{ color: cor.borda }}>·</span>
                 <a
                   href="mailto:contato@olloapp.com.br"
                   style={{
-                    fontSize: "13px",
-                    color: "#00D4AA",
+                    fontSize: 12,
+                    color: "#00C896",
                     textDecoration: "none",
+                    fontWeight: 600,
                   }}
                 >
                   contato@olloapp.com.br
@@ -202,83 +143,59 @@ export default function FooterEduPlay() {
               </div>
             </div>
 
-            {/* Barra inferior com badges + copyright + links */}
+            {/* Linha 2: Selos à esquerda, copyright à direita */}
             <div
               style={{
-                borderTop: `1px solid ${cor.borda}`,
-                padding: "14px 0",
                 display: "flex",
-                flexWrap: "wrap",
                 alignItems: "center",
                 justifyContent: "space-between",
-                gap: "12px",
+                flexWrap: "wrap",
+                gap: 10,
               }}
             >
-              {/* Badges */}
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                <span
-                  style={{
-                    padding: "4px 12px",
-                    background: escuro ? "#0A2A1F" : "#F0FFF8",
-                    border: "1px solid #00D4AA",
-                    borderRadius: "999px",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    color: "#00D4AA",
-                  }}
-                >
-                  ECA 8.069/1990
-                </span>
-                <span
-                  style={{
-                    padding: "4px 12px",
-                    background: escuro ? "#0A1A2F" : "#F0F4FF",
-                    border: "1px solid #4A90E2",
-                    borderRadius: "999px",
-                    fontSize: "10px",
-                    fontWeight: 700,
-                    color: "#4A90E2",
-                  }}
-                >
-                  LGPD
-                </span>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[
+                  { texto: "ECA 8.069/1990", cor: "#00D4AA" },
+                  { texto: "LGPD", cor: "#4A90E2" },
+                  { texto: "Currículo Paulista", cor: "#F59E0B" },
+                ].map((b) => (
+                  <span
+                    key={b.texto}
+                    style={{
+                      padding: "3px 9px",
+                      border: `1px solid ${b.cor}60`,
+                      borderRadius: 99,
+                      fontSize: 10,
+                      fontWeight: 700,
+                      color: b.cor,
+                    }}
+                  >
+                    {b.texto}
+                  </span>
+                ))}
               </div>
 
-              {/* Copyright */}
               <p
-                style={{ fontSize: "12px", color: cor.label, fontWeight: 500 }}
+                style={{
+                  fontSize: 11,
+                  color: cor.label,
+                  fontWeight: 500,
+                  margin: 0,
+                }}
               >
                 © {Y} EduPlay — Instituto do Saber
               </p>
-
-              {/* Links legais (sem botão @) */}
-              <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
-                {[
-                  { to: "/privacidade", label: "Privacidade" },
-                  { to: "/termos", label: "Termos de Uso" },
-                ].map(({ to, label }) => (
-                  <Link
-                    key={to}
-                    to={to}
-                    style={{
-                      padding: "8px 16px",
-                      background: cor.cardBg,
-                      border: `1px solid ${cor.cardBorda}`,
-                      borderRadius: "8px",
-                      fontSize: "12px",
-                      fontWeight: 700,
-                      color: cor.link,
-                      textDecoration: "none",
-                    }}
-                  >
-                    {label}
-                  </Link>
-                ))}
-              </div>
             </div>
-          </>
+          </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(10px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </footer>
   );
 }
