@@ -308,7 +308,7 @@ function PlantaMini() {
 /* ═══════════════════════════════════════════════════════════════
    LANDING PAGE
    ═══════════════════════════════════════════════════════════════ */
-export default function LandingPage({ onComecar }) {
+export default function LandingPage({ onComecar, onResponsavel }) {
   const { tema, alternarTema } = useTema();
   const [publico, setPublico] = useState("estudante");
   const [isMobile, setIsMobile] = useState(false);
@@ -491,7 +491,7 @@ export default function LandingPage({ onComecar }) {
           <TypewriterCreativo frases={FRASES[publico]} cor={cor} tema={tema} />
 
           <button
-            onClick={onComecar}
+            onClick={publico === "estudante" ? onComecar : onResponsavel}
             style={{
               width: "100%",
               padding: "15px",

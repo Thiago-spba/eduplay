@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { usePlayer } from "./hooks/usePlayer";
 import { useTimer } from "./hooks/useTimer";
 import { useParentLock } from "./hooks/useParentLock";
@@ -10,6 +10,7 @@ import LandingPage from "./pages/LandingPage";
 import LockScreen from "./components/LockScreen";
 import FooterEduPlay from "./components/FooterEduPlay";
 import PerfilPage from "./pages/PerfilPage";
+import PaisPage from "./pages/PaisPage";
 import TermosPage from "./pages/TermosPage";
 import PrivacidadePage from "./pages/PrivacidadePage";
 
@@ -36,6 +37,7 @@ export default function App() {
   const timer = useTimer();
   const lock = useParentLock();
   const location = useLocation();
+  const navigate = useNavigate();
 
   /* Estado que controla se o usuário já passou pela Landing */
   const [viaLanding, setViaLanding] = useState(false);
@@ -65,7 +67,7 @@ export default function App() {
 
   /* 1. Sem nome E não veio da landing → mostra LandingPage */
   if (!playerName && !viaLanding) {
-    return <LandingPage onComecar={() => setViaLanding(true)} />;
+    return <LandingPage onComecar={() => setViaLanding(true)} onResponsavel={() => { setViaLanding(true); navigate("/pais"); }} />;
   }
 
   /* 2. Sem nome MAS já passou pela landing → mostra RegisterPage */
@@ -104,7 +106,7 @@ export default function App() {
           />
           <Route
             path="/pais"
-            element={<EmConstrucao titulo="Painel dos Responsáveis" />}
+            element={<PaisPage />}
           />
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>

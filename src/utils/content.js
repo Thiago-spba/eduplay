@@ -21,7 +21,7 @@ export const disciplinas = {
         subtitulo: 'Missão 01 — Localização e Território',
         perguntaCentral: 'Por que o Brasil é tão grande?',
         icone: '🌎',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: 'O Brasil no Mapa-Múndi',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -59,7 +59,7 @@ export const disciplinas = {
         subtitulo: 'Missão 02 — Norte, Sul, Leste, Oeste e Centro',
         perguntaCentral: 'Por que cada região é tão diferente?',
         icone: '🧭',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: 'As Regiões Brasileiras',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -97,7 +97,7 @@ export const disciplinas = {
         subtitulo: 'Missão 03 — Os 26 estados + Distrito Federal',
         perguntaCentral: 'Você conhece todos os estados do Brasil?',
         icone: '📍',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: 'Estados e Capitais do Brasil',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -171,7 +171,7 @@ export const disciplinas = {
         subtitulo: 'Missão 01 — Os primeiros seres humanos',
         perguntaCentral: 'Como viviam os primeiros humanos?',
         icone: '🦴',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: 'Pré-História: Como tudo começou',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -219,7 +219,7 @@ export const disciplinas = {
         subtitulo: 'Missão 02 — Quem estava aqui antes',
         perguntaCentral: 'Quem realmente descobriu o Brasil?',
         icone: '🏹',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: 'Povos Indígenas: Os primeiros brasileiros',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -257,7 +257,7 @@ export const disciplinas = {
         subtitulo: 'Missão 03 — 1500 e o início de tudo',
         perguntaCentral: 'O que mudou com a chegada dos portugueses?',
         icone: '⛵',
-        desbloqueada: true,
+        desbloqueada: false,
         video: {
           titulo: '1500: O dia que o Brasil mudou',
           youtubeId: 'https://www.youtube.com/embed/videoseries?list=PLHz_AreHm4dmGuLII3tsvryMMD7VYh3vJ',
@@ -305,7 +305,7 @@ export const disciplinas = {
     cor: '#6B5EA8',
     corClara: '#E8E4F5',
     corEscura: '#4A3D8C',
-    bloqueada: true,
+    bloqueada: false,
     modulos: [],
   },
 
@@ -317,7 +317,7 @@ export const disciplinas = {
     cor: '#2E8B57',
     corClara: '#D4F0E4',
     corEscura: '#1A5C38',
-    bloqueada: true,
+    bloqueada: false,
     modulos: [],
   },
 
@@ -329,7 +329,7 @@ export const disciplinas = {
     cor: '#C0392B',
     corClara: '#FADBD8',
     corEscura: '#922B21',
-    bloqueada: true,
+    bloqueada: false,
     modulos: [],
   },
 }

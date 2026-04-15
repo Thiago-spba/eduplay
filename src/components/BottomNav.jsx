@@ -6,7 +6,7 @@ const ITENS_NAV = [
   { icon: "📜", label: "Missões", path: "/historia" },
   { icon: "🗺️", label: "Mapa", path: "/geografia" },
   { icon: "🧪", label: "Agente", path: "/perfil" },
-  { icon: "🔒", label: "Base", path: "/pais" },
+  { icon: "👨‍👩‍👦", label: "Painel", path: "/pais" },
 ];
 
 export default function BottomNav() {
