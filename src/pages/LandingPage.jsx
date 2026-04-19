@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import FooterEduPlay from "../components/FooterEduPlay";
 
@@ -306,10 +307,11 @@ function PlantaMini() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   LANDING PAGE
+   LANDING PAGE (Blindada com useNavigate direto)
    ═══════════════════════════════════════════════════════════════ */
 export default function LandingPage({ onComecar, onResponsavel }) {
   const { tema, alternarTema } = useTema();
+  const navigate = useNavigate(); // <-- Injeção de segurança para rotas
   const [publico, setPublico] = useState("estudante");
   const [isMobile, setIsMobile] = useState(false);
 
@@ -330,6 +332,19 @@ export default function LandingPage({ onComecar, onResponsavel }) {
     textoSub: tema === "escuro" ? "#8BAFC0" : "#5A7A8A",
     rodape: tema === "escuro" ? "#4A6A7A" : "#8A9BAA",
     borda: tema === "escuro" ? "#1A2B3C" : "#E0EEF5",
+  };
+
+  // Funções de clique blindadas
+  const handleAcaoBotao = () => {
+    if (publico === "estudante") {
+      // Tenta usar a prop, se falhar ou estiver errada, força a rota
+      if (typeof onComecar === "function") onComecar();
+      else navigate("/register");
+    } else {
+      // Tenta usar a prop, se falhar ou estiver errada, força a rota do Painel
+      if (typeof onResponsavel === "function") onResponsavel();
+      else navigate("/pais");
+    }
   };
 
   return (
@@ -491,7 +506,7 @@ export default function LandingPage({ onComecar, onResponsavel }) {
           <TypewriterCreativo frases={FRASES[publico]} cor={cor} tema={tema} />
 
           <button
-            onClick={publico === "estudante" ? onComecar : onResponsavel}
+            onClick={handleAcaoBotao}
             style={{
               width: "100%",
               padding: "15px",
@@ -505,11 +520,20 @@ export default function LandingPage({ onComecar, onResponsavel }) {
               fontFamily: "'Nunito', sans-serif",
               boxShadow: `0 6px 24px ${cor}40`,
               transition: "all 0.2s",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
             }}
           >
-            {publico === "estudante"
-              ? "Começar minha aventura →"
-              : "Conhecer a plataforma →"}
+            {publico === "estudante" ? (
+              "Começar minha aventura →"
+            ) : (
+              <>
+                <span style={{ fontSize: "1.1rem" }}>🔒</span> Acessar Painel
+                dos Pais →
+              </>
+            )}
           </button>
 
           <p

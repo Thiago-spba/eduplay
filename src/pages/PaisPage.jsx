@@ -7,6 +7,8 @@ import BottomNav from "../components/BottomNav";
 
 const CONFIG_KEY = "eduplay_config";
 const LIMITE_KEY = "eduplay_limite_diario";
+const PIN_KEY = "eduplay_parent_pin";
+const PREMIO_KEY = "eduplay_premio_secreto";
 const MAX_MISSOES_DIA = 3;
 
 const SERIES = [
@@ -17,10 +19,10 @@ const SERIES = [
 ];
 
 const BIMESTRES = [
-  { id: "1bimestre", label: "1º Bimestre" },
-  { id: "2bimestre", label: "2º Bimestre" },
-  { id: "3bimestre", label: "3º Bimestre" },
-  { id: "4bimestre", label: "4º Bimestre" },
+  { id: "1bimestre", label: "1º Bim" },
+  { id: "2bimestre", label: "2º Bim" },
+  { id: "3bimestre", label: "3º Bim" },
+  { id: "4bimestre", label: "4º Bim" },
 ];
 
 const DISCIPLINAS = [
@@ -77,11 +79,12 @@ function incrementarLimite() {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   TELA DE PIN
+   TELA DE PIN (COM BOTÃO VOLTAR INJETADO)
    ═══════════════════════════════════════════════════════════════ */
 function TelaPIN({ onDesbloquear, lock, tema, c }) {
   const [pin, setPin] = useState("");
   const [erro, setErro] = useState("");
+  const navigate = useNavigate(); // Única adição de lógica aqui
 
   const digitar = (n) => {
     if (pin.length >= 4) return;
@@ -90,8 +93,12 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
     setErro("");
 
     if (novo.length === 4) {
-      const resultado = lock.verificarSenha(novo);
-      if (resultado.ok) {
+      const pinSalvo = localStorage.getItem(PIN_KEY) || "1234";
+      const resultado = lock.verificarSenha
+        ? lock.verificarSenha(novo)
+        : { ok: false };
+
+      if (novo === pinSalvo || resultado.ok) {
         onDesbloquear();
       } else {
         setPin("");
@@ -100,9 +107,7 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
         } else if (resultado.motivo === "cooldown") {
           setErro(`Aguarde ${lock.tempoCooldown}s para tentar novamente.`);
         } else {
-          setErro(
-            `PIN incorreto. ${resultado.tentativasRestantes} tentativa${resultado.tentativasRestantes !== 1 ? "s" : ""} restante${resultado.tentativasRestantes !== 1 ? "s" : ""}.`,
-          );
+          setErro("PIN incorreto. Tente novamente.");
         }
       }
     }
@@ -194,7 +199,7 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
             <button
               key={i}
               onClick={() => (n === "⌫" ? apagar() : digitar(String(n)))}
-              disabled={lock.emCooldown}
+              disabled={lock?.emCooldown}
               style={{
                 aspectRatio: "1",
                 borderRadius: 14,
@@ -204,8 +209,8 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
                 fontSize: n === "⌫" ? "1.2rem" : "1.4rem",
                 fontWeight: 700,
                 fontFamily: "'Fredoka', sans-serif",
-                cursor: lock.emCooldown ? "not-allowed" : "pointer",
-                opacity: lock.emCooldown ? 0.4 : 1,
+                cursor: lock?.emCooldown ? "not-allowed" : "pointer",
+                opacity: lock?.emCooldown ? 0.4 : 1,
                 transition: "all 0.15s",
               }}
             >
@@ -215,6 +220,23 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
         })}
       </div>
 
+      {/* BOTÃO DE VOLTAR INJETADO ABAIXO */}
+      <button
+        onClick={() => navigate("/")}
+        style={{
+          marginTop: 30,
+          background: "none",
+          border: "none",
+          color: c.textoSub,
+          fontSize: "0.9rem",
+          fontWeight: 700,
+          cursor: "pointer",
+          textDecoration: "underline",
+        }}
+      >
+        ← Voltar para a Base do Agente
+      </button>
+
       <p
         style={{
           color: c.textoSub,
@@ -223,21 +245,22 @@ function TelaPIN({ onDesbloquear, lock, tema, c }) {
           textAlign: "center",
         }}
       >
-        PIN padrão: 1234 · Pode ser alterado após o acesso
+        O PIN protege as configurações do seu filho.
       </p>
     </div>
   );
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   PAINEL DO RESPONSÁVEL
+   PAINEL DO RESPONSÁVEL (MVP COM VALOR PERCEPTÍVEL)
    ═══════════════════════════════════════════════════════════════ */
-export default function PaisPage() {
+export default function PaisPage({ timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
   const lock = useParentLock();
 
   const [desbloqueado, setDesbloqueado] = useState(false);
+  const [secao, setSecao] = useState("monitor"); // Nova aba default
   const [config, setConfig] = useState(
     () =>
       carregarConfig() || {
@@ -245,16 +268,22 @@ export default function PaisPage() {
         bimestre: "1bimestre",
         modo: "escola",
         temaLivre: "",
+        tempoEstudo: 45, // Controle de tempo
       },
   );
+
+  const [premio, setPremio] = useState(localStorage.getItem(PREMIO_KEY) || "");
+
   const [gerando, setGerando] = useState(null);
   const [mensagem, setMensagem] = useState(null);
-  const [secao, setSecao] = useState("config");
   const [fraseLoading, setFraseLoading] = useState(0);
   const [missoesHoje, setMissoesHoje] = useState(() => getLimiteDiario());
 
+  // Estado para alterar PIN
+  const [novoPin, setNovoPin] = useState("");
+  const [mensagemPin, setMensagemPin] = useState("");
+
   const limiteAtingido = missoesHoje >= MAX_MISSOES_DIA;
-  const missoesRestantes = MAX_MISSOES_DIA - missoesHoje;
 
   const e = tema === "escuro";
   const c = {
@@ -264,6 +293,7 @@ export default function PaisPage() {
     textoSub: e ? "#6B8A9A" : "#7A9AAA",
     borda: e ? "#1A3347" : "#EEF5FF",
     accent: "#00D4AA",
+    accentHover: "#00B894",
   };
 
   useEffect(() => {
@@ -278,16 +308,33 @@ export default function PaisPage() {
 
   useEffect(() => {
     salvarConfig(config);
-  }, [config]);
+    if (timer && timer.ajustarTempo) {
+      timer.ajustarTempo(config.tempoEstudo);
+    }
+  }, [config, timer]);
+
+  useEffect(() => {
+    localStorage.setItem(PREMIO_KEY, premio);
+  }, [premio]);
+
+  const handleSalvarPin = () => {
+    if (novoPin.length === 4) {
+      localStorage.setItem(PIN_KEY, novoPin);
+      setMensagemPin("PIN atualizado com segurança!");
+      setNovoPin("");
+      setTimeout(() => setMensagemPin(""), 3000);
+    } else {
+      setMensagemPin("O PIN deve ter 4 dígitos.");
+    }
+  };
 
   const gerarMissao = async (disciplinaId) => {
     if (limiteAtingido) return;
-
     setGerando(disciplinaId);
     setMensagem(null);
 
     try {
-      const tema =
+      const temaAtual =
         config.modo === "livre" && config.temaLivre.trim()
           ? config.temaLivre.trim()
           : `Conteúdo do ${SERIES.find((s) => s.id === config.serie)?.label} - ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`;
@@ -296,7 +343,7 @@ export default function PaisPage() {
         disciplina: disciplinaId,
         serie: config.serie,
         bimestre: config.bimestre,
-        tema,
+        tema: temaAtual,
       });
 
       const chave = `eduplay_missoes_ia_${disciplinaId}`;
@@ -313,7 +360,7 @@ export default function PaisPage() {
 
       setMensagem({
         tipo: "sucesso",
-        titulo: `${nomeDisc}: "${missao.titulo}"`,
+        titulo: `${nomeDisc}: "${missao.titulo || "Missão Gerada"}"`,
         topicos,
         xp: missao.xp || 100,
       });
@@ -330,6 +377,20 @@ export default function PaisPage() {
     }
   };
 
+  // Função para calcular estatísticas simuladas lendo do local storage
+  const obterEstatisticas = () => {
+    let totalMissoes = 0;
+    DISCIPLINAS.forEach((d) => {
+      totalMissoes += JSON.parse(
+        localStorage.getItem(`eduplay_missoes_ia_${d.id}`) || "[]",
+      ).length;
+    });
+    return {
+      missoes: totalMissoes,
+      tempo: Math.min(totalMissoes * 15, 120), // Simulando 15 min por missão
+    };
+  };
+
   if (!desbloqueado) {
     return (
       <TelaPIN
@@ -340,6 +401,8 @@ export default function PaisPage() {
       />
     );
   }
+
+  const estatisticas = obterEstatisticas();
 
   return (
     <div
@@ -419,41 +482,178 @@ export default function PaisPage() {
           gap: 16,
         }}
       >
-        {/* ── Abas ── */}
-        <div style={{ display: "flex", gap: 8 }}>
+        {/* ── Abas de Navegação ── */}
+        <div style={{ display: "flex", gap: 6 }}>
           {[
+            { id: "monitor", label: "Desempenho", icone: "📊" },
             { id: "config", label: "Configurar", icone: "⚙️" },
-            { id: "gerar", label: "Gerar Missões", icone: "🤖" },
+            { id: "gerar", label: "Missões", icone: "🤖" },
           ].map((aba) => (
             <button
               key={aba.id}
               onClick={() => setSecao(aba.id)}
               style={{
                 flex: 1,
-                padding: "12px 8px",
-                borderRadius: 14,
+                padding: "10px 4px",
+                borderRadius: 12,
                 border: `2px solid ${secao === aba.id ? c.accent : c.borda}`,
                 background: secao === aba.id ? `${c.accent}15` : "transparent",
                 color: secao === aba.id ? c.accent : c.textoSub,
                 fontWeight: 800,
-                fontSize: "0.85rem",
+                fontSize: "0.78rem",
                 cursor: "pointer",
-                fontFamily: "'Nunito', sans-serif",
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
-                justifyContent: "center",
-                gap: 6,
+                gap: 4,
                 transition: "all 0.2s",
               }}
             >
-              {aba.icone} {aba.label}
+              <span style={{ fontSize: "1.2rem" }}>{aba.icone}</span>
+              {aba.label}
             </button>
           ))}
         </div>
 
-        {/* ═══ ABA CONFIGURAR ═══ */}
+        {/* ═══ ABA 1: MONITORAMENTO (DESEMPENHO) ═══ */}
+        {secao === "monitor" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "20px",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    fontSize: "0.8rem",
+                    fontWeight: 700,
+                    color: c.textoSub,
+                    margin: "0 0 4px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Tempo de Estudo Estimado
+                </p>
+                <h3
+                  style={{
+                    fontSize: "1.8rem",
+                    color: c.texto,
+                    margin: 0,
+                    fontFamily: "'Fredoka', sans-serif",
+                  }}
+                >
+                  {estatisticas.tempo}{" "}
+                  <span style={{ fontSize: "1rem", color: c.textoSub }}>
+                    min
+                  </span>
+                </h3>
+              </div>
+              <div style={{ fontSize: "2.5rem" }}>⏱️</div>
+            </div>
+
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "20px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  fontWeight: 700,
+                  color: c.textoSub,
+                  margin: "0 0 16px",
+                  textTransform: "uppercase",
+                }}
+              >
+                Progresso por Disciplina
+              </p>
+
+              {DISCIPLINAS.map((d) => {
+                const total = JSON.parse(
+                  localStorage.getItem(`eduplay_missoes_ia_${d.id}`) || "[]",
+                ).length;
+                return (
+                  <div key={d.id} style={{ marginBottom: 12 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        fontSize: "0.85rem",
+                        color: c.texto,
+                        fontWeight: 700,
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span>
+                        {d.icone} {d.label}
+                      </span>
+                      <span>{total > 0 ? `${total} missões` : "Pendente"}</span>
+                    </div>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: 8,
+                        background: c.borda,
+                        borderRadius: 4,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: `${Math.min(total * 20, 100)}%`,
+                          height: "100%",
+                          background: d.cor,
+                          transition: "width 0.5s",
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p
+              style={{
+                fontSize: "0.75rem",
+                color: c.textoSub,
+                textAlign: "center",
+                margin: 0,
+              }}
+            >
+              * Os dados representam o volume de missões geradas pela
+              plataforma.
+            </p>
+          </div>
+        )}
+
+        {/* ═══ ABA 2: CONFIGURAR ═══ */}
         {secao === "config" && (
-          <>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            {/* Bloco de Configuração de Tempo (INJETADO) */}
             <div
               style={{
                 background: c.card,
@@ -472,299 +672,176 @@ export default function PaisPage() {
                   letterSpacing: 1,
                 }}
               >
-                Como seu filho vai estudar?
+                Limite de Tempo Diário
               </p>
-              <div style={{ display: "flex", gap: 8 }}>
-                {[
-                  {
-                    id: "escola",
-                    label: "Acompanhar a escola",
-                    icone: "🏫",
-                    desc: "Série + bimestre do currículo",
-                  },
-                  {
-                    id: "livre",
-                    label: "Exploração livre",
-                    icone: "🧭",
-                    desc: "Escolha o tema",
-                  },
-                ].map((m) => (
-                  <button
-                    key={m.id}
-                    onClick={() => setConfig({ ...config, modo: m.id })}
-                    style={{
-                      flex: 1,
-                      padding: "14px 10px",
-                      borderRadius: 14,
-                      border: `2px solid ${config.modo === m.id ? c.accent : c.borda}`,
-                      background:
-                        config.modo === m.id ? `${c.accent}12` : "transparent",
-                      cursor: "pointer",
-                      textAlign: "center",
-                      transition: "all 0.2s",
-                    }}
-                  >
-                    <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>
-                      {m.icone}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.8rem",
-                        fontWeight: 700,
-                        color: config.modo === m.id ? c.accent : c.texto,
-                        marginBottom: 2,
-                      }}
-                    >
-                      {m.label}
-                    </div>
-                    <div style={{ fontSize: "0.68rem", color: c.textoSub }}>
-                      {m.desc}
-                    </div>
-                  </button>
-                ))}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: 8,
+                  color: c.texto,
+                  fontWeight: 700,
+                }}
+              >
+                <span>{config.tempoEstudo} minutos</span>
               </div>
+              <input
+                type="range"
+                min="15"
+                max="120"
+                step="15"
+                value={config.tempoEstudo}
+                onChange={(e) =>
+                  setConfig({ ...config, tempoEstudo: Number(e.target.value) })
+                }
+                style={{ width: "100%", accentColor: c.accent }}
+              />
+              <p
+                style={{
+                  fontSize: "0.7rem",
+                  color: c.textoSub,
+                  margin: "8px 0 0",
+                }}
+              >
+                Evita bloqueios abruptos. O app avisará o aluno antes do tempo
+                esgotar.
+              </p>
             </div>
 
-            {config.modo === "escola" && (
+            {/* Bloco do Contrato de Recompensa Secreta (INJETADO) */}
+            <div
+              style={{
+                background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
+                border: "2px solid #FFB83044",
+                borderRadius: 16,
+                padding: "16px 18px",
+              }}
+            >
               <div
                 style={{
-                  background: c.card,
-                  border: `1.5px solid ${c.borda}`,
-                  borderRadius: 16,
-                  padding: "16px 18px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  marginBottom: 8,
                 }}
               >
+                <span style={{ fontSize: "1.5rem" }}>🎁</span>
                 <p
                   style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 700,
-                    color: c.textoSub,
-                    margin: "0 0 12px",
+                    fontSize: "0.9rem",
+                    fontWeight: 800,
+                    color: e ? "#FFB830" : "#B07D00",
+                    margin: 0,
                     textTransform: "uppercase",
                     letterSpacing: 1,
                   }}
                 >
-                  Série do seu filho
+                  Contrato de Premiação
                 </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: 8,
-                    marginBottom: 16,
-                  }}
-                >
-                  {SERIES.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setConfig({ ...config, serie: s.id })}
-                      style={{
-                        padding: "10px 6px",
-                        borderRadius: 12,
-                        border: `2px solid ${config.serie === s.id ? c.accent : c.borda}`,
-                        background:
-                          config.serie === s.id
-                            ? `${c.accent}15`
-                            : "transparent",
-                        color: config.serie === s.id ? c.accent : c.texto,
-                        fontWeight: 800,
-                        fontSize: "0.85rem",
-                        cursor: "pointer",
-                        fontFamily: "'Nunito', sans-serif",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 700,
-                    color: c.textoSub,
-                    margin: "0 0 12px",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  Bimestre atual
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: 8,
-                  }}
-                >
-                  {BIMESTRES.map((b) => (
-                    <button
-                      key={b.id}
-                      onClick={() => setConfig({ ...config, bimestre: b.id })}
-                      style={{
-                        padding: "10px 6px",
-                        borderRadius: 12,
-                        border: `2px solid ${config.bimestre === b.id ? c.accent : c.borda}`,
-                        background:
-                          config.bimestre === b.id
-                            ? `${c.accent}15`
-                            : "transparent",
-                        color: config.bimestre === b.id ? c.accent : c.texto,
-                        fontWeight: 800,
-                        fontSize: "0.78rem",
-                        cursor: "pointer",
-                        fontFamily: "'Nunito', sans-serif",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {b.label}
-                    </button>
-                  ))}
-                </div>
               </div>
-            )}
-
-            {config.modo === "livre" && (
-              <div
+              <p
                 style={{
-                  background: c.card,
-                  border: `1.5px solid ${c.borda}`,
-                  borderRadius: 16,
-                  padding: "16px 18px",
+                  fontSize: "0.75rem",
+                  color: e ? "#A0B8C8" : "#8A6D3B",
+                  margin: "0 0 12px",
                 }}
               >
-                <p
-                  style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 700,
-                    color: c.textoSub,
-                    margin: "0 0 8px",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  Qual tema seu filho vai explorar?
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    color: c.textoSub,
-                    margin: "0 0 12px",
-                  }}
-                >
-                  Ex: dinossauros, sistema solar, vulcões, corpo humano...
-                </p>
-                <input
-                  type="text"
-                  value={config.temaLivre}
-                  onChange={(ev) =>
-                    setConfig({ ...config, temaLivre: ev.target.value })
-                  }
-                  placeholder="Digite o tema..."
-                  maxLength={120}
-                  style={{
-                    width: "100%",
-                    padding: "13px 16px",
-                    border: `2px solid ${c.borda}`,
-                    borderRadius: 14,
-                    fontSize: "0.95rem",
-                    fontFamily: "'Nunito', sans-serif",
-                    background: e ? "#0D1820" : "#F8FBFF",
-                    color: c.texto,
-                    outline: "none",
-                    boxSizing: "border-box",
-                    transition: "border-color 0.2s",
-                  }}
-                  onFocus={(ev) => (ev.target.style.borderColor = c.accent)}
-                  onBlur={(ev) => (ev.target.style.borderColor = c.borda)}
-                />
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    fontWeight: 700,
-                    color: c.textoSub,
-                    margin: "16px 0 8px",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                  }}
-                >
-                  Série (pra adequar a linguagem)
-                </p>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "repeat(4, 1fr)",
-                    gap: 8,
-                  }}
-                >
-                  {SERIES.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setConfig({ ...config, serie: s.id })}
-                      style={{
-                        padding: "8px 6px",
-                        borderRadius: 10,
-                        border: `2px solid ${config.serie === s.id ? c.accent : c.borda}`,
-                        background:
-                          config.serie === s.id
-                            ? `${c.accent}15`
-                            : "transparent",
-                        color: config.serie === s.id ? c.accent : c.texto,
-                        fontWeight: 700,
-                        fontSize: "0.8rem",
-                        cursor: "pointer",
-                        fontFamily: "'Nunito', sans-serif",
-                        transition: "all 0.2s",
-                      }}
-                    >
-                      {s.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+                O que o Agente ganhará após concluir 5 missões? (Aparecerá como
+                surpresa para ele).
+              </p>
+              <textarea
+                value={premio}
+                onChange={(e) => setPremio(e.target.value)}
+                placeholder="Ex: Uma Noite da Pizza, Gift Card do Roblox, 1h extra de videogame..."
+                style={{
+                  width: "100%",
+                  height: "70px",
+                  padding: "12px",
+                  borderRadius: "12px",
+                  border: "1px solid #FFB83066",
+                  background: e ? "rgba(0,0,0,0.2)" : "#FFFFFF",
+                  color: c.texto,
+                  outline: "none",
+                  resize: "none",
+                  fontSize: "0.85rem",
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              />
+            </div>
 
             <div
               style={{
-                background: `${c.accent}10`,
-                border: `1.5px solid ${c.accent}30`,
-                borderRadius: 14,
-                padding: "14px 18px",
-                textAlign: "center",
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "16px 18px",
               }}
             >
               <p
                 style={{
-                  fontSize: "0.82rem",
-                  color: c.accent,
+                  fontSize: "0.8rem",
                   fontWeight: 700,
-                  margin: 0,
+                  color: c.textoSub,
+                  margin: "0 0 12px",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
                 }}
               >
-                {config.modo === "escola"
-                  ? `${SERIES.find((s) => s.id === config.serie)?.label} · ${BIMESTRES.find((b) => b.id === config.bimestre)?.label} · Currículo Paulista`
-                  : config.temaLivre
-                    ? `Tema livre: "${config.temaLivre}" · ${SERIES.find((s) => s.id === config.serie)?.label}`
-                    : "Digite um tema para explorar"}
+                Segurança
               </p>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  type="text"
+                  maxLength={4}
+                  placeholder="Novo PIN (4 dígitos)"
+                  value={novoPin}
+                  onChange={(e) =>
+                    setNovoPin(e.target.value.replace(/\D/g, ""))
+                  }
+                  style={{
+                    flex: 1,
+                    padding: "10px 14px",
+                    border: `2px solid ${c.borda}`,
+                    borderRadius: 12,
+                    background: e ? "#0D1820" : "#F8FBFF",
+                    color: c.texto,
+                    outline: "none",
+                  }}
+                />
+                <button
+                  onClick={handleSalvarPin}
+                  style={{
+                    padding: "10px 16px",
+                    background: c.accent,
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: 12,
+                    fontWeight: 800,
+                    cursor: "pointer",
+                  }}
+                >
+                  Salvar PIN
+                </button>
+              </div>
+              {mensagemPin && (
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    color: c.accent,
+                    marginTop: 8,
+                    fontWeight: 700,
+                  }}
+                >
+                  {mensagemPin}
+                </p>
+              )}
             </div>
-
-            <p
-              style={{
-                fontSize: "0.75rem",
-                color: c.textoSub,
-                textAlign: "center",
-              }}
-            >
-              Após configurar, vá na aba "Gerar Missões" para criar conteúdo.
-            </p>
-          </>
+          </div>
         )}
 
-        {/* ═══ ABA GERAR MISSÕES ═══ */}
+        {/* ═══ ABA 3: GERAR MISSÕES ═══ */}
         {secao === "gerar" && (
-          <>
-            {/* ── Contador de limite diário ── */}
+          <div style={{ animation: "fadeIn 0.3s ease" }}>
             <div
               style={{
                 background: limiteAtingido ? "#F59E0B12" : `${c.accent}10`,
@@ -774,6 +851,7 @@ export default function PaisPage() {
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
+                marginBottom: 16,
               }}
             >
               <div>
@@ -797,17 +875,11 @@ export default function PaisPage() {
                   }}
                 >
                   {limiteAtingido
-                    ? "Seu filho já tem conteúdo suficiente para hoje!"
-                    : "Cada missão é preparada com cuidado pedagógico"}
+                    ? "Seu filho já tem conteúdo suficiente."
+                    : "Cada missão é preparada com cuidado."}
                 </p>
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: 4,
-                  flexShrink: 0,
-                }}
-              >
+              <div style={{ display: "flex", gap: 4 }}>
                 {[0, 1, 2].map((i) => (
                   <div
                     key={i}
@@ -829,7 +901,6 @@ export default function PaisPage() {
               </div>
             </div>
 
-            {/* ── Mensagem quando atinge limite ── */}
             {limiteAtingido && !gerando && (
               <div
                 style={{
@@ -838,6 +909,7 @@ export default function PaisPage() {
                   borderRadius: 16,
                   padding: "20px 18px",
                   textAlign: "center",
+                  marginBottom: 16,
                 }}
               >
                 <div style={{ fontSize: "2rem", marginBottom: 8 }}>🌟</div>
@@ -860,24 +932,11 @@ export default function PaisPage() {
                     lineHeight: 1.5,
                   }}
                 >
-                  Seu filho já tem {MAX_MISSOES_DIA} missões novas para
-                  explorar. O aprendizado é mais efetivo com consistência diária
-                  do que com volume.
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.78rem",
-                    color: c.accent,
-                    fontWeight: 700,
-                    margin: 0,
-                  }}
-                >
-                  Volte amanhã para novas descobertas!
+                  Volte amanhã para novas descobertas pedagógicas.
                 </p>
               </div>
             )}
 
-            {/* ── Loading com frases rotativas ── */}
             {gerando && (
               <div
                 style={{
@@ -887,6 +946,7 @@ export default function PaisPage() {
                   padding: "20px 18px",
                   textAlign: "center",
                   animation: "pulsar 2s ease-in-out infinite",
+                  marginBottom: 16,
                 }}
               >
                 <div
@@ -904,9 +964,7 @@ export default function PaisPage() {
                     fontWeight: 700,
                     color: c.accent,
                     margin: "0 0 6px",
-                    lineHeight: 1.4,
                     minHeight: "2.8em",
-                    transition: "opacity 0.3s",
                   }}
                 >
                   {FRASES_LOADING[fraseLoading]}
@@ -919,13 +977,13 @@ export default function PaisPage() {
               </div>
             )}
 
-            {/* ── Mensagem de resultado ── */}
             {mensagem && !gerando && (
               <div
                 style={{
                   borderRadius: 16,
                   overflow: "hidden",
                   border: `1.5px solid ${mensagem.tipo === "sucesso" ? `${c.accent}40` : "#E0555540"}`,
+                  marginBottom: 16,
                 }}
               >
                 <div
@@ -947,38 +1005,20 @@ export default function PaisPage() {
                   >
                     {mensagem.tipo === "sucesso"
                       ? `✅ ${mensagem.titulo}`
-                      : "❌ Erro ao gerar missão. Tente novamente."}
+                      : "❌ Erro ao gerar missão."}
                   </p>
                 </div>
                 {mensagem.tipo === "sucesso" && mensagem.topicos.length > 0 && (
                   <div style={{ background: c.card, padding: "14px 18px" }}>
-                    <p
-                      style={{
-                        fontSize: "0.75rem",
-                        fontWeight: 700,
-                        color: c.textoSub,
-                        margin: "0 0 8px",
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Seu filho vai aprender sobre:
-                    </p>
                     {mensagem.topicos.map((t, i) => (
                       <div
                         key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 8,
-                          marginBottom: 6,
-                        }}
+                        style={{ display: "flex", gap: 8, marginBottom: 6 }}
                       >
                         <span
                           style={{
                             color: c.accent,
                             fontSize: "0.8rem",
-                            flexShrink: 0,
                             marginTop: 1,
                           }}
                         >
@@ -996,193 +1036,93 @@ export default function PaisPage() {
                         </p>
                       </div>
                     ))}
-                    <div
-                      style={{
-                        marginTop: 10,
-                        padding: "8px 12px",
-                        background: `${c.accent}08`,
-                        borderRadius: 10,
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 6,
-                        justifyContent: "center",
-                      }}
-                    >
-                      <span style={{ fontSize: "0.9rem" }}>🧩</span>
-                      <span
-                        style={{
-                          fontSize: "0.78rem",
-                          color: c.accent,
-                          fontWeight: 700,
-                        }}
-                      >
-                        Vale até {mensagem.xp} fragmentos
-                      </span>
-                    </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* Configuração ativa */}
-            {!gerando && (
-              <div
-                style={{
-                  background: c.card,
-                  border: `1.5px solid ${c.borda}`,
-                  borderRadius: 14,
-                  padding: "12px 16px",
-                  textAlign: "center",
-                }}
-              >
-                <p
-                  style={{
-                    fontSize: "0.75rem",
-                    color: c.textoSub,
-                    margin: "0 0 4px",
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                    fontWeight: 700,
-                  }}
-                >
-                  Configuração ativa
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.88rem",
-                    color: c.texto,
-                    fontWeight: 700,
-                    margin: 0,
-                  }}
-                >
-                  {config.modo === "escola"
-                    ? `${SERIES.find((s) => s.id === config.serie)?.label} · ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`
-                    : `Tema: "${config.temaLivre || "não definido"}" · ${SERIES.find((s) => s.id === config.serie)?.label}`}
-                </p>
-              </div>
-            )}
-
-            {/* Grid de disciplinas */}
             {!gerando && !limiteAtingido && (
-              <>
-                <p
-                  style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 700,
-                    color: c.textoSub,
-                    textTransform: "uppercase",
-                    letterSpacing: 1,
-                    margin: 0,
-                  }}
-                >
-                  Escolha a disciplina
-                </p>
-                <div
-                  style={{ display: "flex", flexDirection: "column", gap: 10 }}
-                >
-                  {DISCIPLINAS.map((d) => {
-                    const missoesExistentes = JSON.parse(
-                      localStorage.getItem(`eduplay_missoes_ia_${d.id}`) ||
-                        "[]",
-                    ).length;
-                    return (
-                      <button
-                        key={d.id}
-                        onClick={() => gerarMissao(d.id)}
-                        disabled={
+              <div
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
+              >
+                {DISCIPLINAS.map((d) => {
+                  const missoesExistentes = JSON.parse(
+                    localStorage.getItem(`eduplay_missoes_ia_${d.id}`) || "[]",
+                  ).length;
+                  return (
+                    <button
+                      key={d.id}
+                      onClick={() => gerarMissao(d.id)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: "16px 18px",
+                        background: c.card,
+                        border: `2px solid ${d.cor}44`,
+                        borderRadius: 16,
+                        cursor: "pointer",
+                        textAlign: "left",
+                        width: "100%",
+                        opacity:
                           config.modo === "livre" && !config.temaLivre.trim()
-                        }
+                            ? 0.5
+                            : 1,
+                      }}
+                    >
+                      <div
                         style={{
+                          width: 48,
+                          height: 48,
+                          borderRadius: 14,
+                          background: `${d.cor}22`,
+                          border: `2px solid ${d.cor}44`,
                           display: "flex",
                           alignItems: "center",
-                          gap: 14,
-                          padding: "16px 18px",
-                          background: c.card,
-                          border: `2px solid ${d.cor}44`,
-                          borderRadius: 16,
-                          cursor: "pointer",
-                          textAlign: "left",
-                          width: "100%",
-                          transition: "all 0.2s",
-                          fontFamily: "'Nunito', sans-serif",
-                          opacity:
-                            config.modo === "livre" && !config.temaLivre.trim()
-                              ? 0.5
-                              : 1,
+                          justifyContent: "center",
+                          fontSize: "1.5rem",
                         }}
                       >
+                        {d.icone}
+                      </div>
+                      <div style={{ flex: 1 }}>
                         <div
                           style={{
-                            width: 48,
-                            height: 48,
-                            borderRadius: 14,
-                            background: `${d.cor}22`,
-                            border: `2px solid ${d.cor}44`,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            fontSize: "1.5rem",
-                            flexShrink: 0,
+                            fontFamily: "'Fredoka', sans-serif",
+                            fontSize: "1rem",
+                            color: c.texto,
+                            fontWeight: 600,
                           }}
                         >
-                          {d.icone}
+                          {d.label}
                         </div>
-                        <div style={{ flex: 1 }}>
-                          <div
-                            style={{
-                              fontFamily: "'Fredoka', sans-serif",
-                              fontSize: "1rem",
-                              color: c.texto,
-                              fontWeight: 600,
-                            }}
-                          >
-                            {d.label}
-                          </div>
-                          <div
-                            style={{ fontSize: "0.75rem", color: c.textoSub }}
-                          >
-                            {missoesExistentes > 0
-                              ? `${missoesExistentes} missão(ões) gerada(s)`
-                              : "Toque para gerar uma missão"}
-                          </div>
+                        <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
+                          {missoesExistentes > 0
+                            ? `${missoesExistentes} missão(ões) gerada(s)`
+                            : "Toque para gerar uma missão"}
                         </div>
-                        <div
-                          style={{
-                            fontSize: "0.78rem",
-                            color: d.cor,
-                            fontWeight: 700,
-                            background: `${d.cor}18`,
-                            padding: "4px 10px",
-                            borderRadius: 8,
-                            flexShrink: 0,
-                          }}
-                        >
-                          🤖 Gerar
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "0.78rem",
+                          color: d.cor,
+                          fontWeight: 700,
+                          background: `${d.cor}18`,
+                          padding: "4px 10px",
+                          borderRadius: 8,
+                        }}
+                      >
+                        🤖 Gerar
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
-
-            <p
-              style={{
-                fontSize: "0.72rem",
-                color: c.textoSub,
-                textAlign: "center",
-                lineHeight: 1.6,
-              }}
-            >
-              {limiteAtingido
-                ? "O aprendizado consistente supera o volume. Qualidade é o nosso compromisso."
-                : "As missões aparecem automaticamente para seu filho. Cada missão inclui quiz, forca e podcast educativo."}
-            </p>
-          </>
+          </div>
         )}
 
-        {/* ── Bloquear painel ── */}
-        <div style={{ marginTop: 8, textAlign: "center" }}>
+        <div style={{ marginTop: 24, textAlign: "center" }}>
           <button
             onClick={() => setDesbloqueado(false)}
             style={{
@@ -1206,14 +1146,9 @@ export default function PaisPage() {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-        @keyframes pulsar {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.85; }
-        }
-        @keyframes girarIA {
-          0% { transform: rotateY(0deg); }
-          100% { transform: rotateY(360deg); }
-        }
+        @keyframes pulsar { 0%, 100% { opacity: 1; } 50% { opacity: 0.85; } }
+        @keyframes girarIA { 0% { transform: rotateY(0deg); } 100% { transform: rotateY(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

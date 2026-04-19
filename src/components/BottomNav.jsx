@@ -3,8 +3,8 @@ import { useTema } from "../context/ThemeContext";
 
 const ITENS_NAV = [
   { icon: "🏠", label: "Início", path: "/" },
-  { icon: "📜", label: "Missões", path: "/historia" },
-  { icon: "🗺️", label: "Mapa", path: "/geografia" },
+  { icon: "🏆", label: "Conquistas", path: "/conquistas" },
+  { icon: "🗺️", label: "Mapa", path: "/mapa" },
   { icon: "🧪", label: "Agente", path: "/perfil" },
   { icon: "👨‍👩‍👦", label: "Painel", path: "/pais" },
 ];
@@ -40,6 +40,7 @@ export default function BottomNav() {
       }}
     >
       {ITENS_NAV.map((item) => {
+        // Verifica se a rota atual é exatamente a do botão, ou se estamos dentro de uma subpágina correspondente
         const ativo = location.pathname === item.path;
 
         return (

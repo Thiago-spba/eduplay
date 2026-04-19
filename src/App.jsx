@@ -1,35 +1,35 @@
 import { useState } from "react";
-import { Routes, Route, Navigate, useLocation, useNavigate } from "react-router-dom";
+import {
+  Routes,
+  Route,
+  Navigate,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
+
+// ── 1. IMPORTAÇÕES DE SEGURANÇA E ESTADO ──
 import { usePlayer } from "./hooks/usePlayer";
 import { useTimer } from "./hooks/useTimer";
 import { useParentLock } from "./hooks/useParentLock";
+
+// ── 2. IMPORTAÇÕES DAS PÁGINAS ──
 import RegisterPage from "./pages/RegisterPage";
 import HomePage from "./pages/HomePage";
 import SubjectPage from "./pages/SubjectPage";
 import LandingPage from "./pages/LandingPage";
-import LockScreen from "./components/LockScreen";
-import FooterEduPlay from "./components/FooterEduPlay";
 import PerfilPage from "./pages/PerfilPage";
 import PaisPage from "./pages/PaisPage";
 import TermosPage from "./pages/TermosPage";
 import PrivacidadePage from "./pages/PrivacidadePage";
 
-function EmConstrucao({ titulo }) {
-  return (
-    <div
-      style={{ padding: "2rem", textAlign: "center", fontFamily: "sans-serif" }}
-    >
-      <div style={{ fontSize: "3rem", marginBottom: "1rem" }}>🚧</div>
-      <h2>{titulo}</h2>
-      <p style={{ color: "#7A7A7A", marginBottom: "2rem" }}>Em construção...</p>
-      <a href="/" style={{ color: "#00D4AA", fontWeight: 700 }}>
-        &larr; Voltar ao Início
-      </a>
-    </div>
-  );
-}
+// IMPORTANDO AS NOVAS PÁGINAS REAIS (FUNDAMENTAL)
+import ConquistasPage from "./pages/ConquistasPage";
+import MapaPage from "./pages/MapaPage";
 
-/* ── Rotas públicas: acessíveis SEM login ── */
+// ── 3. COMPONENTES GLOBAIS ──
+import LockScreen from "./components/LockScreen";
+import FooterEduPlay from "./components/FooterEduPlay";
+
 const ROTAS_PUBLICAS = ["/termos", "/privacidade"];
 
 export default function App() {
@@ -39,11 +39,13 @@ export default function App() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  /* Estado que controla se o usuário já passou pela Landing */
   const [viaLanding, setViaLanding] = useState(false);
 
-  /* ── Se a URL é uma rota pública, renderiza direto (sem guard) ── */
-  if (ROTAS_PUBLICAS.includes(location.pathname)) {
+  const isRotaPublica = ROTAS_PUBLICAS.includes(location.pathname);
+  const isRotaPais = location.pathname === "/pais";
+
+  // ── FLUXO PÚBLICO ──
+  if (isRotaPublica) {
     return (
       <div
         style={{
@@ -63,15 +65,30 @@ export default function App() {
     );
   }
 
-  /* ── Fluxo de onboarding ── */
-
-  /* 1. Sem nome E não veio da landing → mostra LandingPage */
-  if (!playerName && !viaLanding) {
-    return <LandingPage onComecar={() => setViaLanding(true)} onResponsavel={() => { setViaLanding(true); navigate("/pais"); }} />;
+  // ── FLUXO DO RESPONSÁVEL ──
+  if (isRotaPais) {
+    return (
+      <div className="flex flex-col min-h-screen">
+        <div className="flex-1 pb-20">
+          <Routes>
+            <Route path="/pais" element={<PaisPage timer={timer} />} />
+          </Routes>
+        </div>
+        <FooterEduPlay />
+      </div>
+    );
   }
 
-  /* 2. Sem nome MAS já passou pela landing → mostra RegisterPage */
-  if (!playerName && viaLanding) {
+  // ── FLUXO DE LOGIN/REGISTRO ──
+  if (!playerName) {
+    if (!viaLanding) {
+      return (
+        <LandingPage
+          onComecar={() => setViaLanding(true)}
+          onResponsavel={() => navigate("/pais")}
+        />
+      );
+    }
     return (
       <RegisterPage
         onRegister={saveName}
@@ -80,12 +97,12 @@ export default function App() {
     );
   }
 
-  /* 3. Timer bloqueou → LockScreen */
+  // ── CONTROLE DE TEMPO ──
   if (timer.bloqueado) {
     return <LockScreen timer={timer} lock={lock} />;
   }
 
-  /* 4. Logado → app normal com rotas + footer */
+  // ── FLUXO PRINCIPAL DO AGENTE ──
   return (
     <div className="flex flex-col min-h-screen">
       <div className="flex-1 pb-20">
@@ -94,20 +111,24 @@ export default function App() {
             path="/"
             element={<HomePage playerName={playerName} timer={timer} />}
           />
-          <Route
-            path="/:disciplinaId"
-            element={<SubjectPage timer={timer} />}
-          />
+
           <Route
             path="/perfil"
             element={
               <PerfilPage playerName={playerName} clearName={clearName} />
             }
           />
+
+          {/* AGORA APONTANDO PARA AS PÁGINAS REAIS */}
+          <Route path="/conquistas" element={<ConquistasPage />} />
+          <Route path="/mapa" element={<MapaPage />} />
+
+          {/* Rota das Disciplinas */}
           <Route
-            path="/pais"
-            element={<PaisPage />}
+            path="/:disciplinaId"
+            element={<SubjectPage timer={timer} />}
           />
+
           <Route path="*" element={<Navigate to="/" />} />
         </Routes>
       </div>

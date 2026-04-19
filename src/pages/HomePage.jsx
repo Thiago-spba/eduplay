@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useTema } from "../context/ThemeContext";
 import { disciplinas, ordemDisciplinas, niveis } from "../utils/content";
 import BottomNav from "../components/BottomNav";
@@ -8,12 +8,30 @@ export default function HomePage({ playerName, timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
 
+  // Estado para armazenar quantas missões (Arquivos de IA) cada departamento tem
+  const [contagemMissoes, setContagemMissoes] = useState({});
+
   useEffect(() => {
     if (!timer.rodando && !timer.bloqueado) timer.iniciar();
+
+    // Vasculha o localStorage para ver quantas missões reais existem por disciplina
+    const novaContagem = {};
+    ordemDisciplinas.forEach((id) => {
+      try {
+        const salvas = JSON.parse(
+          localStorage.getItem(`eduplay_missoes_ia_${id}`) || "[]",
+        );
+        novaContagem[id] = salvas.length;
+      } catch {
+        novaContagem[id] = 0;
+      }
+    });
+    setContagemMissoes(novaContagem);
   }, []);
 
   const xpTotal = parseInt(localStorage.getItem("eduplay_xp") || "0");
-  const nivelAtual = niveis.filter((n) => xpTotal >= n.xpNecessario).pop();
+  const nivelAtual =
+    niveis.filter((n) => xpTotal >= n.xpNecessario).pop() || niveis[0];
   const proximoNivel = niveis.find((n) => n.xpNecessario > xpTotal);
   const percentualNivel = proximoNivel
     ? Math.round(
@@ -24,14 +42,14 @@ export default function HomePage({ playerName, timer }) {
     : 100;
 
   const c = {
-    bg: tema === "escuro" ? "#0F1923" : "#F0F7FF",
-    card: tema === "escuro" ? "#1A2B3C" : "#FFFFFF",
-    card2: tema === "escuro" ? "#1E3347" : "#F8FBFF",
-    texto: tema === "escuro" ? "#E8F4F8" : "#1A2B3C",
-    textoSub: tema === "escuro" ? "#8BAFC0" : "#5A7A8A",
-    borda: tema === "escuro" ? "#2A3F52" : "#E0EEF5",
+    bg: tema === "escuro" ? "#0D141C" : "#F0F4F8",
+    card: tema === "escuro" ? "#1A2633" : "#FFFFFF",
+    card2: tema === "escuro" ? "#121C26" : "#F8FAFC",
+    texto: tema === "escuro" ? "#E2E8F0" : "#1E293B",
+    textoSub: tema === "escuro" ? "#94A3B8" : "#64748B",
+    borda: tema === "escuro" ? "#2D3D50" : "#E2E8F0",
+    header: tema === "escuro" ? "#0F172A" : "#FFFFFF",
     accent: "#00D4AA",
-    header: tema === "escuro" ? "#0D1820" : "#FFFFFF",
   };
 
   return (
@@ -44,7 +62,7 @@ export default function HomePage({ playerName, timer }) {
         transition: "all 0.3s",
       }}
     >
-      {/* HEADER */}
+      {/* HEADER TÁTICO */}
       <header
         style={{
           background: c.header,
@@ -56,21 +74,21 @@ export default function HomePage({ playerName, timer }) {
           position: "sticky",
           top: 0,
           zIndex: 100,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.08)",
+          boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
           <div
             style={{
-              width: "36px",
-              height: "36px",
+              width: "38px",
+              height: "38px",
               background: "linear-gradient(135deg, #00D4AA, #0099FF)",
-              borderRadius: "10px",
+              borderRadius: "12px",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               fontSize: "1.2rem",
-              boxShadow: "0 2px 8px rgba(0,212,170,0.4)",
+              boxShadow: "0 2px 8px rgba(0,212,170,0.3)",
             }}
           >
             🔬
@@ -82,7 +100,7 @@ export default function HomePage({ playerName, timer }) {
                 fontWeight: 700,
                 fontSize: "1.1rem",
                 color: c.texto,
-                lineHeight: 1,
+                lineHeight: 1.1,
               }}
             >
               Instituto do Saber
@@ -91,7 +109,7 @@ export default function HomePage({ playerName, timer }) {
               style={{
                 fontSize: "0.65rem",
                 color: c.accent,
-                fontWeight: 700,
+                fontWeight: 800,
                 letterSpacing: "1px",
                 textTransform: "uppercase",
               }}
@@ -100,19 +118,20 @@ export default function HomePage({ playerName, timer }) {
             </div>
           </div>
         </div>
+
         <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
           <div
             style={{
-              background: timer.alertaProximo ? "#FF6B6B22" : `${c.accent}22`,
+              background: timer.alertaProximo ? "#FF6B6B15" : `${c.accent}15`,
               color: timer.alertaProximo ? "#FF6B6B" : c.accent,
               padding: "6px 12px",
-              borderRadius: "20px",
+              borderRadius: "12px",
               fontSize: "0.8rem",
-              fontWeight: 700,
-              border: `2px solid ${timer.alertaProximo ? "#FF6B6B" : c.accent}`,
+              fontWeight: 800,
+              border: `1.5px solid ${timer.alertaProximo ? "#FF6B6B" : c.accent}`,
               display: "flex",
               alignItems: "center",
-              gap: "5px",
+              gap: "6px",
             }}
           >
             {timer.alertaProximo ? "⚠️" : "⏱️"} {timer.tempoFormatado}
@@ -123,13 +142,14 @@ export default function HomePage({ playerName, timer }) {
               width: "36px",
               height: "36px",
               background: c.card2,
-              border: `2px solid ${c.borda}`,
+              border: `1.5px solid ${c.borda}`,
               borderRadius: "10px",
               fontSize: "1.1rem",
               cursor: "pointer",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              transition: "0.2s",
             }}
           >
             {tema === "escuro" ? "☀️" : "🌙"}
@@ -137,26 +157,30 @@ export default function HomePage({ playerName, timer }) {
         </div>
       </header>
 
-      <main style={{ padding: "16px", maxWidth: "480px", margin: "0 auto" }}>
-        {/* CARD AGENTE */}
+      <main
+        style={{ padding: "20px 16px", maxWidth: "600px", margin: "0 auto" }}
+      >
+        {/* CARD DO AGENTE (PERFIL E PROGRESSO) */}
         <div
           style={{
             background: `linear-gradient(135deg, ${tema === "escuro" ? "#0D2137" : "#E8F7FF"}, ${tema === "escuro" ? "#1A3A52" : "#F0FFF8"})`,
-            borderRadius: "20px",
-            padding: "20px",
-            marginBottom: "16px",
+            borderRadius: "24px",
+            padding: "24px",
+            marginBottom: "24px",
             border: `2px solid ${c.accent}33`,
             position: "relative",
             overflow: "hidden",
+            boxShadow: `0 8px 24px rgba(0, 212, 170, 0.08)`,
           }}
         >
           <div
             style={{
               position: "absolute",
-              right: "-20px",
-              top: "-20px",
-              fontSize: "6rem",
-              opacity: 0.06,
+              right: "-10px",
+              top: "-10px",
+              fontSize: "8rem",
+              opacity: 0.04,
+              pointerEvents: "none",
             }}
           >
             🔬
@@ -173,34 +197,55 @@ export default function HomePage({ playerName, timer }) {
                 style={{
                   fontSize: "0.7rem",
                   color: c.accent,
-                  fontWeight: 700,
-                  letterSpacing: "1px",
+                  fontWeight: 800,
+                  letterSpacing: "1.5px",
                   textTransform: "uppercase",
                   marginBottom: "4px",
+                  background: `${c.accent}22`,
+                  display: "inline-block",
+                  padding: "4px 8px",
+                  borderRadius: "8px",
                 }}
               >
-                🪪 Credencial Ativa
+                🪪 CREDENCIAL ATIVA
               </div>
               <h2
                 style={{
                   fontFamily: "'Fredoka', sans-serif",
-                  fontSize: "1.5rem",
+                  fontSize: "1.8rem",
                   color: c.texto,
-                  marginBottom: "2px",
+                  margin: "8px 0 2px",
                 }}
               >
-                Agente {playerName}
+                Agente {playerName || "Desconhecido"}
               </h2>
-              <div style={{ fontSize: "0.85rem", color: c.textoSub }}>
+              <div
+                style={{
+                  fontSize: "0.9rem",
+                  color: c.textoSub,
+                  fontWeight: 600,
+                }}
+              >
                 {nivelAtual.titulo}
               </div>
             </div>
-            <div style={{ textAlign: "right" }}>
+
+            <div
+              style={{
+                textAlign: "right",
+                background: c.card,
+                padding: "10px 16px",
+                borderRadius: "16px",
+                border: `1.5px solid ${c.accent}44`,
+              }}
+            >
               <div
                 style={{
                   fontSize: "0.7rem",
                   color: c.textoSub,
                   marginBottom: "2px",
+                  fontWeight: 700,
+                  textTransform: "uppercase",
                 }}
               >
                 🧩 Fragmentos
@@ -208,37 +253,51 @@ export default function HomePage({ playerName, timer }) {
               <div
                 style={{
                   fontFamily: "'Fredoka', sans-serif",
-                  fontSize: "1.4rem",
+                  fontSize: "1.6rem",
                   color: c.accent,
-                  fontWeight: 700,
+                  fontWeight: 800,
+                  lineHeight: 1,
                 }}
               >
                 {xpTotal}
               </div>
             </div>
           </div>
-          <div style={{ marginTop: "14px" }}>
+
+          <div style={{ marginTop: "24px" }}>
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "6px",
+                marginBottom: "8px",
               }}
             >
-              <span style={{ fontSize: "0.75rem", color: c.textoSub }}>
+              <span
+                style={{
+                  fontSize: "0.8rem",
+                  color: c.textoSub,
+                  fontWeight: 700,
+                }}
+              >
                 Nível {nivelAtual.nivel}
               </span>
               {proximoNivel && (
-                <span style={{ fontSize: "0.75rem", color: c.textoSub }}>
-                  Próximo: {proximoNivel.xpNecessario} fragmentos
+                <span
+                  style={{
+                    fontSize: "0.8rem",
+                    color: c.textoSub,
+                    fontWeight: 700,
+                  }}
+                >
+                  Próximo: {proximoNivel.xpNecessario} 🧩
                 </span>
               )}
             </div>
             <div
               style={{
-                height: "8px",
+                height: "10px",
                 background: c.borda,
-                borderRadius: "4px",
+                borderRadius: "5px",
                 overflow: "hidden",
               }}
             >
@@ -247,16 +306,17 @@ export default function HomePage({ playerName, timer }) {
                   height: "100%",
                   width: `${percentualNivel}%`,
                   background: "linear-gradient(90deg, #00D4AA, #0099FF)",
-                  borderRadius: "4px",
+                  borderRadius: "5px",
                   transition: "width 1s ease",
                   boxShadow: "0 0 8px rgba(0,212,170,0.5)",
                 }}
               />
             </div>
           </div>
+
           <div
             style={{
-              marginTop: "10px",
+              marginTop: "16px",
               height: "4px",
               background: c.borda,
               borderRadius: "2px",
@@ -274,16 +334,22 @@ export default function HomePage({ playerName, timer }) {
             />
           </div>
           <div
-            style={{ fontSize: "0.7rem", color: c.textoSub, marginTop: "4px" }}
+            style={{
+              fontSize: "0.75rem",
+              color: c.textoSub,
+              marginTop: "6px",
+              fontWeight: 600,
+              textAlign: "center",
+            }}
           >
             {timer.percentual}% do tempo de pesquisa restante
           </div>
         </div>
 
-        {/* DEPARTAMENTOS */}
+        {/* LISTA DE DEPARTAMENTOS */}
         <div
           style={{
-            marginBottom: "10px",
+            marginBottom: "12px",
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
@@ -292,13 +358,23 @@ export default function HomePage({ playerName, timer }) {
           <h3
             style={{
               fontFamily: "'Fredoka', sans-serif",
-              fontSize: "1rem",
+              fontSize: "1.1rem",
               color: c.texto,
+              display: "flex",
+              alignItems: "center",
+              gap: "8px",
             }}
           >
             🏛️ Departamentos
           </h3>
-          <span style={{ fontSize: "0.75rem", color: c.textoSub }}>
+          <span
+            style={{
+              fontSize: "0.75rem",
+              color: c.textoSub,
+              fontWeight: 700,
+              textTransform: "uppercase",
+            }}
+          >
             Escolha sua missão
           </span>
         </div>
@@ -307,14 +383,13 @@ export default function HomePage({ playerName, timer }) {
           style={{
             display: "flex",
             flexDirection: "column",
-            gap: "10px",
-            marginBottom: "16px",
+            gap: "12px",
+            marginBottom: "24px",
           }}
         >
           {ordemDisciplinas.map((id) => {
             const d = disciplinas[id];
-            const missoesConcluidas = 0;
-            const totalMissoes = d.modulos.length;
+            const qtdMissoes = contagemMissoes[id] || 0;
 
             return (
               <button
@@ -323,123 +398,98 @@ export default function HomePage({ playerName, timer }) {
                 style={{
                   background: c.card,
                   border: `2px solid ${d.bloqueada ? c.borda : d.cor + "44"}`,
-                  borderRadius: "16px",
-                  padding: "14px 16px",
+                  borderRadius: "20px",
+                  padding: "16px",
                   display: "flex",
                   alignItems: "center",
-                  gap: "14px",
+                  gap: "16px",
                   cursor: d.bloqueada ? "not-allowed" : "pointer",
-                  opacity: d.bloqueada ? 0.5 : 1,
+                  opacity: d.bloqueada ? 0.6 : 1,
                   transition: "all 0.2s",
                   textAlign: "left",
                   width: "100%",
-                  position: "relative",
-                  overflow: "hidden",
+                  boxShadow: d.bloqueada
+                    ? "none"
+                    : `0 4px 12px rgba(0,0,0,0.03)`,
                 }}
                 onMouseEnter={(e) => {
-                  if (!d.bloqueada)
-                    e.currentTarget.style.transform = "translateX(4px)";
+                  if (!d.bloqueada) {
+                    e.currentTarget.style.transform = "translateY(-3px)";
+                    e.currentTarget.style.borderColor = d.cor;
+                  }
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateX(0)";
+                  e.currentTarget.style.transform = "translateY(0)";
+                  e.currentTarget.style.borderColor = d.bloqueada
+                    ? c.borda
+                    : d.cor + "44";
                 }}
               >
                 <div
                   style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: "4px",
-                    background: d.bloqueada ? c.borda : d.cor,
-                    borderRadius: "16px 0 0 16px",
-                  }}
-                />
-                <div
-                  style={{
-                    width: "46px",
-                    height: "46px",
+                    width: "54px",
+                    height: "54px",
                     background: d.bloqueada ? c.borda : d.cor + "22",
                     borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    fontSize: "1.5rem",
+                    fontSize: "1.8rem",
                     flexShrink: 0,
                     border: `2px solid ${d.bloqueada ? c.borda : d.cor + "44"}`,
                   }}
                 >
                   {d.bloqueada ? "🔒" : d.icone}
                 </div>
+
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      display: "flex",
-                      justifyContent: "space-between",
-                      alignItems: "center",
-                      marginBottom: "2px",
+                      fontFamily: "'Fredoka', sans-serif",
+                      fontSize: "1.1rem",
+                      color: c.texto,
+                      fontWeight: 600,
+                      marginBottom: "4px",
                     }}
                   >
-                    <div
-                      style={{
-                        fontFamily: "'Fredoka', sans-serif",
-                        fontSize: "0.95rem",
-                        color: c.texto,
-                        fontWeight: 600,
-                      }}
-                    >
-                      {d.depto}
-                    </div>
-                    {!d.bloqueada && totalMissoes > 0 && (
-                      <div
-                        style={{
-                          fontSize: "0.7rem",
-                          color: d.cor,
-                          fontWeight: 700,
-                          background: d.cor + "22",
-                          padding: "2px 8px",
-                          borderRadius: "10px",
-                        }}
-                      >
-                        {missoesConcluidas}/{totalMissoes}
-                      </div>
-                    )}
+                    {d.depto}
                   </div>
                   <div
                     style={{
-                      fontSize: "0.78rem",
+                      fontSize: "0.8rem",
                       color: c.textoSub,
-                      marginBottom:
-                        d.bloqueada || totalMissoes === 0 ? 0 : "8px",
+                      marginBottom: "6px",
                     }}
                   >
-                    {d.bloqueada ? "Em breve..." : d.missao}
+                    {d.bloqueada ? "Acesso Restrito..." : d.missao}
                   </div>
-                  {!d.bloqueada && totalMissoes > 0 && (
+
+                  {/* Status Dinâmico de Missões da IA (Substitui o antigo 0/3) */}
+                  {!d.bloqueada && (
                     <div
                       style={{
-                        height: "3px",
-                        background: c.borda,
-                        borderRadius: "2px",
-                        overflow: "hidden",
+                        display: "inline-block",
+                        fontSize: "0.7rem",
+                        color: qtdMissoes > 0 ? d.cor : c.textoSub,
+                        fontWeight: 800,
+                        background: qtdMissoes > 0 ? d.cor + "15" : c.borda,
+                        padding: "4px 10px",
+                        borderRadius: "8px",
+                        letterSpacing: "0.5px",
                       }}
                     >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: `${(missoesConcluidas / totalMissoes) * 100}%`,
-                          background: d.cor,
-                          borderRadius: "2px",
-                        }}
-                      />
+                      {qtdMissoes > 0
+                        ? `📂 ${qtdMissoes} ARQUIVO(S) ATIVO(S)`
+                        : "📡 INEXPLORADO"}
                     </div>
                   )}
                 </div>
+
                 {!d.bloqueada && (
                   <div
                     style={{
                       color: c.textoSub,
-                      fontSize: "1.2rem",
+                      fontSize: "1.5rem",
                       flexShrink: 0,
                     }}
                   >
@@ -451,41 +501,46 @@ export default function HomePage({ playerName, timer }) {
           })}
         </div>
 
-        {/* MISSÃO DO DIA */}
+        {/* MISSÃO DO DIA BÔNUS */}
         <div
           style={{
             background: `linear-gradient(135deg, ${tema === "escuro" ? "#1A1A2E" : "#FFF8E8"}, ${tema === "escuro" ? "#2D1B4E" : "#FFF0D4"})`,
-            borderRadius: "16px",
-            padding: "16px",
+            borderRadius: "20px",
+            padding: "20px",
             border: "2px solid #FFB83044",
+            display: "flex",
+            alignItems: "center",
+            gap: "16px",
           }}
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <div style={{ fontSize: "2rem" }}>🎯</div>
-            <div>
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: "#FFB830",
-                  fontWeight: 700,
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                }}
-              >
-                Missão do Dia
-              </div>
-              <div
-                style={{
-                  fontFamily: "'Fredoka', sans-serif",
-                  fontSize: "1rem",
-                  color: c.texto,
-                }}
-              >
-                Complete 1 atividade hoje
-              </div>
-              <div style={{ fontSize: "0.78rem", color: c.textoSub }}>
-                Recompensa: +50 fragmentos bônus 🧩
-              </div>
+          <div style={{ fontSize: "2.5rem" }}>🎯</div>
+          <div>
+            <div
+              style={{
+                fontSize: "0.75rem",
+                color: "#FFB830",
+                fontWeight: 800,
+                letterSpacing: "1px",
+                textTransform: "uppercase",
+                marginBottom: "4px",
+              }}
+            >
+              Missão do Dia
+            </div>
+            <div
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "1.1rem",
+                color: c.texto,
+                marginBottom: "2px",
+              }}
+            >
+              Escanear 1 Novo Setor
+            </div>
+            <div
+              style={{ fontSize: "0.8rem", color: c.textoSub, fontWeight: 600 }}
+            >
+              Recompensa: +50 fragmentos bônus 🧩
             </div>
           </div>
         </div>
@@ -494,7 +549,7 @@ export default function HomePage({ playerName, timer }) {
       <BottomNav />
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap');
       `}</style>
     </div>
   );

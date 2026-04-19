@@ -1,9 +1,35 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import { disciplinas } from "../utils/content";
+import { gerarMissaoIA } from "../services/ia";
 import BottomNav from "../components/BottomNav";
 import AudioLesson from "../components/AudioLesson";
+
+const LIMITE_KEY = "eduplay_limite_diario";
+const CONFIG_KEY = "eduplay_config";
+const MAX_MISSOES_DIA = 3;
+
+/* ── Utilitários de Limite Diário ── */
+function getLimiteDiario() {
+  try {
+    const salvo = JSON.parse(localStorage.getItem(LIMITE_KEY) || "{}");
+    const hoje = new Date().toISOString().slice(0, 10);
+    if (salvo.data === hoje) return salvo.count || 0;
+    return 0;
+  } catch {
+    return 0;
+  }
+}
+
+function incrementarLimite() {
+  const hoje = new Date().toISOString().slice(0, 10);
+  const atual = getLimiteDiario();
+  localStorage.setItem(
+    LIMITE_KEY,
+    JSON.stringify({ data: hoje, count: atual + 1 }),
+  );
+}
 
 function useCores(tema) {
   return {
@@ -120,6 +146,15 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
   const [sel, setSel] = useState(null);
   const [acertos, setAcertos] = useState(0);
   const [resp, setResp] = useState(false);
+
+  if (!perguntas || perguntas.length === 0) {
+    return (
+      <div style={{ padding: 20, color: c.texto, textAlign: "center" }}>
+        Nenhum interrogatório disponível.
+      </div>
+    );
+  }
+
   const q = perguntas[indice];
 
   const responder = (i) => {
@@ -303,6 +338,14 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
 }
 
 function Forca({ dados, onConcluir, cor, c }) {
+  if (!dados || !dados.palavra) {
+    return (
+      <div style={{ padding: 20, color: c.texto, textAlign: "center" }}>
+        Nenhum código para decifrar.
+      </div>
+    );
+  }
+
   const { palavra, dica } = dados;
   const [letras, setLetras] = useState(new Set());
   const [erros, setErros] = useState(0);
@@ -316,6 +359,7 @@ function Forca({ dados, onConcluir, cor, c }) {
     "  +---+\n  |   |\n  O   |\n /|\\  |\n /    |\n      |\n=========",
     "  +---+\n  |   |\n  O   |\n /|\\  |\n / \\  |\n      |\n=========",
   ];
+
   const display = palavra
     .split("")
     .map((l) => (letras.has(l) ? l : "_"))
@@ -660,13 +704,28 @@ export default function SubjectPage({ timer }) {
   const { tema, alternarTema } = useTema();
   const c = useCores(tema);
 
-  const [moduloAtivo, setModulo] = useState(null);
+  const [moduloAtivo, setModuloAtivo] = useState(null);
   const [atividade, setAtividade] = useState(null);
   const [resultado, setResultado] = useState(null);
 
-  const disciplina = disciplinas[disciplinaId];
+  const [missoesLocais, setMissoesLocais] = useState([]);
+  const [gerando, setGerando] = useState(false);
+  const [limiteAtingido, setLimiteAtingido] = useState(
+    () => getLimiteDiario() >= MAX_MISSOES_DIA,
+  );
 
-  if (!disciplina) {
+  const disciplinaBase = disciplinas[disciplinaId];
+
+  useEffect(() => {
+    if (disciplinaId) {
+      const salvas = JSON.parse(
+        localStorage.getItem(`eduplay_missoes_ia_${disciplinaId}`) || "[]",
+      );
+      setMissoesLocais(salvas);
+    }
+  }, [disciplinaId]);
+
+  if (!disciplinaBase) {
     return (
       <div
         style={{
@@ -699,18 +758,62 @@ export default function SubjectPage({ timer }) {
     );
   }
 
-  const cor = disciplina.cor;
-  const modulo = disciplina.modulos.find((m) => m.id === moduloAtivo);
+  const cor = disciplinaBase.cor;
+  const moduloSelecionado =
+    moduloAtivo !== null ? missoesLocais[moduloAtivo] : null;
+
+  const handleGerarNovaMissao = async () => {
+    if (getLimiteDiario() >= MAX_MISSOES_DIA) {
+      setLimiteAtingido(true);
+      return;
+    }
+
+    setGerando(true);
+    try {
+      const configSalva = JSON.parse(localStorage.getItem(CONFIG_KEY)) || {
+        serie: "6ano",
+        bimestre: "1bimestre",
+        modo: "escola",
+      };
+
+      const novaMissao = await gerarMissaoIA({
+        disciplina: disciplinaId,
+        serie: configSalva.serie,
+        bimestre: configSalva.bimestre,
+        tema:
+          configSalva.modo === "livre"
+            ? configSalva.temaLivre
+            : `Conteúdo do ${configSalva.serie}`,
+      });
+
+      const novaLista = [...missoesLocais, novaMissao];
+      setMissoesLocais(novaLista);
+      localStorage.setItem(
+        `eduplay_missoes_ia_${disciplinaId}`,
+        JSON.stringify(novaLista),
+      );
+      incrementarLimite();
+
+      if (getLimiteDiario() >= MAX_MISSOES_DIA) setLimiteAtingido(true);
+    } catch (error) {
+      console.error("Falha ao escanear setor:", error);
+      alert("Comunicação com a Base falhou. Tente novamente em breve.");
+    } finally {
+      setGerando(false);
+    }
+  };
 
   const concluir = (acertos, total) => {
-    const frags = Math.round((acertos / total) * (modulo?.xp || 100));
+    const frags = Math.round(
+      (acertos / total) * (moduloSelecionado?.xp || 100),
+    );
     const atual = parseInt(localStorage.getItem("eduplay_xp") || "0");
     localStorage.setItem("eduplay_xp", atual + frags);
     setResultado({ acertos, total, frags });
     setAtividade(null);
   };
 
-  // ── Resultado ──
+  // ── RESULTADO ──
   if (resultado) {
     return (
       <div
@@ -723,7 +826,7 @@ export default function SubjectPage({ timer }) {
       >
         <PageHeader
           titulo="Resultado da Missão"
-          subtitulo={modulo?.subtitulo}
+          subtitulo={moduloSelecionado?.titulo}
           cor={cor}
           onVoltar={() => setResultado(null)}
           tema={tema}
@@ -736,7 +839,7 @@ export default function SubjectPage({ timer }) {
           fragmentos={resultado.frags}
           onVoltar={() => {
             setResultado(null);
-            setModulo(null);
+            setModuloAtivo(null);
           }}
           cor={cor}
           c={c}
@@ -746,8 +849,8 @@ export default function SubjectPage({ timer }) {
     );
   }
 
-  // ── Atividade ──
-  if (atividade && atividade !== "audio" && modulo) {
+  // ── ATIVIDADE (QUIZ/FORCA) ──
+  if (atividade && atividade !== "audio" && moduloSelecionado) {
     return (
       <div
         style={{
@@ -761,7 +864,7 @@ export default function SubjectPage({ timer }) {
           titulo={
             atividade === "quiz" ? "❓ Interrogatório" : "🔐 Decifrar Mensagem"
           }
-          subtitulo={modulo.titulo}
+          subtitulo={moduloSelecionado.titulo}
           cor={cor}
           onVoltar={() => setAtividade(null)}
           tema={tema}
@@ -770,7 +873,7 @@ export default function SubjectPage({ timer }) {
         />
         {atividade === "quiz" && (
           <Quiz
-            perguntas={modulo.atividades.quiz}
+            perguntas={moduloSelecionado.atividades?.quiz}
             onConcluir={concluir}
             cor={cor}
             c={c}
@@ -778,7 +881,7 @@ export default function SubjectPage({ timer }) {
         )}
         {atividade === "forca" && (
           <Forca
-            dados={modulo.atividades.forca}
+            dados={moduloSelecionado.atividades?.forca}
             onConcluir={concluir}
             cor={cor}
             c={c}
@@ -789,8 +892,8 @@ export default function SubjectPage({ timer }) {
     );
   }
 
-  // ── Módulo aberto ──
-  if (moduloAtivo && modulo) {
+  // ── TELA DE DETALHES DO MÓDULO ABERTO ──
+  if (moduloAtivo !== null && moduloSelecionado) {
     return (
       <div
         style={{
@@ -800,7 +903,6 @@ export default function SubjectPage({ timer }) {
           transition: "all 0.3s",
         }}
       >
-        {/* Podcast overlay */}
         {atividade === "audio" && (
           <AudioLesson
             disciplinaId={disciplinaId}
@@ -811,12 +913,11 @@ export default function SubjectPage({ timer }) {
             alternarTema={alternarTema}
           />
         )}
-
         <PageHeader
-          titulo={modulo.titulo}
-          subtitulo={modulo.subtitulo}
+          titulo={moduloSelecionado.titulo}
+          subtitulo="Arquivo Confidencial"
           cor={cor}
-          onVoltar={() => setModulo(null)}
+          onVoltar={() => setModuloAtivo(null)}
           tema={tema}
           c={c}
           alternarTema={alternarTema}
@@ -829,7 +930,7 @@ export default function SubjectPage({ timer }) {
             margin: "0 auto",
           }}
         >
-          {/* Pergunta central */}
+          {/* Pergunta Central Restaurada */}
           <div
             style={{
               background: `linear-gradient(135deg, ${cor}22, ${cor}08)`,
@@ -846,7 +947,7 @@ export default function SubjectPage({ timer }) {
                 marginBottom: "8px",
               }}
             >
-              {modulo.icone}
+              {disciplinaBase.icone}
             </div>
             <div
               style={{
@@ -858,7 +959,7 @@ export default function SubjectPage({ timer }) {
                 marginBottom: "8px",
               }}
             >
-              🔍 Pergunta Central
+              🔍 Alvo da Investigação
             </div>
             <div
               style={{
@@ -868,86 +969,89 @@ export default function SubjectPage({ timer }) {
                 lineHeight: 1.4,
               }}
             >
-              {modulo.perguntaCentral}
+              {moduloSelecionado.perguntaCentral ||
+                "Explore os segredos deste setor para concluir a missão."}
             </div>
           </div>
 
-          {/* Podcast */}
-          <div style={{ marginBottom: "16px" }}>
-            <div
-              style={{
-                fontSize: "clamp(0.72rem, 1.5vw, 0.8rem)",
-                color: c.textoSub,
-                fontWeight: 700,
-                marginBottom: "8px",
-                textTransform: "uppercase",
-                letterSpacing: "1px",
-              }}
-            >
-              🎙️ Podcast do Instituto
-            </div>
-            <button
-              onClick={() => setAtividade("audio")}
-              style={{
-                width: "100%",
-                background: tema === "escuro" ? "#0D1F30" : "#1A2B3C22",
-                borderRadius: "16px",
-                padding: "clamp(14px, 3vw, 20px)",
-                border: `2px solid ${cor}44`,
-                display: "flex",
-                alignItems: "center",
-                gap: "clamp(12px, 2.5vw, 20px)",
-                cursor: "pointer",
-                textAlign: "left",
-                transition: "all 0.2s",
-              }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.border = `2px solid ${cor}99`)
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.border = `2px solid ${cor}44`)
-              }
-            >
+          {/* Podcast Restaurado */}
+          {moduloSelecionado.video && (
+            <div style={{ marginBottom: "16px" }}>
               <div
                 style={{
-                  width: "clamp(48px, 10vw, 64px)",
-                  height: "clamp(48px, 10vw, 64px)",
-                  flexShrink: 0,
-                  background: `${cor}33`,
-                  borderRadius: "50%",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "clamp(1.3rem, 3vw, 1.8rem)",
-                  border: `2px solid ${cor}55`,
+                  fontSize: "clamp(0.72rem, 1.5vw, 0.8rem)",
+                  color: c.textoSub,
+                  fontWeight: 700,
+                  marginBottom: "8px",
+                  textTransform: "uppercase",
+                  letterSpacing: "1px",
                 }}
               >
-                🎙️
+                🎙️ Transmissão de Áudio
               </div>
-              <div>
+              <button
+                onClick={() => setAtividade("audio")}
+                style={{
+                  width: "100%",
+                  background: tema === "escuro" ? "#0D1F30" : "#1A2B3C22",
+                  borderRadius: "16px",
+                  padding: "clamp(14px, 3vw, 20px)",
+                  border: `2px solid ${cor}44`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "clamp(12px, 2.5vw, 20px)",
+                  cursor: "pointer",
+                  textAlign: "left",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) =>
+                  (e.currentTarget.style.border = `2px solid ${cor}99`)
+                }
+                onMouseLeave={(e) =>
+                  (e.currentTarget.style.border = `2px solid ${cor}44`)
+                }
+              >
                 <div
                   style={{
-                    color: c.texto,
-                    fontFamily: "'Fredoka', sans-serif",
-                    fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
-                    marginBottom: "4px",
+                    width: "clamp(48px, 10vw, 64px)",
+                    height: "clamp(48px, 10vw, 64px)",
+                    flexShrink: 0,
+                    background: `${cor}33`,
+                    borderRadius: "50%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "clamp(1.3rem, 3vw, 1.8rem)",
+                    border: `2px solid ${cor}55`,
                   }}
                 >
-                  {modulo.video.titulo}
+                  🎙️
                 </div>
-                <div
-                  style={{
-                    color: c.textoSub,
-                    fontSize: "clamp(0.75rem, 1.5vw, 0.85rem)",
-                  }}
-                >
-                  com legenda sincronizada
+                <div>
+                  <div
+                    style={{
+                      color: c.texto,
+                      fontFamily: "'Fredoka', sans-serif",
+                      fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
+                      marginBottom: "4px",
+                    }}
+                  >
+                    {moduloSelecionado.video.titulo || "Relatório Tático"}
+                  </div>
+                  <div
+                    style={{
+                      color: c.textoSub,
+                      fontSize: "clamp(0.75rem, 1.5vw, 0.85rem)",
+                    }}
+                  >
+                    Ouça as instruções da base
+                  </div>
                 </div>
-              </div>
-            </button>
-          </div>
+              </button>
+            </div>
+          )}
 
-          {/* Atividades */}
+          {/* Botões de Quiz e Forca Restaurados */}
           <div
             style={{
               fontSize: "clamp(0.72rem, 1.5vw, 0.8rem)",
@@ -958,7 +1062,7 @@ export default function SubjectPage({ timer }) {
               letterSpacing: "1px",
             }}
           >
-            🎯 Atividades da Missão
+            🎯 Tarefas de Campo
           </div>
           <div
             style={{
@@ -973,14 +1077,14 @@ export default function SubjectPage({ timer }) {
                 id: "quiz",
                 icone: "❓",
                 titulo: "Interrogatório",
-                sub: `${modulo.atividades.quiz.length} perguntas`,
+                sub: "Teste de Lógica",
                 clr: "#0099FF",
               },
               {
                 id: "forca",
                 icone: "🔐",
-                titulo: "Decifrar Mensagem",
-                sub: "Adivinhe a palavra",
+                titulo: "Decodificar",
+                sub: "Adivinhe a senha",
                 clr: "#FFB830",
               },
             ].map((at) => (
@@ -1052,7 +1156,9 @@ export default function SubjectPage({ timer }) {
               }}
             >
               🧩 Esta missão vale até{" "}
-              <strong style={{ color: cor }}>{modulo.xp} fragmentos</strong>
+              <strong style={{ color: cor }}>
+                {moduloSelecionado.xp || 100} fragmentos
+              </strong>
             </span>
           </div>
         </main>
@@ -1061,7 +1167,7 @@ export default function SubjectPage({ timer }) {
     );
   }
 
-  // ── Lista de Missões ──
+  // ── LISTA PRINCIPAL HÍBRIDA (GRID NO PC, LISTA NO CELULAR) ──
   return (
     <div
       style={{
@@ -1090,7 +1196,7 @@ export default function SubjectPage({ timer }) {
         >
           <div
             style={{
-              maxWidth: "640px",
+              maxWidth: "1200px",
               margin: "0 auto",
               display: "flex",
               alignItems: "center",
@@ -1130,7 +1236,7 @@ export default function SubjectPage({ timer }) {
                 border: `2px solid ${cor}44`,
               }}
             >
-              {disciplina.icone}
+              {disciplinaBase.icone}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div
@@ -1141,7 +1247,7 @@ export default function SubjectPage({ timer }) {
                   fontWeight: 700,
                 }}
               >
-                {disciplina.depto}
+                {disciplinaBase.depto}
               </div>
               <div
                 style={{
@@ -1150,7 +1256,7 @@ export default function SubjectPage({ timer }) {
                   fontWeight: 700,
                 }}
               >
-                {disciplina.missao}
+                {disciplinaBase.missao}
               </div>
             </div>
             <button
@@ -1177,152 +1283,246 @@ export default function SubjectPage({ timer }) {
 
       <main
         style={{
-          padding: "clamp(12px, 3vw, 20px)",
-          maxWidth: "640px",
+          padding: "clamp(16px, 4vw, 32px) clamp(16px, 4vw, 24px)",
+          maxWidth: "1200px",
           margin: "0 auto",
         }}
       >
         <div
           style={{
-            fontSize: "clamp(0.72rem, 1.5vw, 0.8rem)",
+            fontSize: "0.85rem",
             color: c.textoSub,
-            fontWeight: 700,
-            marginBottom: "12px",
+            fontWeight: 800,
+            marginBottom: "16px",
             textTransform: "uppercase",
             letterSpacing: "1px",
           }}
         >
-          📋 {disciplina.modulos.length} missões disponíveis
+          📋 QUADRO DE INVESTIGAÇÃO
         </div>
+
+        {/* Este é o Grid Híbrido: Adapta-se ao Celular e ao Computador */}
         <div
           style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "clamp(10px, 2vw, 14px)",
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
+            gap: "16px",
           }}
         >
-          {disciplina.modulos.map((m, idx) => (
+          {missoesLocais.map((m, idx) => (
             <button
-              key={m.id}
-              onClick={() => m.desbloqueada && setModulo(m.id)}
+              key={idx}
+              onClick={() => setModuloAtivo(idx)}
               style={{
                 background: c.card,
-                border: `2px solid ${m.desbloqueada ? cor + "44" : c.borda}`,
-                borderRadius: "18px",
-                padding: "clamp(14px, 3vw, 20px)",
-                display: "flex",
-                alignItems: "center",
-                gap: "clamp(12px, 2.5vw, 18px)",
-                cursor: m.desbloqueada ? "pointer" : "not-allowed",
-                opacity: m.desbloqueada ? 1 : 0.5,
+                border: `2px solid ${c.borda}`,
+                borderRadius: "20px",
+                padding: "20px",
+                cursor: "pointer",
                 textAlign: "left",
                 width: "100%",
+                boxShadow: `0 4px 12px rgba(0,0,0,0.04)`,
                 transition: "all 0.2s",
-                boxShadow: m.desbloqueada ? `0 2px 12px ${cor}18` : "none",
+                position: "relative",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "space-between",
+                minHeight: "180px",
               }}
               onMouseEnter={(e) => {
-                if (m.desbloqueada) {
-                  e.currentTarget.style.transform = "translateY(-2px)";
-                  e.currentTarget.style.boxShadow = `0 6px 20px ${cor}30`;
-                }
+                e.currentTarget.style.transform = "translateY(-4px)";
+                e.currentTarget.style.borderColor = cor;
               }}
               onMouseLeave={(e) => {
                 e.currentTarget.style.transform = "translateY(0)";
-                e.currentTarget.style.boxShadow = m.desbloqueada
-                  ? `0 2px 12px ${cor}18`
-                  : "none";
+                e.currentTarget.style.borderColor = c.borda;
               }}
             >
-              <div
-                style={{
-                  width: "clamp(48px, 10vw, 62px)",
-                  height: "clamp(48px, 10vw, 62px)",
-                  flexShrink: 0,
-                  background: m.desbloqueada ? `${cor}22` : c.borda,
-                  borderRadius: "16px",
-                  border: `2px solid ${m.desbloqueada ? cor + "44" : c.borda}`,
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "clamp(1.4rem, 3.5vw, 1.8rem)",
-                }}
-              >
-                {m.desbloqueada ? m.icone : "🔒"}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div>
                 <div
                   style={{
-                    fontSize: "clamp(0.65rem, 1.3vw, 0.72rem)",
-                    color: cor,
-                    fontWeight: 700,
-                    letterSpacing: "1px",
-                    textTransform: "uppercase",
-                    marginBottom: "3px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginBottom: "12px",
                   }}
                 >
-                  Missão {String(idx + 1).padStart(2, "0")}
+                  <div
+                    style={{
+                      width: "42px",
+                      height: "42px",
+                      background: `${cor}15`,
+                      borderRadius: "12px",
+                      border: `2px solid ${cor}44`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.3rem",
+                    }}
+                  >
+                    {disciplinaBase.icone}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.7rem",
+                      color: cor,
+                      fontWeight: 800,
+                      letterSpacing: "1px",
+                      textTransform: "uppercase",
+                      background: `${cor}15`,
+                      padding: "4px 8px",
+                      borderRadius: "8px",
+                    }}
+                  >
+                    ARQUIVO #{String(idx + 1).padStart(2, "0")}
+                  </div>
                 </div>
+
                 <div
                   style={{
                     fontFamily: "'Fredoka', sans-serif",
-                    fontSize: "clamp(0.95rem, 2vw, 1.1rem)",
+                    fontSize: "1.1rem",
                     color: c.texto,
-                    marginBottom: "3px",
                     fontWeight: 600,
+                    marginBottom: "8px",
+                    lineHeight: 1.3,
                   }}
                 >
-                  {m.titulo}
-                </div>
-                <div
-                  style={{
-                    fontSize: "clamp(0.75rem, 1.5vw, 0.85rem)",
-                    color: c.textoSub,
-                    whiteSpace: "nowrap",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                  }}
-                >
-                  {m.perguntaCentral}
+                  {m.titulo || "Missão Sem Título"}
                 </div>
               </div>
+
               <div
                 style={{
+                  borderTop: `1.5px dashed ${c.borda}`,
+                  paddingTop: "12px",
+                  marginTop: "12px",
                   display: "flex",
-                  flexDirection: "column",
-                  alignItems: "flex-end",
-                  gap: "4px",
-                  flexShrink: 0,
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
-                <div
+                <span
+                  style={{ fontSize: "0.85rem", color: cor, fontWeight: 800 }}
+                >
+                  🧩 {m.xp || 100} XP
+                </span>
+                <span
                   style={{
-                    fontSize: "clamp(0.72rem, 1.4vw, 0.82rem)",
-                    color: cor,
+                    fontSize: "0.85rem",
+                    color: c.textoSub,
                     fontWeight: 700,
-                    background: `${cor}18`,
-                    padding: "3px 8px",
-                    borderRadius: "8px",
                   }}
                 >
-                  🧩 {m.xp}
-                </div>
-                {m.desbloqueada && (
-                  <div
-                    style={{
-                      color: c.textoSub,
-                      fontSize: "clamp(1rem, 2vw, 1.3rem)",
-                    }}
-                  >
-                    ›
-                  </div>
-                )}
+                  ACESSAR ›
+                </span>
               </div>
             </button>
           ))}
+
+          {/* O Card de Gerar Nova Missão agora se encaixa perfeitamente na grade */}
+          <div
+            style={{
+              background: limiteAtingido
+                ? "#FF6B6B11"
+                : gerando
+                  ? c.bg
+                  : `${cor}08`,
+              border: `2px dashed ${limiteAtingido ? "#FF6B6B44" : cor}`,
+              borderRadius: "20px",
+              padding: "20px",
+              textAlign: "center",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "180px",
+              transition: "all 0.3s",
+            }}
+          >
+            {gerando ? (
+              <>
+                <div
+                  style={{
+                    fontSize: "2.5rem",
+                    animation: "spin 2s linear infinite",
+                    marginBottom: "12px",
+                  }}
+                >
+                  ⚙️
+                </div>
+                <div
+                  style={{
+                    color: cor,
+                    fontWeight: 700,
+                    fontFamily: "'Fredoka', sans-serif",
+                  }}
+                >
+                  Decodificando Satélite...
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    fontSize: "2.5rem",
+                    marginBottom: "8px",
+                    filter: limiteAtingido ? "grayscale(100%)" : "none",
+                  }}
+                >
+                  📡
+                </div>
+                <h3
+                  style={{
+                    fontFamily: "'Fredoka', sans-serif",
+                    color: limiteAtingido ? "#FF6B6B" : cor,
+                    margin: "0 0 6px",
+                    fontSize: "1.1rem",
+                  }}
+                >
+                  {limiteAtingido ? "Limite Atingido" : "Escanear Setor"}
+                </h3>
+                <p
+                  style={{
+                    color: c.textoSub,
+                    fontSize: "0.75rem",
+                    margin: "0 0 16px",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  {limiteAtingido
+                    ? "Descanse, Agente! Volte amanhã para novas missões."
+                    : `Disponível: ${MAX_MISSOES_DIA - getLimiteDiario()} missão(ões)`}
+                </p>
+                <button
+                  onClick={handleGerarNovaMissao}
+                  disabled={limiteAtingido}
+                  style={{
+                    padding: "10px 16px",
+                    borderRadius: "12px",
+                    border: "none",
+                    background: limiteAtingido ? c.borda : cor,
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: "0.85rem",
+                    cursor: limiteAtingido ? "not-allowed" : "pointer",
+                    fontFamily: "'Nunito', sans-serif",
+                    width: "100%",
+                  }}
+                >
+                  {limiteAtingido ? "Bloqueado" : "Gerar com IA"}
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </main>
       <BottomNav />
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap');`}</style>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700&display=swap');
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+      `}</style>
     </div>
   );
 }

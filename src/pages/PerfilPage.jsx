@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import { niveis } from "../utils/content";
 import BottomNav from "../components/BottomNav";
+import AchievementBadge from "../components/AchievementBadge";
 
 /* ═══════════════════════════════════════════════════════════════
    PERFIL PAGE — Dossiê do Agente
@@ -17,7 +18,8 @@ export default function PerfilPage({ playerName, clearName }) {
   /* ── Dados do jogador ── */
   const avatar = localStorage.getItem("eduplay_avatar") || "👦";
   const xpTotal = parseInt(localStorage.getItem("eduplay_xp") || "0");
-  const nivelAtual = niveis.filter((n) => xpTotal >= n.xpNecessario).pop();
+  const nivelAtual =
+    niveis.filter((n) => xpTotal >= n.xpNecessario).pop() || niveis[0];
   const proximoNivel = niveis.find((n) => n.xpNecessario > xpTotal);
   const percentualNivel = proximoNivel
     ? Math.round(
@@ -27,24 +29,45 @@ export default function PerfilPage({ playerName, clearName }) {
       )
     : 100;
 
-  /* ── Sequência de dias (placeholder — futuramente vem do Firestore) ── */
+  /* ── Sequência de dias ── */
   const diasSemana = ["S", "T", "Q", "Q", "S", "S", "D"];
   const hoje = new Date().getDay();
-  /* Simula: hoje está ativo */
   const diasAtivos = [hoje === 0 ? 6 : hoje - 1];
 
-  /* ── Conquistas desbloqueadas ── */
+  /* ── Lógica de Recompensa Secreta (NOVIDADE INJETADA) ── */
+  const totalMissoesGeradas = () => {
+    const d = ["historia", "geografia", "matematica", "ciencias", "portugues"];
+    let m = 0;
+    d.forEach((id) => {
+      m += JSON.parse(
+        localStorage.getItem(`eduplay_missoes_ia_${id}`) || "[]",
+      ).length;
+    });
+    return m;
+  };
+
+  // Para a mecânica da Surpresa, consideramos o XP como reflexo de missões concluídas ou um contador próprio
+  const missoesConcluidas =
+    parseInt(localStorage.getItem("eduplay_total_concluidas") || "0") ||
+    Math.floor(xpTotal / 100);
+  const metaRecompensa = 5;
+  const progressoRecompensa = Math.min(
+    (missoesConcluidas / metaRecompensa) * 100,
+    100,
+  );
+
+  /* ── Conquistas desbloqueadas (Usando a estrutura original, mas otimizada para o componente) ── */
   const conquistas = [
     {
       emoji: "🚀",
-      titulo: "Primeiro acesso",
-      desc: "Entrou no EduPlay",
+      titulo: "1º Acesso",
+      desc: "Entrou no app",
       desbloqueado: true,
     },
     {
       emoji: "📚",
-      titulo: "Primeira missão",
-      desc: "Completou 1 atividade",
+      titulo: "1ª Missão",
+      desc: "Bateu meta",
       desbloqueado: xpTotal >= 10,
     },
     {
@@ -62,7 +85,7 @@ export default function PerfilPage({ playerName, clearName }) {
     {
       emoji: "⭐",
       titulo: "Explorador",
-      desc: "Visitou todas as disciplinas",
+      desc: "Todas as áreas",
       desbloqueado: false,
     },
     {
@@ -101,7 +124,7 @@ export default function PerfilPage({ playerName, clearName }) {
         transition: "background 0.3s",
       }}
     >
-      {/* ── Header ── */}
+      {/* ── Header Original ── */}
       <header
         style={{
           display: "flex",
@@ -115,13 +138,7 @@ export default function PerfilPage({ playerName, clearName }) {
           background: c.bg,
         }}
       >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 10,
-          }}
-        >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <button
             onClick={() => navigate("/")}
             style={{
@@ -176,7 +193,7 @@ export default function PerfilPage({ playerName, clearName }) {
           gap: 16,
         }}
       >
-        {/* ── Card identidade ── */}
+        {/* ── Card identidade Original ── */}
         <div
           style={{
             background: c.card,
@@ -196,7 +213,7 @@ export default function PerfilPage({ playerName, clearName }) {
               margin: "0 0 4px",
             }}
           >
-            Agente {playerName}
+            Agente {playerName || "Recruta"}
           </h2>
           <p
             style={{
@@ -210,7 +227,6 @@ export default function PerfilPage({ playerName, clearName }) {
             {nivelAtual?.nivel || 1}
           </p>
 
-          {/* Barra XP */}
           <div
             style={{
               display: "flex",
@@ -248,7 +264,84 @@ export default function PerfilPage({ playerName, clearName }) {
           </div>
         </div>
 
-        {/* ── Sequência de dias ── */}
+        {/* ── CARD DE PROGRESSO DA RECOMPENSA (NOVIDADE INJETADA AQUI) ── */}
+        <section
+          style={{
+            background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
+            borderRadius: 16,
+            padding: "16px 20px",
+            border: "2px solid #FFB83044",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.03)",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 12,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <span style={{ fontSize: "1.5rem" }}>🎁</span>
+              <span
+                style={{
+                  fontWeight: 800,
+                  fontSize: "0.85rem",
+                  color: e ? "#FFB830" : "#B07D00",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Recompensa Secreta
+              </span>
+            </div>
+            <span
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                color: c.textoSub,
+              }}
+            >
+              {missoesConcluidas}/{metaRecompensa} Missões
+            </span>
+          </div>
+
+          <div
+            style={{
+              height: 10,
+              background: e ? "rgba(0,0,0,0.3)" : "rgba(255,255,255,0.5)",
+              borderRadius: 5,
+              overflow: "hidden",
+              marginBottom: 10,
+            }}
+          >
+            <div
+              style={{
+                width: `${progressoRecompensa}%`,
+                height: "100%",
+                background: "linear-gradient(90deg, #FFB830, #FF8C00)",
+                transition: "width 1s ease",
+              }}
+            />
+          </div>
+
+          <p
+            style={{
+              fontSize: "0.75rem",
+              color: e ? "#A0B8C8" : "#8A6D3B",
+              margin: 0,
+              textAlign: "center",
+              fontWeight: 600,
+            }}
+          >
+            {progressoRecompensa >= 100
+              ? "🎉 RECOMPENSA LIBERADA! Vá até a sala do Comandante!"
+              : `Complete mais ${Math.max(metaRecompensa - missoesConcluidas, 0)} missões para descobrir o que você ganhou.`}
+          </p>
+        </section>
+
+        {/* ── Sequência de dias Original ── */}
         <div
           style={{
             background: c.card,
@@ -291,12 +384,7 @@ export default function PerfilPage({ playerName, clearName }) {
                     transition: "all 0.3s",
                   }}
                 >
-                  <div
-                    style={{
-                      fontSize: "0.95rem",
-                      marginBottom: 2,
-                    }}
-                  >
+                  <div style={{ fontSize: "0.95rem", marginBottom: 2 }}>
                     {ativo ? "🔥" : "⚪"}
                   </div>
                   <div
@@ -314,7 +402,7 @@ export default function PerfilPage({ playerName, clearName }) {
           </div>
         </div>
 
-        {/* ── Conquistas ── */}
+        {/* ── Conquistas (AGORA USANDO O COMPONENTE NOVO) ── */}
         <div
           style={{
             background: c.card,
@@ -333,7 +421,7 @@ export default function PerfilPage({ playerName, clearName }) {
               letterSpacing: 1,
             }}
           >
-            Conquistas
+            Conquistas e Emblemas
           </p>
           <div
             style={{
@@ -343,61 +431,23 @@ export default function PerfilPage({ playerName, clearName }) {
             }}
           >
             {conquistas.map((c2, i) => (
-              <div
+              <AchievementBadge
                 key={i}
-                style={{
-                  textAlign: "center",
-                  padding: "12px 6px",
-                  borderRadius: 12,
-                  background: c2.desbloqueado ? c.accentBg : "transparent",
-                  border: `1.5px solid ${c2.desbloqueado ? c.accent + "40" : c.borda}`,
-                  opacity: c2.desbloqueado ? 1 : 0.45,
-                  transition: "all 0.3s",
-                }}
-              >
-                <div style={{ fontSize: "1.5rem", marginBottom: 4 }}>
-                  {c2.desbloqueado ? c2.emoji : "🔒"}
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    color: c.texto,
-                    margin: 0,
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {c2.titulo}
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.6rem",
-                    color: c.textoSub,
-                    margin: "2px 0 0",
-                  }}
-                >
-                  {c2.desc}
-                </p>
-              </div>
+                icone={c2.emoji}
+                titulo={c2.titulo}
+                desbloqueado={c2.desbloqueado}
+              />
             ))}
           </div>
         </div>
 
-        {/* ── Estatísticas rápidas ── */}
+        {/* ── Estatísticas rápidas Original ── */}
         <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 10,
-          }}
+          style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}
         >
           {[
             { emoji: "🧩", label: "Fragmentos", valor: xpTotal },
-            {
-              emoji: "📊",
-              label: "Nível",
-              valor: nivelAtual?.nivel || 1,
-            },
+            { emoji: "📊", label: "Nível", valor: nivelAtual?.nivel || 1 },
             {
               emoji: "🏅",
               label: "Conquistas",
@@ -452,7 +502,7 @@ export default function PerfilPage({ playerName, clearName }) {
           ))}
         </div>
 
-        {/* ── Trocar explorador ── */}
+        {/* ── Trocar explorador Original ── */}
         <div
           style={{
             marginTop: 8,
@@ -487,7 +537,7 @@ export default function PerfilPage({ playerName, clearName }) {
               Trocar explorador
             </button>
           ) : (
-            <div style={{ textAlign: "center" }}>
+            <div style={{ textAlign: "center", animation: "fadeIn 0.3s ease" }}>
               <p
                 style={{
                   fontSize: "0.9rem",
@@ -554,6 +604,7 @@ export default function PerfilPage({ playerName, clearName }) {
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );
