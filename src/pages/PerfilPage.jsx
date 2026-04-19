@@ -575,23 +575,13 @@ export default function PerfilPage({ playerName, clearName }) {
                   }}
                 >
                   Cancelar
-                </button>
-                <button
-                  onClick={handleTrocar}
-                  style={{
-                    flex: 1,
-                    padding: "11px",
-                    borderRadius: 12,
-                    border: "none",
-                    background: c.perigoBg,
-                    color: c.perigo,
-                    fontSize: "0.85rem",
-                    fontWeight: 700,
-                    cursor: "pointer",
-                    fontFamily: "'Nunito', sans-serif",
-                    border: `1.5px solid ${c.perigo}30`,
-                  }}
-                >
+                background: c.perigoBg,
+color: c.perigo,
+fontSize: "0.85rem",
+fontWeight: 700,
+cursor: "pointer",
+fontFamily: "'Nunito', sans-serif",
+border: `1.5px solid ${c.perigo}30`,               
                   🔄 Trocar
                 </button>
               </div>
