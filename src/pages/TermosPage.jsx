@@ -128,7 +128,7 @@ export default function TermosPage() {
           </h1>
           <p style={{ fontSize: "13px", color: cor.texto }}>
             EduPlay &#8212; Instituto do Saber &#183; &#218;ltima
-            atualiza&#231;&#227;o: abril de {Y}
+            atualiza&#231;&#227;o: maio de {Y}
           </p>
         </div>
       </div>
@@ -164,20 +164,41 @@ export default function TermosPage() {
           </p>
         </div>
 
+        {/* ── SEÇÃO 1 — ATUALIZADA ── */}
         <Section titulo="1. Sobre a plataforma e modelo de acesso">
           <P>
             O EduPlay &#233; uma plataforma educacional gamificada do Instituto
-            do Saber, destinada a estudantes do Ensino Fundamental II. Ao
-            utilizar, o respons&#225;vel legal declara ter lido e concordado com
-            estes Termos.
+            do Saber, destinada a estudantes do Ensino Fundamental II (6&#186;
+            ao 9&#186; ano). Seu prop&#243;sito &#233; acompanhar a vida escolar
+            da crian&#231;a do in&#237;cio ao fim do Ensino Fundamental,
+            auxiliando na aprendizagem e fixa&#231;&#227;o dos conte&#250;dos
+            por meio de miss&#245;es geradas por Intelig&#234;ncia Artificial,
+            baseadas no Curr&#237;culo Municipal de S&#227;o Paulo. A plataforma
+            prepara o aluno para processos seletivos de escolas de
+            excel&#234;ncia, como o{" "}
+            <strong style={{ color: cor.titulo }}>Vestibulinho da ETEC</strong>,{" "}
+            <strong style={{ color: cor.titulo }}>IFSP</strong>,{" "}
+            <strong style={{ color: cor.titulo }}>
+              Liceu de Artes e Of&#237;cios
+            </strong>
+            , <strong style={{ color: cor.titulo }}>SENAI Aprendizagem</strong>{" "}
+            e{" "}
+            <strong style={{ color: cor.titulo }}>
+              concursos de bolsas por m&#233;rito
+            </strong>
+            . Ao utilizar, o respons&#225;vel legal declara ter lido e
+            concordado com estes Termos.
           </P>
           <P>
             O EduPlay opera sob o modelo{" "}
             <strong style={{ color: cor.titulo }}>freemium</strong>: o acesso
             inicial &#233; gratuito por um per&#237;odo de teste de{" "}
-            <strong style={{ color: cor.titulo }}>5 dias</strong>. A
-            continuidade do acesso ou o desbloqueio de miss&#245;es
-            avan&#231;adas pode exigir uma{" "}
+            <strong style={{ color: cor.titulo }}>5 dias</strong>, iniciado
+            ap&#243;s o cadastro do respons&#225;vel via{" "}
+            <strong style={{ color: cor.titulo }}>Google Login</strong> — sem
+            exig&#234;ncia de cart&#227;o de cr&#233;dito. A continuidade do
+            acesso ou o desbloqueio de miss&#245;es avan&#231;adas pode exigir
+            uma{" "}
             <strong style={{ color: cor.titulo }}>
               assinatura mensal paga
             </strong>
@@ -197,6 +218,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 2 — inalterada */}
         <Section titulo="2. Responsabilidade do respons&#225;vel legal">
           <P>Por ser destinada a menores de idade, exigimos que:</P>
           <ul style={{ paddingLeft: "20px", marginBottom: "12px" }}>
@@ -229,6 +251,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 3 — inalterada */}
         <Section titulo="3. Assinatura e cancelamento">
           <P>
             A assinatura &#233;{" "}
@@ -250,6 +273,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 4 — inalterada */}
         <Section titulo="4. Propriedade intelectual" badge="Lei 9.610/1998">
           <P>
             Todo o conte&#250;do pedag&#243;gico, textos, atividades e recursos
@@ -262,6 +286,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 5 — inalterada */}
         <Section
           titulo="5. Prote&#231;&#227;o de crian&#231;as e seguran&#231;a"
           badge="ECA + Lei 14.811/2024"
@@ -302,6 +327,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* ── SEÇÃO 6 — ATUALIZADA ── */}
         <Section titulo="6. Conte&#250;do e Intelig&#234;ncia Artificial">
           <P>
             O EduPlay utiliza{" "}
@@ -318,11 +344,18 @@ export default function TermosPage() {
               revis&#227;o e curadoria t&#233;cnica
             </strong>{" "}
             da equipe do Instituto do Saber, composta por pedagoga especializada
-            em TEA e letramento e professor licenciado, garantindo qualidade,
-            adequa&#231;&#227;o et&#225;ria e precis&#227;o pedag&#243;gica.
+            em TEA e letramento, professor licenciado e professores
+            especialistas nas disciplinas de{" "}
+            <strong style={{ color: cor.titulo }}>
+              Hist&#243;ria, Geografia, Matem&#225;tica, Ci&#234;ncias e
+              L&#237;ngua Portuguesa
+            </strong>
+            , garantindo qualidade, adequa&#231;&#227;o et&#225;ria e
+            precis&#227;o pedag&#243;gica.
           </P>
         </Section>
 
+        {/* Seção 7 — inalterada */}
         <Section titulo="7. Privacidade e dados" badge="LGPD Art. 14">
           <P>
             O tratamento de dados segue nossa{" "}
@@ -347,6 +380,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 8 — inalterada */}
         <Section titulo="8. Disponibilidade do servi&#231;o">
           <P>
             O EduPlay est&#225; em desenvolvimento cont&#237;nuo. Podemos
@@ -356,19 +390,19 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* ── SEÇÃO 9 — ATUALIZADA ── */}
         <Section titulo="9. Limita&#231;&#227;o de responsabilidade">
           <P>O Instituto do Saber n&#227;o se responsabiliza por:</P>
           <ul style={{ paddingLeft: "20px", marginBottom: "12px" }}>
             <Li>Falhas de conectividade no dispositivo do usu&#225;rio.</Li>
             <Li>
               <strong style={{ color: cor.titulo }}>
-                Perda de progresso por limpeza de cache:
+                Perda de acesso por desvincula&#231;&#227;o de conta:
               </strong>{" "}
-              o EduPlay utiliza armazenamento local (localStorage) para garantir
-              rapidez e privacidade do aprendizado. O usu&#225;rio est&#225;
-              ciente de que a limpeza de cache ou dados do navegador pode
-              resultar na perda do progresso n&#227;o sincronizado com a conta
-              do respons&#225;vel.
+              o progresso do aluno &#233; armazenado com seguran&#231;a na nuvem
+              (Firestore), vinculado &#224; conta do respons&#225;vel. Em caso
+              de exclus&#227;o de conta, os dados associados ser&#227;o
+              removidos conforme nossa Pol&#237;tica de Privacidade.
             </Li>
             <Li>
               Cobran&#231;as por n&#227;o cancelamento da assinatura pelo
@@ -381,6 +415,7 @@ export default function TermosPage() {
           </ul>
         </Section>
 
+        {/* Seção 10 — inalterada */}
         <Section titulo="10. Altera&#231;&#245;es nos termos">
           <P>
             Estes termos podem ser atualizados. O respons&#225;vel ser&#225;
@@ -389,6 +424,7 @@ export default function TermosPage() {
           </P>
         </Section>
 
+        {/* Seção 11 — inalterada */}
         <Section titulo="11. Contato e foro">
           <P>
             D&#250;vidas:{" "}

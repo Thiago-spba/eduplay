@@ -1,212 +1,239 @@
+import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
+import { getTodasMissoes } from "../services/db";
+
+const DISCIPLINAS = [
+  { id: "historia", label: "História", icone: "📜", cor: "#C4A882" },
+  { id: "geografia", label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
+  { id: "matematica", label: "Matemática", icone: "📐", cor: "#6B5B95" },
+  { id: "ciencias", label: "Ciências", icone: "🔬", cor: "#2E8B57" },
+  { id: "portugues", label: "Português", icone: "✍️", cor: "#C0392B" },
+];
 
 export default function MapaPage() {
-  // ADICIONADO: alternarTema extraído do contexto
+  const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
   const e = tema === "escuro";
 
-  const xpTotal = parseInt(localStorage.getItem("eduplay_xp") || "0");
-  const nivelAtual = Math.floor(xpTotal / 500) + 1;
+  const [missoes, setMissoes] = useState({});
+  const [carregando, setCarregando] = useState(true);
+
+  const codigoAcesso = localStorage.getItem("eduplay_codigo_acesso");
 
   const c = {
-    bg: e ? "#0A0F14" : "#F0F7FF",
-    card: e ? "#121A22" : "#FFFFFF",
-    texto: e ? "#E8F4F8" : "#1A2B3C",
-    accent: "#00D4AA",
-    borda: e ? "#1A3347" : "#EEF5FF",
-    caminho: e ? "#1A3347" : "#DDE8F0",
+    bg: e ? "#0D141C" : "#F0F4F8",
+    card: e ? "#1A2633" : "#FFFFFF",
+    texto: e ? "#E2E8F0" : "#1E293B",
+    textoSub: e ? "#94A3B8" : "#64748B",
+    borda: e ? "#2D3D50" : "#E2E8F0",
+    verde: "#0F6E56",
   };
 
-  const setores = [
-    { id: 1, nome: "Base de Treinamento", icone: "🏠", status: "concluido" },
-    {
-      id: 2,
-      nome: "Laboratório de História",
-      icone: "📜",
-      status: nivelAtual >= 2 ? "atual" : "bloqueado",
-    },
-    {
-      id: 3,
-      nome: "Setor de Geopolítica",
-      icone: "🗺️",
-      status: nivelAtual >= 3 ? "concluido" : "bloqueado",
-    },
-    { id: 4, nome: "Domínio Matemático", icone: "📐", status: "bloqueado" },
-    { id: 5, nome: "Centro de Biologia", icone: "🔬", status: "bloqueado" },
-  ];
+  useEffect(() => {
+    if (!codigoAcesso) {
+      setCarregando(false);
+      return;
+    }
+    getTodasMissoes(codigoAcesso)
+      .then((m) => setMissoes(m))
+      .catch((err) => console.error("Erro ao carregar missões:", err))
+      .finally(() => setCarregando(false));
+  }, [codigoAcesso]);
+
+  const totalPendentes = DISCIPLINAS.reduce((acc, d) => {
+    return acc + (missoes[d.id] || []).filter((m) => !m.feita).length;
+  }, 0);
 
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: c.bg,
-        color: c.texto,
         fontFamily: "'Nunito', sans-serif",
-        paddingBottom: "100px",
+        paddingBottom: 90,
       }}
     >
-      {/* HEADER ATUALIZADO COM SELETOR DARK MODE */}
       <header
         style={{
-          padding: "14px 20px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          background: c.card,
-          borderBottom: `2px solid ${c.borda}`,
+          background: c.verde,
+          padding: "18px 20px 20px",
           position: "sticky",
           top: 0,
-          zIndex: 10,
+          zIndex: 100,
         }}
       >
-        <div style={{ width: 40 }} />
-        <div style={{ textAlign: "center" }}>
-          <h1
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 4,
+          }}
+        >
+          <span
             style={{
               fontFamily: "'Fredoka', sans-serif",
               fontSize: "1.2rem",
-              margin: 0,
+              fontWeight: 600,
+              color: "#E1F5EE",
             }}
           >
-            Mapa de Operações
-          </h1>
-          <p
+            Missões
+          </span>
+          <button
+            onClick={alternarTema}
             style={{
-              fontSize: "0.7rem",
-              color: c.accent,
-              fontWeight: 800,
-              textTransform: "uppercase",
-              margin: 0,
+              background: "rgba(255,255,255,0.12)",
+              border: "none",
+              borderRadius: 9,
+              width: 32,
+              height: 32,
+              cursor: "pointer",
+              fontSize: "0.95rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Jornada do Agente
-          </p>
+            {e ? "☀️" : "🌙"}
+          </button>
         </div>
-        <button
-          onClick={alternarTema}
-          style={{
-            width: 38,
-            height: 38,
-            borderRadius: 12,
-            border: `2px solid ${c.borda}`,
-            background: e ? "#1A2B3C" : "#fff",
-            fontSize: "1.1rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {e ? "☀️" : "🌙"}
-        </button>
+        <p style={{ margin: 0, fontSize: "0.78rem", color: "#9FE1CB" }}>
+          {carregando
+            ? "Carregando..."
+            : totalPendentes > 0
+              ? `${totalPendentes} ${totalPendentes === 1 ? "missão pendente" : "missões pendentes"}`
+              : "Tudo em dia! 🎉"}
+        </p>
       </header>
 
-      <main
-        style={{
-          padding: "40px 20px",
-          maxWidth: "500px",
-          margin: "0 auto",
-          position: "relative",
-        }}
-      >
-        {/* O conteúdo do mapa continua exatamente o mesmo aqui... */}
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            top: "60px",
-            bottom: "100px",
-            width: "6px",
-            background: c.caminho,
-            transform: "translateX(-50%)",
-            borderRadius: "3px",
-            zIndex: 1,
-          }}
-        />
+      <main style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+        {carregando ? (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <div
+              style={{
+                fontSize: "2rem",
+                marginBottom: 12,
+                animation: "girar 2s linear infinite",
+              }}
+            >
+              📚
+            </div>
+            <p style={{ color: c.textoSub, fontWeight: 600 }}>
+              Carregando suas missões...
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            {DISCIPLINAS.map((d) => {
+              const lista = missoes[d.id] || [];
+              const pendentes = lista.filter((m) => !m.feita).length;
+              const concluidas = lista.filter((m) => m.feita).length;
 
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "40px",
-            position: "relative",
-            zIndex: 2,
-          }}
-        >
-          {setores.map((setor, index) => {
-            const isAtivo = setor.status !== "bloqueado";
-            const isAtual = setor.status === "atual";
-            return (
-              <div
-                key={setor.id}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  flexDirection: index % 2 === 0 ? "row" : "row-reverse",
-                  gap: "20px",
-                }}
-              >
-                <div
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => navigate(`/${d.id}`)}
                   style={{
-                    width: "70px",
-                    height: "70px",
-                    borderRadius: "50%",
-                    background: isAtual ? c.accent : isAtivo ? c.card : c.bg,
-                    border: `4px solid ${isAtual ? "#fff" : isAtivo ? c.accent : c.borda}`,
+                    background: c.card,
+                    borderRadius: 18,
+                    padding: "16px 18px",
+                    border:
+                      pendentes > 0
+                        ? `2px solid ${d.cor}66`
+                        : `1.5px solid ${c.borda}`,
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "2rem",
-                    boxShadow: isAtual ? `0 0 20px ${c.accent}` : "none",
-                    filter: isAtivo ? "none" : "grayscale(100%)",
+                    gap: 14,
+                    cursor: "pointer",
+                    textAlign: "left",
+                    width: "100%",
+                    transition: "all 0.2s",
                   }}
                 >
-                  {setor.icone}
-                </div>
-                <div
-                  style={{
-                    flex: 1,
-                    background: isAtivo ? c.card : "transparent",
-                    padding: "15px",
-                    borderRadius: "16px",
-                    border: isAtivo
-                      ? `1px solid ${c.borda}`
-                      : "1px dashed #ccc",
-                    textAlign: index % 2 === 0 ? "left" : "right",
-                  }}
-                >
-                  <h3
+                  <div
                     style={{
-                      margin: "0 0 4px",
-                      fontSize: "1rem",
-                      fontFamily: "'Fredoka', sans-serif",
+                      width: 52,
+                      height: 52,
+                      borderRadius: 14,
+                      flexShrink: 0,
+                      background: `${d.cor}22`,
+                      border: `2px solid ${d.cor}44`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "1.6rem",
                     }}
                   >
-                    {setor.nome}
-                  </h3>
-                  <p
+                    {d.icone}
+                  </div>
+
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        fontFamily: "'Fredoka', sans-serif",
+                        fontSize: "1.05rem",
+                        color: c.texto,
+                        fontWeight: 600,
+                        marginBottom: 4,
+                      }}
+                    >
+                      {d.label}
+                    </div>
+                    <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
+                      {pendentes > 0
+                        ? `${pendentes} ${pendentes === 1 ? "missão disponível" : "missões disponíveis"}`
+                        : concluidas > 0
+                          ? `${concluidas} ${concluidas === 1 ? "missão concluída" : "missões concluídas"} ✓`
+                          : "Nenhuma missão ainda"}
+                    </div>
+                  </div>
+
+                  <div
                     style={{
-                      margin: 0,
-                      fontSize: "0.75rem",
-                      color: isAtivo ? c.accent : "#888",
-                      fontWeight: 800,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "flex-end",
+                      gap: 4,
                     }}
                   >
-                    {isAtual
-                      ? "📍 ATUAL"
-                      : isAtivo
-                        ? "✅ EXPLORADO"
-                        : "🔒 RESTRITO"}
-                  </p>
-                </div>
-              </div>
-            );
-          })}
-        </div>
+                    {pendentes > 0 && (
+                      <div
+                        style={{
+                          background: d.cor,
+                          color: "#fff",
+                          borderRadius: 20,
+                          padding: "3px 10px",
+                          fontSize: "0.72rem",
+                          fontWeight: 700,
+                        }}
+                      >
+                        {pendentes} nova{pendentes > 1 ? "s" : ""}
+                      </div>
+                    )}
+                    <span
+                      style={{
+                        color: pendentes > 0 ? d.cor : c.textoSub,
+                        fontSize: "1.1rem",
+                      }}
+                    >
+                      ›
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       <BottomNav />
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
+        @keyframes girar { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      `}</style>
     </div>
   );
 }

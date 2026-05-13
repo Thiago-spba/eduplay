@@ -130,7 +130,7 @@ export default function PrivacidadePage() {
             style={{ fontSize: "13px", color: cor.texto, marginBottom: "12px" }}
           >
             EduPlay &#8212; Instituto do Saber &#183; &#218;ltima
-            atualiza&#231;&#227;o: abril de {Y}
+            atualiza&#231;&#227;o: maio de {Y}
           </p>
           <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
             <span
@@ -180,7 +180,7 @@ export default function PrivacidadePage() {
       <div
         style={{ maxWidth: "720px", margin: "0 auto", padding: "32px 16px" }}
       >
-        {/* Aviso importante */}
+        {/* Aviso */}
         <div
           style={{
             background: cor.alerta,
@@ -209,14 +209,20 @@ export default function PrivacidadePage() {
           </p>
         </div>
 
+        {/* ── SEÇÃO 1 — ATUALIZADA ── */}
         <Section titulo="1. Quem somos">
           <P>
             O EduPlay &#233; uma plataforma educacional gamificada desenvolvida
             pelo Instituto do Saber, com equipe formada por pedagoga
             especializada em TEA e letramento, professor licenciado e
-            especializado, e desenvolvedor de tecnologia web. Nosso objetivo
-            &#233; oferecer um ambiente seguro e estimulante para estudantes do
-            Ensino Fundamental II.
+            professores especialistas nas disciplinas de{" "}
+            <strong style={{ color: cor.titulo }}>
+              Hist&#243;ria, Geografia, Matem&#225;tica, Ci&#234;ncias e
+              L&#237;ngua Portuguesa
+            </strong>
+            , e desenvolvedor de tecnologia web. Nosso objetivo &#233; oferecer
+            um ambiente seguro e estimulante para estudantes do Ensino
+            Fundamental II.
           </P>
           <P>
             Contato:{" "}
@@ -229,6 +235,7 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* Seção 2 — inalterada */}
         <Section
           titulo="2. Seus dados (Respons&#225;vel Legal)"
           badge="LGPD Art. 7&#186;"
@@ -268,6 +275,7 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* ── SEÇÃO 3 — ATUALIZADA ── */}
         <Section
           titulo="3. Dados do Estudante (Menor de Idade)"
           badge="LGPD Art. 14"
@@ -296,7 +304,9 @@ export default function PrivacidadePage() {
               <strong style={{ color: cor.titulo }}>
                 Progresso nas atividades
               </strong>{" "}
-              &#8212; salvo localmente no dispositivo.
+              &#8212; armazenado com seguran&#231;a na nuvem (
+              <strong style={{ color: cor.titulo }}>Firebase Firestore</strong>
+              ), vinculado &#224; conta do respons&#225;vel legal.
             </Li>
             <Li>
               <strong style={{ color: cor.titulo }}>
@@ -313,6 +323,7 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* Seção 4 — inalterada */}
         <Section titulo="4. Assinatura e Freemium">
           <P>
             O EduPlay oferece{" "}
@@ -336,6 +347,7 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* Seção 5 — inalterada */}
         <Section
           titulo="5. Prote&#231;&#227;o de Crian&#231;as"
           badge="ECA + Lei 14.811/2024"
@@ -367,6 +379,7 @@ export default function PrivacidadePage() {
           </ul>
         </Section>
 
+        {/* Seção 6 — inalterada */}
         <Section titulo="6. Registros de Acesso" badge="Marco Civil Art. 15">
           <P>
             Em conformidade com o{" "}
@@ -379,19 +392,23 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* ── SEÇÃO 7 — ATUALIZADA ── */}
         <Section titulo="7. Armazenamento e Seguran&#231;a">
           <P>
-            O progresso do aluno &#233; salvo{" "}
+            O progresso do aluno &#233; armazenado com seguran&#231;a na{" "}
             <strong style={{ color: cor.titulo }}>
-              localmente no dispositivo
-            </strong>{" "}
-            via localStorage. Dados do respons&#225;vel s&#227;o armazenados com
-            seguran&#231;a em servidores protegidos. N&#227;o utilizamos
+              nuvem (Firebase Firestore)
+            </strong>
+            , vinculado &#224; conta do respons&#225;vel legal — garantindo que
+            o hist&#243;rico escolar seja preservado independentemente do
+            dispositivo utilizado. Dados do respons&#225;vel s&#227;o
+            armazenados em servidores protegidos. N&#227;o utilizamos
             rastreadores, cookies de publicidade ou ferramentas de perfilamento
             comportamental.
           </P>
         </Section>
 
+        {/* Seção 8 — inalterada */}
         <Section titulo="8. Direitos do Respons&#225;vel Legal">
           <P>Nos termos da LGPD, o respons&#225;vel tem direito a:</P>
           <ul style={{ paddingLeft: "20px", marginBottom: "12px" }}>
@@ -418,6 +435,7 @@ export default function PrivacidadePage() {
           </P>
         </Section>
 
+        {/* Seção 9 — inalterada */}
         <Section titulo="9. Altera&#231;&#245;es nesta Pol&#237;tica">
           <P>
             Esta pol&#237;tica pode ser atualizada. O respons&#225;vel ser&#225;

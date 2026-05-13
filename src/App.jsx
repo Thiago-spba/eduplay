@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Routes,
   Route,
@@ -7,26 +7,24 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-// ── 1. IMPORTAÇÕES DE SEGURANÇA E ESTADO ──
 import { usePlayer } from "./hooks/usePlayer";
 import { useTimer } from "./hooks/useTimer";
 import { useParentLock } from "./hooks/useParentLock";
+import { onAuthChange } from "./services/auth";
 
-// ── 2. IMPORTAÇÕES DAS PÁGINAS ──
-import RegisterPage from "./pages/RegisterPage";
+import CodigoPage from "./pages/CodigoPage";
 import HomePage from "./pages/HomePage";
 import SubjectPage from "./pages/SubjectPage";
 import LandingPage from "./pages/LandingPage";
-import PerfilPage from "./pages/PerfilPage";
+import LoginPage from "./pages/LoginPage";
+import AgentePage from "./pages/AgentePage";
 import PaisPage from "./pages/PaisPage";
 import TermosPage from "./pages/TermosPage";
 import PrivacidadePage from "./pages/PrivacidadePage";
-
-// IMPORTANDO AS NOVAS PÁGINAS REAIS (FUNDAMENTAL)
 import ConquistasPage from "./pages/ConquistasPage";
 import MapaPage from "./pages/MapaPage";
+import DemoPage from "./pages/DemoPage";
 
-// ── 3. COMPONENTES GLOBAIS ──
 import LockScreen from "./components/LockScreen";
 import FooterEduPlay from "./components/FooterEduPlay";
 
@@ -41,10 +39,26 @@ export default function App() {
 
   const [viaLanding, setViaLanding] = useState(false);
 
-  const isRotaPublica = ROTAS_PUBLICAS.includes(location.pathname);
-  const isRotaPais = location.pathname === "/pais";
+  // Firebase Auth — guarda o user object completo para passar ao PaisPage
+  const [paisUser, setPaisUser] = useState(null);
+  const [authChecked, setAuthChecked] = useState(false);
 
-  // ── FLUXO PÚBLICO ──
+  useEffect(() => {
+    const unsub = onAuthChange((user) => {
+      setPaisUser(user ?? null);
+      setAuthChecked(true);
+    });
+    return unsub;
+  }, []);
+
+  const { pathname } = location;
+  const isRotaPublica = ROTAS_PUBLICAS.includes(pathname);
+  const isRotaLogin = pathname === "/login";
+  const isRotaDemo = pathname === "/demo";
+  const isRotaPais = pathname === "/pais";
+  const isRotaAgente = pathname.startsWith("/agente/");
+
+  // ── 1. Páginas legais ──────────────────────────────────────────────────────
   if (isRotaPublica) {
     return (
       <div
@@ -65,13 +79,44 @@ export default function App() {
     );
   }
 
-  // ── FLUXO DO RESPONSÁVEL ──
-  if (isRotaPais) {
+  // ── 2. Login do responsável ────────────────────────────────────────────────
+  if (isRotaLogin) {
+    if (authChecked && paisUser) return <Navigate to="/pais" replace />;
+    return <LoginPage />;
+  }
+
+  // ── 3. Demo pública ────────────────────────────────────────────────────────
+  if (isRotaDemo) {
+    return <DemoPage />;
+  }
+
+  // ── 4. Entrada da criança pelo link do agente ─────────────────────────────
+  if (isRotaAgente) {
     return (
-      <div className="flex flex-col min-h-screen">
-        <div className="flex-1 pb-20">
+      <Routes>
+        <Route path="/agente/:codigo" element={<AgentePage />} />
+      </Routes>
+    );
+  }
+
+  // ── 5. Área do responsável — protegida por Firebase Auth ──────────────────
+  if (isRotaPais) {
+    if (!authChecked) return null;
+    if (!paisUser) return <Navigate to="/login" replace />;
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          minHeight: "100dvh",
+        }}
+      >
+        <div style={{ flex: 1, paddingBottom: 80 }}>
           <Routes>
-            <Route path="/pais" element={<PaisPage timer={timer} />} />
+            <Route
+              path="/pais"
+              element={<PaisPage userPai={paisUser} timer={timer} />}
+            />
           </Routes>
         </div>
         <FooterEduPlay />
@@ -79,60 +124,42 @@ export default function App() {
     );
   }
 
-  // ── FLUXO DE LOGIN/REGISTRO ──
+  // ── 6. Onboarding da criança ───────────────────────────────────────────────
   if (!playerName) {
     if (!viaLanding) {
       return (
         <LandingPage
           onComecar={() => setViaLanding(true)}
-          onResponsavel={() => navigate("/pais")}
+          onResponsavel={() => navigate("/login")}
         />
       );
     }
     return (
-      <RegisterPage
+      <CodigoPage
         onRegister={saveName}
         onVoltar={() => setViaLanding(false)}
       />
     );
   }
 
-  // ── CONTROLE DE TEMPO ──
-  if (timer.bloqueado) {
+  // ── 7. Controle de tempo ───────────────────────────────────────────────────
+  if (timer.bloqueado && !timer.semLimite) {
     return <LockScreen timer={timer} lock={lock} />;
   }
 
-  // ── FLUXO PRINCIPAL DO AGENTE ──
+  // ── 8. App principal da criança ───────────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-screen">
-      <div className="flex-1 pb-20">
-        <Routes>
-          <Route
-            path="/"
-            element={<HomePage playerName={playerName} timer={timer} />}
-          />
+    <Routes>
+      <Route
+        path="/"
+        element={<HomePage playerName={playerName} timer={timer} />}
+      />
 
-          <Route
-            path="/perfil"
-            element={
-              <PerfilPage playerName={playerName} clearName={clearName} />
-            }
-          />
-
-          {/* AGORA APONTANDO PARA AS PÁGINAS REAIS */}
-          <Route path="/conquistas" element={<ConquistasPage />} />
-          <Route path="/mapa" element={<MapaPage />} />
-
-          {/* Rota das Disciplinas */}
-          <Route
-            path="/:disciplinaId"
-            element={<SubjectPage timer={timer} />}
-          />
-
-          <Route path="*" element={<Navigate to="/" />} />
-        </Routes>
-      </div>
-      <FooterEduPlay />
-    </div>
+      <Route path="/conquistas" element={<ConquistasPage />} />
+      <Route path="/mapa" element={<MapaPage />} />
+      <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 }
+

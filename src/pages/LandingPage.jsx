@@ -306,12 +306,93 @@ function PlantaMini() {
   );
 }
 
+// ── Card de benefícios para o responsável ──
+const BENEFICIOS = [
+  {
+    icone: "📊",
+    titulo: "Progresso em tempo real",
+    desc: "Veja cada missão concluída, dias seguidos e conquistas do seu filho.",
+  },
+  {
+    icone: "🤖",
+    titulo: "Missões geradas por IA",
+    desc: "Conteúdo exclusivo baseado no Currículo Paulista, gerado sob medida.",
+  },
+  {
+    icone: "🏫",
+    titulo: "Caminho para escolas de excelência",
+    desc: "ETEC, IFSP, ISMART e colégios de prestígio — o EduPlay prepara para todos.",
+  },
+];
+
+function CardBeneficios({ tema }) {
+  const e = tema === "escuro";
+  return (
+    <div
+      style={{
+        width: "100%",
+        background: e ? "rgba(26,43,60,0.7)" : "rgba(255,255,255,0.85)",
+        borderRadius: 18,
+        padding: "16px 18px",
+        border: "2px solid #3B82F633",
+        backdropFilter: "blur(8px)",
+        animation: "fadeInUp 0.3s ease",
+      }}
+    >
+      <p
+        style={{
+          fontSize: "0.72rem",
+          fontWeight: 800,
+          color: "#3B82F6",
+          textTransform: "uppercase",
+          letterSpacing: 1,
+          margin: "0 0 12px",
+        }}
+      >
+        O que você encontra no painel
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {BENEFICIOS.map((b) => (
+          <div
+            key={b.titulo}
+            style={{ display: "flex", alignItems: "flex-start", gap: 10 }}
+          >
+            <span style={{ fontSize: "1.2rem", flexShrink: 0 }}>{b.icone}</span>
+            <div>
+              <p
+                style={{
+                  fontSize: "0.82rem",
+                  fontWeight: 800,
+                  color: e ? "#E8F4F8" : "#1A2B3C",
+                  margin: "0 0 2px",
+                }}
+              >
+                {b.titulo}
+              </p>
+              <p
+                style={{
+                  fontSize: "0.72rem",
+                  color: e ? "#8BAFC0" : "#5A7A8A",
+                  margin: 0,
+                  lineHeight: 1.4,
+                }}
+              >
+                {b.desc}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ═══════════════════════════════════════════════════════════════
-   LANDING PAGE (Blindada com useNavigate direto)
+   LANDING PAGE
    ═══════════════════════════════════════════════════════════════ */
 export default function LandingPage({ onComecar, onResponsavel }) {
   const { tema, alternarTema } = useTema();
-  const navigate = useNavigate(); // <-- Injeção de segurança para rotas
+  const navigate = useNavigate();
   const [publico, setPublico] = useState("estudante");
   const [isMobile, setIsMobile] = useState(false);
 
@@ -334,14 +415,11 @@ export default function LandingPage({ onComecar, onResponsavel }) {
     borda: tema === "escuro" ? "#1A2B3C" : "#E0EEF5",
   };
 
-  // Funções de clique blindadas
   const handleAcaoBotao = () => {
     if (publico === "estudante") {
-      // Tenta usar a prop, se falhar ou estiver errada, força a rota
       if (typeof onComecar === "function") onComecar();
       else navigate("/register");
     } else {
-      // Tenta usar a prop, se falhar ou estiver errada, força a rota do Painel
       if (typeof onResponsavel === "function") onResponsavel();
       else navigate("/pais");
     }
@@ -368,9 +446,9 @@ export default function LandingPage({ onComecar, onResponsavel }) {
           inset: 0,
           pointerEvents: "none",
           background: `
-            radial-gradient(circle at 85% 15%, ${cor}15 0%, transparent 40%),
-            radial-gradient(circle at 15% 85%, #3B82F620 0%, transparent 40%)
-          `,
+          radial-gradient(circle at 85% 15%, ${cor}15 0%, transparent 40%),
+          radial-gradient(circle at 15% 85%, #3B82F620 0%, transparent 40%)
+        `,
         }}
       />
 
@@ -391,7 +469,7 @@ export default function LandingPage({ onComecar, onResponsavel }) {
             justifyContent: "center",
           }}
         >
-          {tema === "escuro" ? "\u2600\uFE0F" : "\uD83C\uDF19"}
+          {tema === "escuro" ? "☀️" : "🌙"}
         </button>
       </div>
 
@@ -404,7 +482,7 @@ export default function LandingPage({ onComecar, onResponsavel }) {
           alignItems: "center",
           justifyContent: "center",
           gap: isMobile ? 16 : 48,
-          padding: isMobile ? "48px 20px 24px" : "40px 60px",
+          padding: isMobile ? "48px 20px 80px" : "40px 60px",
           maxWidth: 1100,
           margin: "0 auto",
           width: "100%",
@@ -505,6 +583,9 @@ export default function LandingPage({ onComecar, onResponsavel }) {
 
           <TypewriterCreativo frases={FRASES[publico]} cor={cor} tema={tema} />
 
+          {/* ── Card de benefícios — só aparece para responsável ── */}
+          {publico === "responsavel" && <CardBeneficios tema={tema} />}
+
           <button
             onClick={handleAcaoBotao}
             style={{
@@ -549,36 +630,62 @@ export default function LandingPage({ onComecar, onResponsavel }) {
         </div>
       </div>
 
+      {/* ── Acesso rápido fixo no rodapé — sempre visível ── */}
+      <div
+        style={{
+          position: "fixed",
+          bottom: 0,
+          left: 0,
+          right: 0,
+          background:
+            tema === "escuro"
+              ? "rgba(13,24,32,0.95)"
+              : "rgba(255,255,255,0.95)",
+          borderTop: `1px solid ${c.borda}`,
+          backdropFilter: "blur(12px)",
+          padding: "10px 20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 10,
+          zIndex: 50,
+        }}
+      >
+        <span
+          style={{ fontSize: "0.78rem", color: c.textoSub, fontWeight: 600 }}
+        >
+          Já é responsável?
+        </span>
+        <button
+          onClick={() => navigate("/pais")}
+          style={{
+            padding: "6px 16px",
+            borderRadius: 20,
+            border: "2px solid #3B82F6",
+            background: "transparent",
+            color: "#3B82F6",
+            fontWeight: 800,
+            fontSize: "0.78rem",
+            cursor: "pointer",
+            fontFamily: "'Nunito', sans-serif",
+            transition: "all 0.2s",
+          }}
+        >
+          Entrar no painel →
+        </button>
+      </div>
+
       {/* Rodapé recolhível */}
       <FooterEduPlay />
 
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-        @keyframes plantaFlutuar {
-          0%, 100% { transform: translateY(0px); }
-          50%       { transform: translateY(-10px); }
-        }
-        @keyframes subirDescer2 {
-          0%   { transform: translateY(100px); }
-          50%  { transform: translateY(-100px); }
-          100% { transform: translateY(100px); }
-        }
-        @keyframes girar2 {
-          0%   { transform: rotateY(0deg) translateZ(80px); }
-          100% { transform: rotateY(360deg) translateZ(80px); }
-        }
-        @keyframes pulsaE2 {
-          0%   { transform: scale(0.85) rotate(0deg); }
-          100% { transform: scale(1.2) rotate(15deg); }
-        }
-        @keyframes piscar {
-          0%, 100% { opacity: 0.2; transform: scale(0.8); }
-          50%       { opacity: 0.6; transform: scale(1.2); }
-        }
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(10px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
+        @keyframes plantaFlutuar { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-10px); } }
+        @keyframes subirDescer2 { 0% { transform: translateY(100px); } 50% { transform: translateY(-100px); } 100% { transform: translateY(100px); } }
+        @keyframes girar2 { 0% { transform: rotateY(0deg) translateZ(80px); } 100% { transform: rotateY(360deg) translateZ(80px); } }
+        @keyframes pulsaE2 { 0% { transform: scale(0.85) rotate(0deg); } 100% { transform: scale(1.2) rotate(15deg); } }
+        @keyframes piscar { 0%, 100% { opacity: 0.2; transform: scale(0.8); } 50% { opacity: 0.6; transform: scale(1.2); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
       `}</style>
     </div>
   );

@@ -1,23 +1,24 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
 const { defineSecret } = require('firebase-functions/params')
 const Anthropic = require('@anthropic-ai/sdk')
+const admin = require('firebase-admin')
 
 const ANTHROPIC_KEY = defineSecret('ANTHROPIC_API_KEY')
 
+// ── Firebase Admin (acesso ao Firestore pelo servidor) ──
+admin.initializeApp()
+const db = admin.firestore()
+
 // ═══════════════════════════════════════════════════════════════════════
-// EDUPLAY — Cloud Function: Gerador de Conteúdo com IA
-// Baseado no Currículo Municipal de SP + Currículo Paulista (BNCC)
-// Psicologia Educacional: Erikson (11-13 anos) + Teoria do Fluxo
+// EDUPLAY — Cloud Function: Gerador de Conteúdo com IA (MODO COPILOTO)
 // ═══════════════════════════════════════════════════════════════════════
 
-const DISCIPLINAS_PERMITIDAS = [
-  'historia', 'geografia', 'matematica', 'ciencias', 'portugues'
-]
+const DISCIPLINAS_PERMITIDAS = ['historia', 'geografia', 'matematica', 'ciencias', 'portugues']
 const SERIES_PERMITIDAS     = ['6ano', '7ano', '8ano', '9ano']
 const BIMESTRES_PERMITIDOS  = ['1bimestre', '2bimestre', '3bimestre', '4bimestre']
 const TEMA_MAX_CHARS        = 120
 
-// ── Currículo Municipal SP + Paulista por série e bimestre ────────────
+// ── Currículo Municipal SP + Paulista (Mantido Intacto) ────────────
 const CURRICULO = {
   historia: {
     '6ano': {
@@ -151,58 +152,60 @@ const CURRICULO = {
   },
 }
 
-// ── Nomes amigáveis para o prompt ─────────────────────────────────────
 const NOMES = {
-  disciplina: {
-    historia: 'História', geografia: 'Geografia',
-    matematica: 'Matemática', ciencias: 'Ciências', portugues: 'Português',
-  },
-  serie: {
-    '6ano': '6º ano', '7ano': '7º ano',
-    '8ano': '8º ano', '9ano': '9º ano',
-  },
-  bimestre: {
-    '1bimestre': '1º Bimestre', '2bimestre': '2º Bimestre',
-    '3bimestre': '3º Bimestre', '4bimestre': '4º Bimestre',
-  },
+  disciplina: { historia: 'História', geografia: 'Geografia', matematica: 'Matemática', ciencias: 'Ciências', portugues: 'Português' },
+  serie: { '6ano': '6º ano', '7ano': '7º ano', '8ano': '8º ano', '9ano': '9º ano' },
+  bimestre: { '1bimestre': '1º Bimestre', '2bimestre': '2º Bimestre', '3bimestre': '3º Bimestre', '4bimestre': '4º Bimestre' },
 }
 
 exports.gerarMissao = onCall(
-  { secrets: [ANTHROPIC_KEY], region: 'us-central1' },
+  {
+    secrets: [ANTHROPIC_KEY],
+    region: 'us-central1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 60,
+  },
   async (request) => {
-
     // ── Verificar autenticação ────────────────────────────────────
     if (!request.auth) {
-      throw new HttpsError('unauthenticated', 'Login necessário.')
+      throw new HttpsError('unauthenticated', 'Acesso Negado: Agente não identificado.')
     }
 
-    const { disciplina, serie, bimestre, tema } = request.data
+    const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo } = request.data
 
-    // ── Validar inputs — whitelist rígida, previne injeção ────────
-    if (!DISCIPLINAS_PERMITIDAS.includes(disciplina))
-      throw new HttpsError('invalid-argument', 'Disciplina inválida.')
+    // ── Verificação de demo única (somente no servidor) ───────────
+    // Só se aplica a chamadas marcadas como isDemo: true
+    // Usuários normais (crianças com código) não passam por aqui
+    if (isDemo === true) {
+      const uid = request.auth.uid
+      const demoRef = db.collection('demos').doc(uid)
+      const demoSnap = await demoRef.get()
 
-    if (!SERIES_PERMITIDAS.includes(serie))
-      throw new HttpsError('invalid-argument', 'Série inválida.')
+      if (demoSnap.exists && demoSnap.data().usada === true) {
+        throw new HttpsError('already-exists', 'Demo já utilizada.')
+      }
+    }
 
-    if (!BIMESTRES_PERMITIDOS.includes(bimestre))
-      throw new HttpsError('invalid-argument', 'Bimestre inválido.')
+    // ── Validar inputs ─────────────────────────────────────────────
+    if (!DISCIPLINAS_PERMITIDAS.includes(disciplina)) throw new HttpsError('invalid-argument', 'Disciplina inválida.')
+    if (!SERIES_PERMITIDAS.includes(serie))           throw new HttpsError('invalid-argument', 'Série inválida.')
+    if (!BIMESTRES_PERMITIDOS.includes(bimestre))     throw new HttpsError('invalid-argument', 'Bimestre inválido.')
+    if (!tema || typeof tema !== 'string' || tema.length > TEMA_MAX_CHARS) throw new HttpsError('invalid-argument', 'Tema inválido.')
 
-    if (!tema || typeof tema !== 'string' || tema.length > TEMA_MAX_CHARS)
-      throw new HttpsError('invalid-argument', 'Tema inválido.')
-
-    // Sanitizar — remove caracteres perigosos
     const temaSanitizado = tema.replace(/[<>{}[\]\\\/]/g, '').trim()
+    if (temaSanitizado.length < 3) throw new HttpsError('invalid-argument', 'Tema muito curto.')
 
-    if (temaSanitizado.length < 3)
-      throw new HttpsError('invalid-argument', 'Tema muito curto.')
-
-    // ── Buscar currículo específico ───────────────────────────────
     const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
+
+    // ── Inteligência de Tempo Real (Copiloto) ─────────────────────
+    let infoTemporal = '';
+    if (contextoTemporal) {
+      infoTemporal = `\nINFORMAÇÃO DE TEMPO REAL: Hoje é dia ${contextoTemporal.dia}/${contextoTemporal.mes}/${contextoTemporal.ano}. Se houver algum feriado histórico, científico ou nacional próximo a esta data que tenha ligação com a matéria, insira uma menção sutil no roteiro do podcast para conectar o aluno com o mundo real.`
+    }
 
     // ── Montar prompt pedagógico ──────────────────────────────────
     const prompt = `Você é um especialista em educação básica brasileira e psicologia do desenvolvimento infantil.
-
 Crie uma missão educacional para o EduPlay — Instituto do Saber.
 
 CONTEXTO PEDAGÓGICO:
@@ -217,14 +220,13 @@ DADOS DA MISSÃO:
 - Série: ${NOMES.serie[serie]}
 - Bimestre: ${NOMES.bimestre[bimestre]}
 - Tema específico: ${temaSanitizado}
-- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}
+- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}${infoTemporal}
 
 PRINCÍPIOS PSICOLÓGICOS A APLICAR:
 1. Efeito Zeigarnik: termine com gancho — deixe o aluno querendo saber mais
 2. Curiosidade epistêmica: a pergunta central deve ser genuinamente instigante
-3. Zona de desenvolvimento proximal (Vygotsky): desafiador mas alcançável
-4. Narrativa progressiva: cada resposta correta revela algo novo
-5. Autonomia: o aluno sente que está descobrindo, não memorizando
+3. Zona de desenvolvimento proximal: desafiador mas alcançável
+4. Autonomia: o aluno sente que está descobrindo, não memorizando
 
 Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
 {
@@ -266,15 +268,14 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos, começa com situação intrigante, desenvolve o conteúdo com conexões reais, termina com gancho para as atividades. Última frase: 'Missão registrada, Agente!'"
+  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
 
 REGRAS INVIOLÁVEIS:
-- Conteúdo 100% alinhado ao currículo municipal de São Paulo
-- Factualmente correto e verificável
+- Conteúdo 100% alinhado ao currículo
 - Palavras da forca: apenas letras maiúsculas A-Z, sem acentos, sem espaços
 - 4 opções no quiz sempre, apenas uma correta
-- Responda APENAS o JSON puro, sem nenhum texto antes ou depois`
+- Responda APENAS o JSON puro, sem marcação markdown como \`\`\`json`
 
     // ── Chamar Claude API ─────────────────────────────────────────
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
@@ -282,24 +283,25 @@ REGRAS INVIOLÁVEIS:
     let resposta
     try {
       const msg = await client.messages.create({
-        model:      'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 2500,
-        messages:   [{ role: 'user', content: prompt }],
+        temperature: 0.7,
+        messages: [{ role: 'user', content: prompt }],
       })
       resposta = msg.content[0].text
     } catch (err) {
-      console.error('Erro Anthropic:', err.message)
-      throw new HttpsError('internal', 'Erro ao gerar conteúdo.')
+      console.error('[ERRO ANTHROPIC DETALHADO]:', err)
+      throw new HttpsError('internal', `Falha de comunicação com a IA: ${err.message}`)
     }
 
     // ── Parsear e validar JSON ────────────────────────────────────
     let missao
     try {
-      const json = resposta.replace(/```json|```/g, '').trim()
-      missao = JSON.parse(json)
+      const jsonStr = resposta.substring(resposta.indexOf('{'), resposta.lastIndexOf('}') + 1)
+      missao = JSON.parse(jsonStr)
     } catch (err) {
       console.error('Erro parse JSON:', resposta)
-      throw new HttpsError('internal', 'Resposta inválida da IA.')
+      throw new HttpsError('internal', 'O arquivo recebido da inteligência estava corrompido.')
     }
 
     // Validar estrutura mínima
@@ -311,7 +313,19 @@ REGRAS INVIOLÁVEIS:
       !missao.atividades?.forca?.palavra ||
       !missao.roteiroPodcast
     ) {
-      throw new HttpsError('internal', 'Estrutura da missão incompleta.')
+      throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade.')
+    }
+
+    // ── Gravar demo como usada no Firestore (servidor) ───────────
+    // Só grava se for uma chamada de demo — após a missão ser validada
+    if (isDemo === true) {
+      const uid = request.auth.uid
+      await db.collection('demos').doc(uid).set({
+        usada: true,
+        disciplina: NOMES.disciplina[disciplina] || disciplina,
+        assunto: missao.titulo || NOMES.disciplina[disciplina],
+        timestamp: new Date().toISOString(),
+      })
     }
 
     // ── Retornar missão completa ──────────────────────────────────
@@ -319,14 +333,14 @@ REGRAS INVIOLÁVEIS:
       ok: true,
       missao: {
         ...missao,
-        id:           `${disciplina}_${serie}_${bimestre}_${Date.now()}`,
+        id: `${disciplina}_${serie}_${bimestre}_${Date.now()}`,
         disciplina,
         serie,
         bimestre,
-        tema:         temaSanitizado,
-        geradaPorIA:  true,
+        tema: temaSanitizado,
+        geradaPorIA: true,
         desbloqueada: true,
-        criadaEm:     new Date().toISOString(),
+        criadaEm: new Date().toISOString(),
       }
     }
   }

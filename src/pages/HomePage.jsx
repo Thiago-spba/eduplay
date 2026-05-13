@@ -1,555 +1,703 @@
 import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useTema } from "../context/ThemeContext";
-import { disciplinas, ordemDisciplinas, niveis } from "../utils/content";
 import BottomNav from "../components/BottomNav";
+import {
+  getTodasMissoes,
+  getProgresso,
+  registrarAcessoDiario,
+} from "../services/db";
 
-export default function HomePage({ playerName, timer }) {
+// ── Utilitários ──
+function obterSaudacao() {
+  const h = new Date().getHours();
+  if (h < 12) return "Bom dia,";
+  if (h < 18) return "Boa tarde,";
+  return "Boa noite,";
+}
+
+function obterDiasSemana(diasAtivos = []) {
+  const nomes = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const hoje = new Date();
+  const inicio = new Date(hoje);
+  inicio.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7));
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(inicio);
+    d.setDate(inicio.getDate() + i);
+    const iso = d.toISOString().slice(0, 10);
+    return {
+      label: nomes[d.getDay()],
+      iso,
+      feito: diasAtivos.includes(iso),
+      hoje: iso === hoje.toISOString().slice(0, 10),
+    };
+  });
+}
+
+const DISCIPLINAS_META = {
+  historia: { label: "História", icone: "📜", cor: "#C4A882" },
+  geografia: { label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
+  matematica: { label: "Matemática", icone: "📐", cor: "#6B5B95" },
+  ciencias: { label: "Ciências", icone: "🔬", cor: "#2E8B57" },
+  portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
+};
+
+const ORDEM_DISCIPLINAS = [
+  "historia",
+  "geografia",
+  "matematica",
+  "ciencias",
+  "portugues",
+];
+
+// ── Componente principal ──
+export default function HomePage({ playerName }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
+  const e = tema === "escuro";
 
-  // Estado para armazenar quantas missões (Arquivos de IA) cada departamento tem
-  const [contagemMissoes, setContagemMissoes] = useState({});
-
-  useEffect(() => {
-    if (!timer.rodando && !timer.bloqueado) timer.iniciar();
-
-    // Vasculha o localStorage para ver quantas missões reais existem por disciplina
-    const novaContagem = {};
-    ordemDisciplinas.forEach((id) => {
-      try {
-        const salvas = JSON.parse(
-          localStorage.getItem(`eduplay_missoes_ia_${id}`) || "[]",
-        );
-        novaContagem[id] = salvas.length;
-      } catch {
-        novaContagem[id] = 0;
-      }
-    });
-    setContagemMissoes(novaContagem);
-  }, []);
-
-  const xpTotal = parseInt(localStorage.getItem("eduplay_xp") || "0");
-  const nivelAtual =
-    niveis.filter((n) => xpTotal >= n.xpNecessario).pop() || niveis[0];
-  const proximoNivel = niveis.find((n) => n.xpNecessario > xpTotal);
-  const percentualNivel = proximoNivel
-    ? Math.round(
-        ((xpTotal - nivelAtual.xpNecessario) /
-          (proximoNivel.xpNecessario - nivelAtual.xpNecessario)) *
-          100,
-      )
-    : 100;
+  const [carregando, setCarregando] = useState(true);
+  const [missoes, setMissoes] = useState({});
+  const [progresso, setProgresso] = useState(null);
+  const [diasSemana, setDiasSemana] = useState([]);
 
   const c = {
-    bg: tema === "escuro" ? "#0D141C" : "#F0F4F8",
-    card: tema === "escuro" ? "#1A2633" : "#FFFFFF",
-    card2: tema === "escuro" ? "#121C26" : "#F8FAFC",
-    texto: tema === "escuro" ? "#E2E8F0" : "#1E293B",
-    textoSub: tema === "escuro" ? "#94A3B8" : "#64748B",
-    borda: tema === "escuro" ? "#2D3D50" : "#E2E8F0",
-    header: tema === "escuro" ? "#0F172A" : "#FFFFFF",
-    accent: "#00D4AA",
+    bg: e ? "#0D141C" : "#F0F4F8",
+    card: e ? "#1A2633" : "#FFFFFF",
+    texto: e ? "#E2E8F0" : "#1E293B",
+    textoSub: e ? "#94A3B8" : "#64748B",
+    borda: e ? "#2D3D50" : "#E2E8F0",
+    verde: "#0F6E56",
+    verdeClaro: "#E1F5EE",
+    verdeSub: "#9FE1CB",
   };
+
+  const codigoAcesso = localStorage.getItem("eduplay_codigo_acesso");
+  const nomeExibido = playerName?.split(" ")[0] || "Agente";
+
+  // ── Carrega dados do Firestore ──
+  useEffect(() => {
+    if (!codigoAcesso) {
+      setCarregando(false);
+      return;
+    }
+    const carregar = async () => {
+      try {
+        const [missoesFB, progressoFB] = await Promise.all([
+          getTodasMissoes(codigoAcesso),
+          registrarAcessoDiario(codigoAcesso),
+        ]);
+        setMissoes(missoesFB);
+        setProgresso(progressoFB);
+        setDiasSemana(obterDiasSemana(progressoFB?.diasAtivos || []));
+      } catch (err) {
+        console.error("Erro ao carregar HomePage:", err);
+        // Fallback: tenta buscar só o progresso sem registrar
+        try {
+          const prog = await getProgresso(codigoAcesso);
+          setProgresso(prog);
+          setDiasSemana(obterDiasSemana(prog?.diasAtivos || []));
+        } catch {
+          /* silencia */
+        }
+      } finally {
+        setCarregando(false);
+      }
+    };
+    carregar();
+  }, [codigoAcesso]);
+
+  // ── Missão principal (primeira disciplina com missão pendente) ──
+  const missaoPrincipal = (() => {
+    for (const id of ORDEM_DISCIPLINAS) {
+      const lista = missoes[id] || [];
+      const pendentes = lista.filter((m) => !m.feita);
+      if (pendentes.length > 0) {
+        return { id, missao: pendentes[0], ...DISCIPLINAS_META[id] };
+      }
+    }
+    return null;
+  })();
+
+  // ── Outras disciplinas com missões pendentes ──
+  const outrasDisciplinas = ORDEM_DISCIPLINAS.filter((id) => {
+    if (id === missaoPrincipal?.id) return false;
+    return (missoes[id] || []).some((m) => !m.feita);
+  });
+
+  // ── Badges de esforço ──
+  const diasSeguidos = progresso?.diasSeguidos || 0;
+  const missoesFeitas = progresso?.missoesFeitas || 0;
+  const badges = [];
+  if (diasSeguidos >= 3)
+    badges.push({ icone: "🔥", label: `${diasSeguidos} dias seguidos` });
+  if (missoesFeitas >= 5)
+    badges.push({ icone: "✅", label: "5 missões concluídas" });
+  if (missoesFeitas >= 1 && diasSeguidos >= 1)
+    badges.push({ icone: "💡", label: "Voltou para aprender" });
+
+  // ── Trocar usuário ──
+  const trocarUsuario = () => {
+    localStorage.removeItem("eduplay_player_name");
+    localStorage.removeItem("eduplay_codigo_acesso");
+    window.location.replace("/");
+  };
+
+  // ── Loading ──
+  if (carregando) {
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: c.bg,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontFamily: "'Nunito', sans-serif",
+        }}
+      >
+        <div style={{ textAlign: "center" }}>
+          <div
+            style={{
+              width: 52,
+              height: 52,
+              borderRadius: "50%",
+              background: c.verde,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              margin: "0 auto 14px",
+              fontSize: "1.6rem",
+              animation: "pulsar 1.4s ease-in-out infinite",
+            }}
+          >
+            🎮
+          </div>
+          <p
+            style={{ color: c.textoSub, fontWeight: 700, fontSize: "0.88rem" }}
+          >
+            Carregando suas missões...
+          </p>
+        </div>
+        <style>{`@keyframes pulsar{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}`}</style>
+      </div>
+    );
+  }
 
   return (
     <div
       style={{
-        minHeight: "100vh",
+        minHeight: "100dvh",
         background: c.bg,
         fontFamily: "'Nunito', sans-serif",
-        paddingBottom: "90px",
-        transition: "all 0.3s",
+        paddingBottom: 90,
       }}
     >
-      {/* HEADER TÁTICO */}
-      <header
-        style={{
-          background: c.header,
-          borderBottom: `1px solid ${c.borda}`,
-          padding: "12px 16px",
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          position: "sticky",
-          top: 0,
-          zIndex: 100,
-          boxShadow: "0 2px 12px rgba(0,0,0,0.05)",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-          <div
-            style={{
-              width: "38px",
-              height: "38px",
-              background: "linear-gradient(135deg, #00D4AA, #0099FF)",
-              borderRadius: "12px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: "1.2rem",
-              boxShadow: "0 2px 8px rgba(0,212,170,0.3)",
-            }}
-          >
-            🔬
-          </div>
-          <div>
-            <div
-              style={{
-                fontFamily: "'Fredoka', sans-serif",
-                fontWeight: 700,
-                fontSize: "1.1rem",
-                color: c.texto,
-                lineHeight: 1.1,
-              }}
-            >
-              Instituto do Saber
-            </div>
-            <div
-              style={{
-                fontSize: "0.65rem",
-                color: c.accent,
-                fontWeight: 800,
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-              }}
-            >
-              {nivelAtual.titulo}
-            </div>
-          </div>
-        </div>
-
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <div
-            style={{
-              background: timer.alertaProximo ? "#FF6B6B15" : `${c.accent}15`,
-              color: timer.alertaProximo ? "#FF6B6B" : c.accent,
-              padding: "6px 12px",
-              borderRadius: "12px",
-              fontSize: "0.8rem",
-              fontWeight: 800,
-              border: `1.5px solid ${timer.alertaProximo ? "#FF6B6B" : c.accent}`,
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-            }}
-          >
-            {timer.alertaProximo ? "⚠️" : "⏱️"} {timer.tempoFormatado}
-          </div>
-          <button
-            onClick={alternarTema}
-            style={{
-              width: "36px",
-              height: "36px",
-              background: c.card2,
-              border: `1.5px solid ${c.borda}`,
-              borderRadius: "10px",
-              fontSize: "1.1rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "0.2s",
-            }}
-          >
-            {tema === "escuro" ? "☀️" : "🌙"}
-          </button>
-        </div>
-      </header>
-
-      <main
-        style={{ padding: "20px 16px", maxWidth: "600px", margin: "0 auto" }}
-      >
-        {/* CARD DO AGENTE (PERFIL E PROGRESSO) */}
+      {/* ── HEADER VERDE ── */}
+      <div style={{ background: c.verde, padding: "18px 20px 22px" }}>
+        {/* Barra topo */}
         <div
           style={{
-            background: `linear-gradient(135deg, ${tema === "escuro" ? "#0D2137" : "#E8F7FF"}, ${tema === "escuro" ? "#1A3A52" : "#F0FFF8"})`,
-            borderRadius: "24px",
-            padding: "24px",
-            marginBottom: "24px",
-            border: `2px solid ${c.accent}33`,
-            position: "relative",
-            overflow: "hidden",
-            boxShadow: `0 8px 24px rgba(0, 212, 170, 0.08)`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 14,
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              right: "-10px",
-              top: "-10px",
-              fontSize: "8rem",
-              opacity: 0.04,
-              pointerEvents: "none",
-            }}
-          >
-            🔬
-          </div>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "flex-start",
-            }}
-          >
-            <div>
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: c.accent,
-                  fontWeight: 800,
-                  letterSpacing: "1.5px",
-                  textTransform: "uppercase",
-                  marginBottom: "4px",
-                  background: `${c.accent}22`,
-                  display: "inline-block",
-                  padding: "4px 8px",
-                  borderRadius: "8px",
-                }}
-              >
-                🪪 CREDENCIAL ATIVA
-              </div>
-              <h2
-                style={{
-                  fontFamily: "'Fredoka', sans-serif",
-                  fontSize: "1.8rem",
-                  color: c.texto,
-                  margin: "8px 0 2px",
-                }}
-              >
-                Agente {playerName || "Desconhecido"}
-              </h2>
-              <div
-                style={{
-                  fontSize: "0.9rem",
-                  color: c.textoSub,
-                  fontWeight: 600,
-                }}
-              >
-                {nivelAtual.titulo}
-              </div>
-            </div>
-
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <div
               style={{
-                textAlign: "right",
-                background: c.card,
-                padding: "10px 16px",
-                borderRadius: "16px",
-                border: `1.5px solid ${c.accent}44`,
+                width: 30,
+                height: 30,
+                borderRadius: 9,
+                background: "rgba(255,255,255,0.15)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1rem",
               }}
             >
-              <div
-                style={{
-                  fontSize: "0.7rem",
-                  color: c.textoSub,
-                  marginBottom: "2px",
-                  fontWeight: 700,
-                  textTransform: "uppercase",
-                }}
-              >
-                🧩 Fragmentos
-              </div>
-              <div
-                style={{
-                  fontFamily: "'Fredoka', sans-serif",
-                  fontSize: "1.6rem",
-                  color: c.accent,
-                  fontWeight: 800,
-                  lineHeight: 1,
-                }}
-              >
-                {xpTotal}
-              </div>
+              🎮
             </div>
+            <span
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "1rem",
+                fontWeight: 600,
+                color: "#E1F5EE",
+              }}
+            >
+              EduPlay
+            </span>
           </div>
 
-          <div style={{ marginTop: "24px" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              onClick={trocarUsuario}
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "none",
+                borderRadius: 9,
+                padding: "5px 10px",
+                color: "#9FE1CB",
+                fontSize: "0.72rem",
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: "'Nunito', sans-serif",
+              }}
+            >
+              Trocar usuário
+            </button>
+            <button
+              onClick={alternarTema}
+              style={{
+                background: "rgba(255,255,255,0.12)",
+                border: "none",
+                borderRadius: 9,
+                width: 32,
+                height: 32,
+                cursor: "pointer",
+                fontSize: "0.95rem",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {e ? "☀️" : "🌙"}
+            </button>
+          </div>
+        </div>
+
+        {/* Saudação */}
+        <p
+          style={{ margin: "0 0 2px", fontSize: "0.82rem", color: c.verdeSub }}
+        >
+          {obterSaudacao()}
+        </p>
+        <p
+          style={{
+            margin: "0 0 16px",
+            fontSize: "1.6rem",
+            fontWeight: 600,
+            color: "#E1F5EE",
+            fontFamily: "'Fredoka', sans-serif",
+          }}
+        >
+          {nomeExibido}!
+        </p>
+
+        {/* Pills esforço */}
+        <div style={{ display: "flex", gap: 10 }}>
+          {[
+            {
+              icone: "🔥",
+              label: "dias seguidos",
+              valor: `${diasSeguidos} ${diasSeguidos === 1 ? "dia" : "dias"}`,
+            },
+            {
+              icone: "✅",
+              label: "missões feitas",
+              valor: `${missoesFeitas} ${missoesFeitas === 1 ? "missão" : "missões"}`,
+            },
+          ].map((p) => (
+            <div
+              key={p.label}
+              style={{
+                flex: 1,
+                background: "rgba(255,255,255,0.12)",
+                borderRadius: 13,
+                padding: "10px 13px",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span style={{ fontSize: "1.2rem" }}>{p.icone}</span>
+              <div>
+                <div
+                  style={{
+                    fontSize: "0.65rem",
+                    color: c.verdeSub,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {p.label}
+                </div>
+                <div
+                  style={{
+                    fontSize: "1.05rem",
+                    fontWeight: 600,
+                    color: "#E1F5EE",
+                    fontFamily: "'Fredoka', sans-serif",
+                  }}
+                >
+                  {p.valor}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* ── CONTEÚDO ── */}
+      <main style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+        {/* Missão de hoje */}
+        <p
+          style={{
+            fontSize: "0.66rem",
+            fontWeight: 700,
+            color: c.textoSub,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            margin: "0 0 10px",
+          }}
+        >
+          Missão de hoje
+        </p>
+
+        {missaoPrincipal ? (
+          <button
+            onClick={() => navigate(`/${missaoPrincipal.id}`)}
+            style={{
+              width: "100%",
+              background: c.verdeClaro,
+              borderRadius: 20,
+              padding: "18px",
+              border: "1.5px solid #9FE1CB",
+              cursor: "pointer",
+              textAlign: "left",
+              marginBottom: 20,
+              transition: "opacity 0.15s",
+            }}
+          >
             <div
               style={{
                 display: "flex",
                 justifyContent: "space-between",
-                marginBottom: "8px",
+                alignItems: "center",
+                marginBottom: 10,
               }}
             >
               <span
                 style={{
-                  fontSize: "0.8rem",
-                  color: c.textoSub,
+                  fontSize: "0.7rem",
                   fontWeight: 700,
+                  color: c.verde,
+                  background: "#fff",
+                  borderRadius: 20,
+                  padding: "3px 10px",
+                  border: "1px solid #9FE1CB",
                 }}
               >
-                Nível {nivelAtual.nivel}
+                {missaoPrincipal.label}
               </span>
-              {proximoNivel && (
-                <span
-                  style={{
-                    fontSize: "0.8rem",
-                    color: c.textoSub,
-                    fontWeight: 700,
-                  }}
-                >
-                  Próximo: {proximoNivel.xpNecessario} 🧩
-                </span>
-              )}
+              <span style={{ fontSize: "0.7rem", color: "#085041" }}>
+                ~15 min
+              </span>
             </div>
-            <div
+            <p
               style={{
-                height: "10px",
-                background: c.borda,
-                borderRadius: "5px",
-                overflow: "hidden",
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "1.05rem",
+                fontWeight: 600,
+                color: "#085041",
+                margin: "0 0 6px",
+              }}
+            >
+              {missaoPrincipal.missao?.titulo ||
+                `Missão de ${missaoPrincipal.label}`}
+            </p>
+            <p
+              style={{
+                fontSize: "0.78rem",
+                color: "#0F6E56",
+                margin: "0 0 14px",
+                lineHeight: 1.5,
+              }}
+            >
+              {missaoPrincipal.missao?.perguntaCentral ||
+                "Clique para iniciar sua missão de hoje."}
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div
+                style={{
+                  background: c.verde,
+                  color: c.verdeClaro,
+                  borderRadius: 10,
+                  padding: "7px 18px",
+                  fontSize: "0.85rem",
+                  fontWeight: 600,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                ▶ Jogar
+              </div>
+            </div>
+          </button>
+        ) : (
+          <div
+            style={{
+              background: c.card,
+              borderRadius: 20,
+              padding: "24px",
+              textAlign: "center",
+              border: `1.5px dashed ${c.borda}`,
+              marginBottom: 20,
+            }}
+          >
+            <span style={{ fontSize: "2rem" }}>📭</span>
+            <p
+              style={{
+                color: c.textoSub,
+                fontSize: "0.88rem",
+                fontWeight: 600,
+                margin: "10px 0 4px",
+              }}
+            >
+              Nenhuma missão disponível ainda.
+            </p>
+            <p
+              style={{
+                color: c.textoSub,
+                fontSize: "0.76rem",
+                margin: 0,
+                lineHeight: 1.5,
+              }}
+            >
+              Peça para o responsável gerar missões no Painel.
+            </p>
+          </div>
+        )}
+
+        {/* Semana */}
+        <p
+          style={{
+            fontSize: "0.66rem",
+            fontWeight: 700,
+            color: c.textoSub,
+            textTransform: "uppercase",
+            letterSpacing: "0.06em",
+            margin: "0 0 10px",
+          }}
+        >
+          Semana
+        </p>
+        <div
+          style={{
+            background: c.card,
+            borderRadius: 16,
+            padding: "14px 16px",
+            border: `1.5px solid ${c.borda}`,
+            display: "flex",
+            justifyContent: "space-between",
+            marginBottom: 20,
+          }}
+        >
+          {diasSemana.map((d) => (
+            <div
+              key={d.iso}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                gap: 5,
               }}
             >
               <div
                 style={{
-                  height: "100%",
-                  width: `${percentualNivel}%`,
-                  background: "linear-gradient(90deg, #00D4AA, #0099FF)",
-                  borderRadius: "5px",
-                  transition: "width 1s ease",
-                  boxShadow: "0 0 8px rgba(0,212,170,0.5)",
-                }}
-              />
-            </div>
-          </div>
-
-          <div
-            style={{
-              marginTop: "16px",
-              height: "4px",
-              background: c.borda,
-              borderRadius: "2px",
-              overflow: "hidden",
-            }}
-          >
-            <div
-              style={{
-                height: "100%",
-                width: `${timer.percentual}%`,
-                background: timer.alertaProximo ? "#FF6B6B" : c.accent,
-                borderRadius: "2px",
-                transition: "width 1s linear",
-              }}
-            />
-          </div>
-          <div
-            style={{
-              fontSize: "0.75rem",
-              color: c.textoSub,
-              marginTop: "6px",
-              fontWeight: 600,
-              textAlign: "center",
-            }}
-          >
-            {timer.percentual}% do tempo de pesquisa restante
-          </div>
-        </div>
-
-        {/* LISTA DE DEPARTAMENTOS */}
-        <div
-          style={{
-            marginBottom: "12px",
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <h3
-            style={{
-              fontFamily: "'Fredoka', sans-serif",
-              fontSize: "1.1rem",
-              color: c.texto,
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-            }}
-          >
-            🏛️ Departamentos
-          </h3>
-          <span
-            style={{
-              fontSize: "0.75rem",
-              color: c.textoSub,
-              fontWeight: 700,
-              textTransform: "uppercase",
-            }}
-          >
-            Escolha sua missão
-          </span>
-        </div>
-
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "12px",
-            marginBottom: "24px",
-          }}
-        >
-          {ordemDisciplinas.map((id) => {
-            const d = disciplinas[id];
-            const qtdMissoes = contagemMissoes[id] || 0;
-
-            return (
-              <button
-                key={id}
-                onClick={() => !d.bloqueada && navigate(`/${id}`)}
-                style={{
-                  background: c.card,
-                  border: `2px solid ${d.bloqueada ? c.borda : d.cor + "44"}`,
-                  borderRadius: "20px",
-                  padding: "16px",
+                  width: 30,
+                  height: 30,
+                  borderRadius: "50%",
                   display: "flex",
                   alignItems: "center",
-                  gap: "16px",
-                  cursor: d.bloqueada ? "not-allowed" : "pointer",
-                  opacity: d.bloqueada ? 0.6 : 1,
-                  transition: "all 0.2s",
-                  textAlign: "left",
-                  width: "100%",
-                  boxShadow: d.bloqueada
-                    ? "none"
-                    : `0 4px 12px rgba(0,0,0,0.03)`,
-                }}
-                onMouseEnter={(e) => {
-                  if (!d.bloqueada) {
-                    e.currentTarget.style.transform = "translateY(-3px)";
-                    e.currentTarget.style.borderColor = d.cor;
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = "translateY(0)";
-                  e.currentTarget.style.borderColor = d.bloqueada
-                    ? c.borda
-                    : d.cor + "44";
+                  justifyContent: "center",
+                  background: d.feito
+                    ? c.verdeClaro
+                    : d.hoje
+                      ? "#E6F1FB"
+                      : "transparent",
+                  border: d.feito
+                    ? "1.5px solid #5DCAA5"
+                    : d.hoje
+                      ? "1.5px solid #378ADD"
+                      : `1.5px solid ${c.borda}`,
                 }}
               >
+                {d.feito ? (
+                  <span
+                    style={{
+                      color: c.verde,
+                      fontSize: "0.8rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    ✓
+                  </span>
+                ) : d.hoje ? (
+                  <span
+                    style={{
+                      color: "#185FA5",
+                      fontSize: "0.9rem",
+                      fontWeight: 700,
+                    }}
+                  >
+                    •
+                  </span>
+                ) : (
+                  <span style={{ color: c.borda, fontSize: "0.9rem" }}>·</span>
+                )}
+              </div>
+              <span
+                style={{
+                  fontSize: "0.6rem",
+                  color: d.hoje ? c.texto : c.textoSub,
+                  fontWeight: d.hoje ? 700 : 400,
+                }}
+              >
+                {d.label}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Badges */}
+        {badges.length > 0 && (
+          <>
+            <p
+              style={{
+                fontSize: "0.66rem",
+                fontWeight: 700,
+                color: c.textoSub,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                margin: "0 0 10px",
+              }}
+            >
+              Conquistado
+            </p>
+            <div
+              style={{
+                display: "flex",
+                gap: 8,
+                flexWrap: "wrap",
+                marginBottom: 20,
+              }}
+            >
+              {badges.map((b, i) => (
                 <div
+                  key={i}
                   style={{
-                    width: "54px",
-                    height: "54px",
-                    background: d.bloqueada ? c.borda : d.cor + "22",
-                    borderRadius: "14px",
                     display: "flex",
                     alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.8rem",
-                    flexShrink: 0,
-                    border: `2px solid ${d.bloqueada ? c.borda : d.cor + "44"}`,
+                    gap: 6,
+                    background: c.card,
+                    borderRadius: 12,
+                    padding: "8px 12px",
+                    border: `1.5px solid ${c.borda}`,
                   }}
                 >
-                  {d.bloqueada ? "🔒" : d.icone}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
+                  <span style={{ fontSize: "1rem" }}>{b.icone}</span>
+                  <span
                     style={{
-                      fontFamily: "'Fredoka', sans-serif",
-                      fontSize: "1.1rem",
+                      fontSize: "0.76rem",
                       color: c.texto,
                       fontWeight: 600,
-                      marginBottom: "4px",
                     }}
                   >
-                    {d.depto}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "0.8rem",
-                      color: c.textoSub,
-                      marginBottom: "6px",
-                    }}
-                  >
-                    {d.bloqueada ? "Acesso Restrito..." : d.missao}
-                  </div>
+                    {b.label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
 
-                  {/* Status Dinâmico de Missões da IA (Substitui o antigo 0/3) */}
-                  {!d.bloqueada && (
+        {/* Outras matérias */}
+        {outrasDisciplinas.length > 0 && (
+          <>
+            <p
+              style={{
+                fontSize: "0.66rem",
+                fontWeight: 700,
+                color: c.textoSub,
+                textTransform: "uppercase",
+                letterSpacing: "0.06em",
+                margin: "0 0 10px",
+              }}
+            >
+              Outras matérias disponíveis
+            </p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {outrasDisciplinas.map((id) => {
+                const meta = DISCIPLINAS_META[id];
+                const total = (missoes[id] || []).filter(
+                  (m) => !m.feita,
+                ).length;
+                return (
+                  <button
+                    key={id}
+                    onClick={() => navigate(`/${id}`)}
+                    style={{
+                      background: c.card,
+                      borderRadius: 16,
+                      padding: "14px 16px",
+                      border: `1.5px solid ${c.borda}`,
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 14,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
                     <div
                       style={{
-                        display: "inline-block",
-                        fontSize: "0.7rem",
-                        color: qtdMissoes > 0 ? d.cor : c.textoSub,
-                        fontWeight: 800,
-                        background: qtdMissoes > 0 ? d.cor + "15" : c.borda,
-                        padding: "4px 10px",
-                        borderRadius: "8px",
-                        letterSpacing: "0.5px",
+                        width: 44,
+                        height: 44,
+                        borderRadius: 12,
+                        background: `${meta.cor}22`,
+                        border: `1.5px solid ${meta.cor}44`,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "1.4rem",
+                        flexShrink: 0,
                       }}
                     >
-                      {qtdMissoes > 0
-                        ? `📂 ${qtdMissoes} ARQUIVO(S) ATIVO(S)`
-                        : "📡 INEXPLORADO"}
+                      {meta.icone}
                     </div>
-                  )}
-                </div>
-
-                {!d.bloqueada && (
-                  <div
-                    style={{
-                      color: c.textoSub,
-                      fontSize: "1.5rem",
-                      flexShrink: 0,
-                    }}
-                  >
-                    ›
-                  </div>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* MISSÃO DO DIA BÔNUS */}
-        <div
-          style={{
-            background: `linear-gradient(135deg, ${tema === "escuro" ? "#1A1A2E" : "#FFF8E8"}, ${tema === "escuro" ? "#2D1B4E" : "#FFF0D4"})`,
-            borderRadius: "20px",
-            padding: "20px",
-            border: "2px solid #FFB83044",
-            display: "flex",
-            alignItems: "center",
-            gap: "16px",
-          }}
-        >
-          <div style={{ fontSize: "2.5rem" }}>🎯</div>
-          <div>
-            <div
-              style={{
-                fontSize: "0.75rem",
-                color: "#FFB830",
-                fontWeight: 800,
-                letterSpacing: "1px",
-                textTransform: "uppercase",
-                marginBottom: "4px",
-              }}
-            >
-              Missão do Dia
+                    <div style={{ flex: 1 }}>
+                      <div
+                        style={{
+                          fontFamily: "'Fredoka', sans-serif",
+                          fontSize: "0.95rem",
+                          color: c.texto,
+                          fontWeight: 600,
+                        }}
+                      >
+                        {meta.label}
+                      </div>
+                      <div style={{ fontSize: "0.7rem", color: c.textoSub }}>
+                        {total}{" "}
+                        {total === 1 ? "missão pendente" : "missões pendentes"}
+                      </div>
+                    </div>
+                    <span style={{ color: c.textoSub, fontSize: "1.1rem" }}>
+                      ›
+                    </span>
+                  </button>
+                );
+              })}
             </div>
-            <div
-              style={{
-                fontFamily: "'Fredoka', sans-serif",
-                fontSize: "1.1rem",
-                color: c.texto,
-                marginBottom: "2px",
-              }}
-            >
-              Escanear 1 Novo Setor
-            </div>
-            <div
-              style={{ fontSize: "0.8rem", color: c.textoSub, fontWeight: 600 }}
-            >
-              Recompensa: +50 fragmentos bônus 🧩
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </main>
 
       <BottomNav />
-
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
+        @keyframes pulsar { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
       `}</style>
     </div>
   );

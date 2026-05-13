@@ -12,3 +12,5 @@ firebase-debug.log
 *.local
 .DS_Store
 Thumbs.db
+
+serviceAccountKey.json
