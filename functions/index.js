@@ -268,6 +268,8 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
+  "resumo": "explicação do assunto em 3-4 frases simples e diretas, como um professor falaria para um aluno de 12 anos — sem termos técnicos, sem enrolação",
+  "topicos": ["tópico 1 — conceito central", "tópico 2 — curiosidade real", "tópico 3 — conexão com o presente", "tópico 4 — impacto na vida", "tópico 5 — gancho para ir além"],
   "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
 

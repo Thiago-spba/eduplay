@@ -5,6 +5,8 @@ import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
 import {
   getResponsavel,
+  getResponsavelPorEmail,
+  migrarResponsavel,
   salvarResponsavel,
   getCriancaPorPai,
   criarCrianca,
@@ -319,7 +321,19 @@ export default function PaisPage({ userPai, timer }) {
     if (!userPai) return;
     const iniciar = async () => {
       try {
-        const resp = await getResponsavel(userPai.uid);
+        let resp = await getResponsavel(userPai.uid);
+
+        // ── Migração automática de uid ──────────────────────────────
+        // Ocorre quando o usuário recria a conta Google e o uid muda.
+        // Busca pelo email e migra todos os dados para o novo uid.
+        if (!resp && userPai.email) {
+          const respAntigo = await getResponsavelPorEmail(userPai.email);
+          if (respAntigo && respAntigo.id !== userPai.uid) {
+            await migrarResponsavel(respAntigo.id, userPai.uid, userPai);
+            resp = await getResponsavel(userPai.uid);
+          }
+        }
+
         if (!resp) {
           setEtapa("eca");
           return;

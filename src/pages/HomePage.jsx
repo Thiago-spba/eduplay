@@ -2,6 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
+import { signInAnonymously } from "firebase/auth";
+import { auth } from "../services/firebase";
 import {
   getTodasMissoes,
   getProgresso,
@@ -83,6 +85,9 @@ export default function HomePage({ playerName }) {
     }
     const carregar = async () => {
       try {
+        // Garante autenticação anônima antes de qualquer leitura do Firestore
+        await signInAnonymously(auth).catch(() => {});
+
         const [missoesFB, progressoFB] = await Promise.all([
           getTodasMissoes(codigoAcesso),
           registrarAcessoDiario(codigoAcesso),
@@ -92,7 +97,6 @@ export default function HomePage({ playerName }) {
         setDiasSemana(obterDiasSemana(progressoFB?.diasAtivos || []));
       } catch (err) {
         console.error("Erro ao carregar HomePage:", err);
-        // Fallback: tenta buscar só o progresso sem registrar
         try {
           const prog = await getProgresso(codigoAcesso);
           setProgresso(prog);
@@ -107,14 +111,13 @@ export default function HomePage({ playerName }) {
     carregar();
   }, [codigoAcesso]);
 
-  // ── Missão principal (primeira disciplina com missão pendente) ──
+  // ── Missão principal ──
   const missaoPrincipal = (() => {
     for (const id of ORDEM_DISCIPLINAS) {
       const lista = missoes[id] || [];
       const pendentes = lista.filter((m) => !m.feita);
-      if (pendentes.length > 0) {
+      if (pendentes.length > 0)
         return { id, missao: pendentes[0], ...DISCIPLINAS_META[id] };
-      }
     }
     return null;
   })();
@@ -195,7 +198,6 @@ export default function HomePage({ playerName }) {
     >
       {/* ── HEADER VERDE ── */}
       <div style={{ background: c.verde, padding: "18px 20px 22px" }}>
-        {/* Barra topo */}
         <div
           style={{
             display: "flex",
@@ -230,7 +232,6 @@ export default function HomePage({ playerName }) {
               EduPlay
             </span>
           </div>
-
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button
               onClick={trocarUsuario}
@@ -268,7 +269,6 @@ export default function HomePage({ playerName }) {
           </div>
         </div>
 
-        {/* Saudação */}
         <p
           style={{ margin: "0 0 2px", fontSize: "0.82rem", color: c.verdeSub }}
         >
@@ -286,7 +286,6 @@ export default function HomePage({ playerName }) {
           {nomeExibido}!
         </p>
 
-        {/* Pills esforço */}
         <div style={{ display: "flex", gap: 10 }}>
           {[
             {
@@ -341,7 +340,6 @@ export default function HomePage({ playerName }) {
 
       {/* ── CONTEÚDO ── */}
       <main style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
-        {/* Missão de hoje */}
         <p
           style={{
             fontSize: "0.66rem",

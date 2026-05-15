@@ -11,6 +11,8 @@ import {
   salvarMissao,
 } from "../services/db";
 import { gerarMissaoIA } from "../services/ia";
+import { signInAnonymously } from "firebase/auth";
+import { auth } from "../services/firebase";
 
 function useCores(tema) {
   const e = tema === "escuro";
@@ -124,6 +126,7 @@ function PageHeader({
   );
 }
 
+// ── Quiz com contagem de acertos corrigida ──
 function Quiz({ perguntas, onConcluir, cor, c }) {
   const [indice, setIndice] = useState(0);
   const [sel, setSel] = useState(null);
@@ -142,9 +145,11 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
   };
 
   const proxima = () => {
-    const novosAcertos = acertos + (sel === q.correta ? 1 : 0);
-    if (indice + 1 >= total) onConcluir(novosAcertos, total);
-    else {
+    // acertos já foi incrementado por setAcertos em responder()
+    // NÃO somar novamente aqui para evitar contagem dupla na última pergunta
+    if (indice + 1 >= total) {
+      onConcluir(acertos, total);
+    } else {
       setIndice((i) => i + 1);
       setSel(null);
       setRespondeu(false);
@@ -205,6 +210,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
           ))}
         </div>
       </div>
+
       <div
         style={{
           background: c.card2,
@@ -220,6 +226,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
       >
         {q.pergunta}
       </div>
+
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {q.opcoes.map((op, i) => {
           let bg = c.card,
@@ -269,6 +276,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
           );
         })}
       </div>
+
       {respondeu && (
         <div
           style={{
@@ -285,6 +293,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
           {q.explicacao}
         </div>
       )}
+
       {respondeu && (
         <button
           onClick={proxima}
@@ -648,11 +657,14 @@ export default function SubjectPage() {
   const disciplinaBase = disciplinas[disciplinaId];
   const codigoAcesso = localStorage.getItem("eduplay_codigo_acesso");
 
-  // ── Carrega missões — gera automaticamente se não houver ──
+  // ── Carrega missões ──
   useEffect(() => {
     if (!disciplinaId) return;
     const carregar = async () => {
       try {
+        // Garante auth anônima antes de qualquer leitura do Firestore
+        await signInAnonymously(auth).catch(() => {});
+
         if (codigoAcesso) {
           const lista = await getMissoesPorDisciplina(
             codigoAcesso,
@@ -663,7 +675,6 @@ export default function SubjectPage() {
             setMissoes(pendentes);
             setCarregando(false);
           } else {
-            // Sem missões pendentes — gera automaticamente
             setCarregando(false);
             setGerandoAuto(true);
             try {
@@ -801,6 +812,7 @@ export default function SubjectPage() {
           c={c}
           alternarTema={alternarTema}
         />
+
         {atividade === "quiz" && (
           <Quiz
             perguntas={moduloSelecionado.atividades?.quiz}
@@ -817,6 +829,7 @@ export default function SubjectPage() {
             c={c}
           />
         )}
+
         {bloqueioSaida && (
           <div
             style={{
@@ -838,7 +851,7 @@ export default function SubjectPage() {
                 maxWidth: 340,
                 width: "100%",
                 textAlign: "center",
-                border: "2px solid " + cor + "44",
+                border: `2px solid ${cor}44`,
               }}
             >
               <div style={{ fontSize: "2.5rem", marginBottom: 12 }}>🌱</div>
@@ -892,7 +905,7 @@ export default function SubjectPage() {
                     width: "100%",
                     padding: "11px",
                     borderRadius: 14,
-                    border: "1.5px solid " + c.borda,
+                    border: `1.5px solid ${c.borda}`,
                     background: "transparent",
                     color: c.textoSub,
                     fontWeight: 600,
@@ -920,6 +933,7 @@ export default function SubjectPage() {
           <AudioLesson
             disciplinaId={disciplinaId}
             moduloId={moduloAtivo}
+            missao={moduloSelecionado}
             onFechar={() => setAtividade(null)}
             tema={tema}
             c={c}
@@ -935,6 +949,7 @@ export default function SubjectPage() {
           c={c}
           alternarTema={alternarTema}
         />
+
         <main style={{ padding: "16px", maxWidth: 640, margin: "0 auto" }}>
           <div
             style={{
@@ -1126,7 +1141,7 @@ export default function SubjectPage() {
     );
   }
 
-  // ── Loading / Gerando automaticamente ──
+  // ── Loading / Gerando ──
   if (carregando || gerandoAuto) {
     return (
       <div
@@ -1537,4 +1552,3 @@ export default function SubjectPage() {
     </div>
   );
 }
-

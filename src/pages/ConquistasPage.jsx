@@ -708,7 +708,7 @@ export default function ConquistasPage() {
                 fontSize: "0.78rem",
                 cursor: "pointer",
                 fontFamily: "'Nunito', sans-serif",
-                border: `1.5px solid ${eixoAtivo === eixo.id ? c.teal : c.borda}`,
+                outline: `1.5px solid ${eixoAtivo === eixo.id ? c.teal : c.borda}`,
               }}
             >
               {eixo.label}

@@ -1,117 +1,25 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
 const VELOCIDADES = [
-  { label: "🐢 Lento", value: 80 },
-  { label: "▶ Normal", value: 45 },
-  { label: "🐇 Rápido", value: 25 },
+  { label: "🐢 Lento", value: 0.85 },
+  { label: "▶ Normal", value: 1.0 },
+  { label: "🐇 Rápido", value: 1.25 },
 ];
 
-export default function AudioLesson({
-  disciplinaId,
-  moduloId,
-  onFechar,
-  tema,
-  alternarTema,
-}) {
-  const [roteiro, setRoteiro] = useState(null);
-  const [conteudoTexto, setConteudoTexto] = useState("");
-  const [carregando, setCarregando] = useState(true);
-
+// ── Player TTS com karaokê ──
+function PlayerKaraoke({ texto, tema, c }) {
   const [tocando, setTocando] = useState(false);
-  const [comVoz, setComVoz] = useState(true);
   const [idx, setIdx] = useState(-1);
   const [velIdx, setVelIdx] = useState(1);
   const [concluido, setConcluido] = useState(false);
-
   const timerRef = useRef(null);
-  const palavraRef = useRef(null);
   const speechRef = useRef(null);
+  const palavraRef = useRef(null);
 
-  // ── 1. BUSCAR A MISSÃO E USAR A TRAVA PEDAGÓGICA ──
-  useEffect(() => {
-    try {
-      const salvas = JSON.parse(
-        localStorage.getItem(`eduplay_missoes_ia_${disciplinaId}`) || "[]",
-      );
-      const missao = salvas[moduloId];
-
-      if (missao) {
-        const dadosAudio =
-          missao.video || missao.podcast || missao.audio || missao;
-        setRoteiro(dadosAudio);
-
-        // EXTRATOR UNIVERSAL DE TEXTO
-        let textoEncontrado = "";
-
-        if (typeof dadosAudio === "string") {
-          textoEncontrado = dadosAudio;
-        } else {
-          textoEncontrado =
-            dadosAudio.texto ||
-            dadosAudio.roteiro ||
-            dadosAudio.script ||
-            dadosAudio.conteudo ||
-            dadosAudio.transcricao ||
-            dadosAudio.narracao ||
-            dadosAudio.historia ||
-            "";
-
-          if (!textoEncontrado || textoEncontrado.trim() === "") {
-            const todasAsStrings = Object.values(dadosAudio).filter(
-              (v) => typeof v === "string",
-            );
-            if (todasAsStrings.length > 0) {
-              textoEncontrado = todasAsStrings.sort(
-                (a, b) => b.length - a.length,
-              )[0];
-            }
-          }
-        }
-
-        // 🛡️ TRAVA PEDAGÓGICA: Garante pelo menos 2 estrofes de aprendizado!
-        // Se a IA gerou um texto muito curto (ex: só o título), nós sintetizamos um dossiê rico.
-        if (!textoEncontrado || textoEncontrado.trim().length < 100) {
-          let dossieSintetizado = `Atenção, Agente. O satélite interceptou a seguinte investigação: ${missao.perguntaCentral || "Temos anomalias neste setor"}. \n\n`;
-
-          if (
-            missao.atividades &&
-            missao.atividades.quiz &&
-            missao.atividades.quiz.length > 0
-          ) {
-            dossieSintetizado +=
-              "Nossos especialistas compilaram os seguintes dados cruciais para o seu aprendizado: ";
-
-            // Pega as explicações do quiz para formar um texto denso e educativo
-            const explicacoes = missao.atividades.quiz
-              .map((q) => q.explicacao)
-              .filter(Boolean);
-            dossieSintetizado += explicacoes.join(
-              " Além disso, é vital compreender que: ",
-            );
-          } else {
-            dossieSintetizado +=
-              "Os dados vitais encontram-se bloqueados nas Tarefas de Campo. Prossiga com cautela e decifre os códigos para absorver o conhecimento.";
-          }
-
-          textoEncontrado = dossieSintetizado;
-        }
-
-        setConteudoTexto(textoEncontrado || "");
-      }
-    } catch (error) {
-      console.error("Erro ao carregar dossiê:", error);
-      setConteudoTexto("");
-    } finally {
-      setCarregando(false);
-    }
-  }, [disciplinaId, moduloId]);
-
-  const palavras = conteudoTexto ? conteudoTexto.trim().split(/\s+/) : [];
+  const palavras = texto ? texto.trim().split(/\s+/) : [];
   const total = palavras.length;
   const progresso = total > 0 && idx >= 0 ? Math.round((idx / total) * 100) : 0;
-  const vel = VELOCIDADES[velIdx].value;
 
-  // ── 2. SCROLL AUTOMÁTICO ──
   useEffect(() => {
     if (palavraRef.current) {
       palavraRef.current.scrollIntoView({
@@ -121,7 +29,6 @@ export default function AudioLesson({
     }
   }, [idx]);
 
-  // ── 3. LIMPEZA AO DESMONTAR ──
   useEffect(() => {
     return () => {
       clearInterval(timerRef.current);
@@ -139,9 +46,14 @@ export default function AudioLesson({
     (inicio = 0) => {
       clearInterval(timerRef.current);
       if (total === 0) return;
-
       let i = inicio;
       setIdx(i);
+      const msPerPalavra =
+        VELOCIDADES[velIdx].value === 0.85
+          ? 520
+          : VELOCIDADES[velIdx].value === 1.25
+            ? 280
+            : 380;
       timerRef.current = setInterval(() => {
         i++;
         if (i >= total) {
@@ -152,33 +64,30 @@ export default function AudioLesson({
         } else {
           setIdx(i);
         }
-      }, vel * 10);
+      }, msPerPalavra);
     },
-    [total, vel],
+    [total, velIdx],
   );
 
   const play = useCallback(() => {
     if (total === 0) return;
-
     if (concluido) {
       setConcluido(false);
       setIdx(-1);
     }
     setTocando(true);
 
-    if (comVoz && window.speechSynthesis) {
+    if (window.speechSynthesis) {
       window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(conteudoTexto);
+      const u = new SpeechSynthesisUtterance(texto);
       u.lang = "pt-BR";
-      u.rate = velIdx === 0 ? 0.85 : velIdx === 2 ? 1.25 : 1;
-
+      u.rate = VELOCIDADES[velIdx].value;
       const vozes = window.speechSynthesis.getVoices();
       const voz =
         vozes.find(
           (v) => v.lang?.startsWith("pt") && v.name.includes("Google"),
         ) || vozes.find((v) => v.lang?.startsWith("pt"));
       if (voz) u.voice = voz;
-
       u.onend = () => {
         setTocando(false);
         setIdx(-1);
@@ -187,9 +96,8 @@ export default function AudioLesson({
       speechRef.current = u;
       window.speechSynthesis.speak(u);
     }
-
     iniciarDestaque(idx >= 0 ? idx : 0);
-  }, [comVoz, velIdx, idx, iniciarDestaque, concluido, total, conteudoTexto]);
+  }, [velIdx, idx, iniciarDestaque, concluido, total, texto]);
 
   const pausar = useCallback(() => {
     clearInterval(timerRef.current);
@@ -210,7 +118,7 @@ export default function AudioLesson({
     setTimeout(() => play(), 100);
   }, [parar, play]);
 
-  const mudarVelocidade = (i) => {
+  const mudarVel = (i) => {
     setVelIdx(i);
     if (tocando) {
       parar();
@@ -219,94 +127,252 @@ export default function AudioLesson({
   };
 
   const e = tema === "escuro";
-  const c = {
-    bgSolid: e ? "#0A0F14" : "#F4F7F9",
-    card: e ? "#121A22" : "#FFFFFF",
-    texto: e ? "#00FF41" : "#1A2B3C",
-    textoSub: e ? "#4A6A7A" : "#64748B",
-    borda: e ? "#1A2B3C" : "#DDE8F0",
-    destaqueBg: e ? "#00FF4133" : "#00D4AA33",
-    destaqueTxt: e ? "#FFFFFF" : "#005544",
-  };
-
-  if (carregando) {
-    return (
-      <div
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: c.bgSolid,
-          zIndex: 200,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ textAlign: "center", color: c.texto }}>
-          <div
-            style={{ fontSize: "3rem", animation: "spin 2s linear infinite" }}
-          >
-            ⚙️
-          </div>
-          <p
-            style={{
-              fontFamily: "'Fredoka', sans-serif",
-              marginTop: "16px",
-              fontWeight: 700,
-            }}
-          >
-            Descriptografando Dossiê...
-          </p>
-        </div>
-        <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
-      </div>
-    );
-  }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: c.bgSolid,
-        zIndex: 200,
-        display: "flex",
-        flexDirection: "column",
-        fontFamily: e ? "'Courier New', monospace" : "'Nunito', sans-serif",
-      }}
-    >
-      {/* HEADER CONFIDENCIAL */}
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Barra de progresso */}
       <div
         style={{
-          padding: "16px",
+          height: 6,
+          background: c.borda,
+          borderRadius: 3,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progresso}%`,
+            background: "linear-gradient(90deg, #00D4AA, #0099FF)",
+            borderRadius: 3,
+            transition: "width 0.3s",
+          }}
+        />
+      </div>
+
+      {/* Texto com karaokê */}
+      <div
+        style={{
+          background: c.card2,
+          borderRadius: 16,
+          padding: "20px",
+          maxHeight: 260,
+          overflowY: "auto",
+          border: `1.5px solid ${c.borda}`,
+          lineHeight: 2,
+          fontSize: "0.95rem",
+          textAlign: "justify",
+        }}
+      >
+        {palavras.map((palavra, i) => (
+          <span
+            key={i}
+            ref={i === idx ? palavraRef : null}
+            style={{
+              color: i === idx ? "#fff" : i < idx ? c.texto : c.textoSub,
+              background: i === idx ? "#00D4AA" : "transparent",
+              borderRadius: 4,
+              padding: i === idx ? "1px 5px" : "1px 0",
+              fontWeight: i === idx ? 800 : 500,
+              transition: "all 0.1s",
+            }}
+          >
+            {palavra}{" "}
+          </span>
+        ))}
+
+        {concluido && (
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 20,
+              padding: "14px",
+              background: "#00D4AA18",
+              borderRadius: 12,
+              border: "1.5px solid #00D4AA44",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "1rem",
+                color: "#00D4AA",
+                margin: 0,
+                fontWeight: 700,
+              }}
+            >
+              ✅ Missão registrada, Agente!
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Velocidade */}
+      <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+        {VELOCIDADES.map((v, i) => (
+          <button
+            key={i}
+            onClick={() => mudarVel(i)}
+            style={{
+              padding: "6px 14px",
+              borderRadius: 20,
+              background: velIdx === i ? "#00D4AA22" : "transparent",
+              border: `1.5px solid ${velIdx === i ? "#00D4AA" : c.borda}`,
+              color: velIdx === i ? "#00D4AA" : c.textoSub,
+              fontSize: "0.78rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Controles */}
+      <div
+        style={{
           display: "flex",
+          justifyContent: "center",
           alignItems: "center",
-          gap: "16px",
-          borderBottom: `1px solid ${c.borda}`,
-          background: e ? "#0A0F14" : "#FFFFFF",
-          flexShrink: 0,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.05)",
+          gap: 20,
         }}
       >
         <button
-          onClick={() => {
-            parar();
-            onFechar();
-          }}
+          onClick={reiniciar}
+          disabled={total === 0}
           style={{
-            width: "44px",
-            height: "44px",
+            width: 48,
+            height: 48,
+            borderRadius: "50%",
+            background: "transparent",
+            border: `2px solid ${c.borda}`,
+            color: c.textoSub,
+            fontSize: "1.2rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          🔄
+        </button>
+
+        <button
+          onClick={tocando ? pausar : idx >= 0 ? retomar : play}
+          disabled={total === 0}
+          style={{
+            width: 70,
+            height: 70,
+            borderRadius: "50%",
+            border: "none",
+            background: "linear-gradient(135deg, #00D4AA, #0099FF)",
+            color: "#fff",
+            fontSize: "1.8rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 20px rgba(0,212,170,0.4)",
+          }}
+        >
+          {tocando ? "⏸" : "▶"}
+        </button>
+
+        <button
+          onClick={parar}
+          disabled={total === 0}
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: "50%",
             background: "#FF6B6B15",
             border: "2px solid #FF6B6B44",
-            borderRadius: "14px",
             color: "#FF6B6B",
             fontSize: "1.2rem",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
+          }}
+        >
+          ⏹
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+// COMPONENTE PRINCIPAL
+// ══════════════════════════════════════════════════
+export default function AudioLesson({
+  missao,
+  onFechar,
+  tema,
+  alternarTema,
+  c,
+}) {
+  const [aba, setAba] = useState("resumo"); // resumo | topicos | ouvir
+
+  const e = tema === "escuro";
+
+  // Extrai os dados da missão
+  const resumo = missao?.resumo || "";
+  const topicos = missao?.topicos || [];
+  const roteiro = missao?.roteiroPodcast || "";
+  const tituloMissao = missao?.titulo || "Explicação";
+  const tituloPodcast = missao?.video?.titulo || "Ouvir o roteiro";
+
+  // Fallback: se não tem resumo ainda (missões antigas), usa o roteiroPodcast
+  const textoResumo = resumo || roteiro;
+
+  const ABAS = [
+    { id: "resumo", icone: "📖", label: "Resumo" },
+    { id: "topicos", icone: "🔍", label: "Tópicos" },
+    { id: "ouvir", icone: "🎙️", label: "Ouvir" },
+  ];
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        zIndex: 200,
+        background: e ? "#0A0F14" : "#F4F7F9",
+        display: "flex",
+        flexDirection: "column",
+        fontFamily: "'Nunito', sans-serif",
+      }}
+    >
+      {/* ── HEADER ── */}
+      <div
+        style={{
+          padding: "14px 16px",
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          borderBottom: `1.5px solid ${c.borda}`,
+          background: e ? "#0D1820" : "#fff",
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={onFechar}
+          style={{
+            width: 42,
+            height: 42,
+            borderRadius: 12,
+            background: "#FF6B6B15",
+            border: "2px solid #FF6B6B44",
+            color: "#FF6B6B",
+            fontSize: "1.1rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
             flexShrink: 0,
-            transition: "all 0.2s",
           }}
         >
           ✕
@@ -315,93 +381,39 @@ export default function AudioLesson({
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "4px",
+              fontSize: "0.68rem",
+              color: "#00D4AA",
+              fontWeight: 800,
+              textTransform: "uppercase",
+              letterSpacing: 1,
             }}
           >
-            <span
-              style={{
-                width: "8px",
-                height: "8px",
-                background: e ? "#00FF41" : "#FF0000",
-                borderRadius: "50%",
-                animation: "piscar 1.5s infinite",
-              }}
-            />
-            <span
-              style={{
-                fontSize: "0.7rem",
-                color: e ? "#00FF41" : "#FF0000",
-                fontWeight: 800,
-                letterSpacing: "2px",
-                textTransform: "uppercase",
-              }}
-            >
-              ARQUIVO CONFIDENCIAL
-            </span>
+            🎙️ Explicação
           </div>
           <div
             style={{
-              color: e ? "#FFFFFF" : "#1A2B3C",
               fontFamily: "'Fredoka', sans-serif",
-              fontSize: "clamp(1.1rem, 2.5vw, 1.3rem)",
+              fontSize: "1rem",
+              color: c.texto,
               fontWeight: 700,
               whiteSpace: "nowrap",
               overflow: "hidden",
               textOverflow: "ellipsis",
             }}
           >
-            {roteiro?.titulo || "Relatório Tático"}
+            {tituloMissao}
           </div>
         </div>
 
         <button
-          onClick={() => {
-            if (tocando) parar();
-            setComVoz((v) => !v);
-          }}
-          style={{
-            padding: "8px 16px",
-            background: comVoz
-              ? e
-                ? "#00FF4122"
-                : "#00D4AA22"
-              : "transparent",
-            border: `2px solid ${comVoz ? (e ? "#00FF41" : "#00D4AA") : c.borda}`,
-            borderRadius: "20px",
-            color: comVoz ? (e ? "#00FF41" : "#0099FF") : c.textoSub,
-            fontSize: "0.8rem",
-            fontWeight: 800,
-            cursor: "pointer",
-            flexShrink: 0,
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            transition: "all 0.2s",
-          }}
-        >
-          {comVoz ? (
-            <>
-              <span style={{ fontSize: "1.1rem" }}>🔊</span> Robô Ativo
-            </>
-          ) : (
-            <>
-              <span style={{ fontSize: "1.1rem" }}>🔇</span> Mudo
-            </>
-          )}
-        </button>
-
-        <button
           onClick={alternarTema}
           style={{
-            width: "44px",
-            height: "44px",
-            background: c.card,
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: e ? "#1A2B3C" : "#fff",
             border: `2px solid ${c.borda}`,
-            borderRadius: "14px",
-            fontSize: "1.2rem",
+            fontSize: "1rem",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
@@ -413,260 +425,341 @@ export default function AudioLesson({
         </button>
       </div>
 
-      {/* BARRA DE PROGRESSO */}
-      <div style={{ height: "4px", background: c.borda, flexShrink: 0 }}>
-        <div
-          style={{
-            height: "100%",
-            width: `${progresso}%`,
-            background: e
-              ? "#00FF41"
-              : "linear-gradient(90deg, #00D4AA, #0099FF)",
-            transition: "width 0.2s",
-          }}
-        />
+      {/* ── ABAS ── */}
+      <div
+        style={{
+          display: "flex",
+          gap: 0,
+          flexShrink: 0,
+          borderBottom: `1.5px solid ${c.borda}`,
+          background: e ? "#0D1820" : "#fff",
+        }}
+      >
+        {ABAS.map((a) => (
+          <button
+            key={a.id}
+            onClick={() => setAba(a.id)}
+            style={{
+              flex: 1,
+              padding: "12px 8px",
+              background: aba === a.id ? "#00D4AA12" : "transparent",
+              border: "none",
+              borderBottom: `3px solid ${aba === a.id ? "#00D4AA" : "transparent"}`,
+              color: aba === a.id ? "#00D4AA" : c.textoSub,
+              fontWeight: aba === a.id ? 800 : 600,
+              fontSize: "0.82rem",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 5,
+              transition: "all 0.2s",
+            }}
+          >
+            <span>{a.icone}</span> {a.label}
+          </button>
+        ))}
       </div>
 
-      {/* ÁREA DO TEXTO */}
+      {/* ── CONTEÚDO ── */}
       <div
         style={{
           flex: 1,
-          overflow: "auto",
-          padding: "clamp(24px, 5vw, 40px)",
-          maxWidth: "800px",
+          overflowY: "auto",
+          padding: "20px 16px",
+          maxWidth: 640,
           margin: "0 auto",
           width: "100%",
         }}
       >
-        {total === 0 ? (
+        {/* ABA RESUMO */}
+        {aba === "resumo" && (
           <div
             style={{
-              textAlign: "center",
-              color: c.textoSub,
-              marginTop: "40px",
-              fontWeight: 700,
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              animation: "fadeIn 0.3s ease",
             }}
           >
-            Nenhum dado decodificado.
-          </div>
-        ) : (
-          <div
-            style={{
-              lineHeight: "clamp(2, 3.5vw, 2.4)",
-              fontSize: "clamp(1.1rem, 2.5vw, 1.3rem)",
-              textAlign: "justify",
-              color: c.textoSub,
-              whiteSpace: "pre-line", // Respeita as quebras de linha que criamos (\n\n)
-            }}
-          >
-            {palavras.map((palavra, i) => (
-              <span
-                key={i}
-                ref={i === idx ? palavraRef : null}
+            <div
+              style={{
+                background: `linear-gradient(135deg, #00D4AA18, #0099FF08)`,
+                borderRadius: 18,
+                padding: "20px",
+                border: "1.5px solid #00D4AA33",
+              }}
+            >
+              <p
                 style={{
-                  color:
-                    i === idx ? c.destaqueTxt : i < idx ? c.texto : c.textoSub,
-                  background: i === idx ? c.destaqueBg : "transparent",
-                  borderRadius: "6px",
-                  padding: i === idx ? "2px 6px" : "2px 0",
-                  fontWeight: i === idx ? 800 : 500,
-                  transition: "all 0.1s",
-                  display: "inline",
-                  boxShadow:
-                    i === idx && e ? `0 0 10px ${c.destaqueBg}` : "none",
+                  fontSize: "0.7rem",
+                  fontWeight: 800,
+                  color: "#00D4AA",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                  margin: "0 0 10px",
                 }}
               >
-                {palavra}{" "}
-              </span>
-            ))}
+                📖 Entenda o assunto
+              </p>
+              {textoResumo ? (
+                <p
+                  style={{
+                    fontSize: "1rem",
+                    color: c.texto,
+                    lineHeight: 1.8,
+                    margin: 0,
+                    whiteSpace: "pre-line",
+                  }}
+                >
+                  {textoResumo}
+                </p>
+              ) : (
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: c.textoSub,
+                    margin: 0,
+                    fontStyle: "italic",
+                  }}
+                >
+                  Gere uma nova missão para ver o resumo aqui.
+                </p>
+              )}
+            </div>
+
+            <div
+              style={{
+                background: c.card,
+                borderRadius: 14,
+                padding: "14px 16px",
+                border: `1.5px solid ${c.borda}`,
+                textAlign: "center",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.78rem",
+                  color: c.textoSub,
+                  margin: "0 0 10px",
+                }}
+              >
+                Quer ouvir a explicação completa?
+              </p>
+              <button
+                onClick={() => setAba("ouvir")}
+                style={{
+                  padding: "10px 24px",
+                  borderRadius: 20,
+                  border: "none",
+                  background: "linear-gradient(135deg, #00D4AA, #0099FF)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: "0.88rem",
+                  cursor: "pointer",
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                🎙️ Ouvir agora
+              </button>
+            </div>
           </div>
         )}
 
-        {/* TELA DE CONCLUSÃO */}
-        {concluido && (
+        {/* ABA TÓPICOS */}
+        {aba === "topicos" && (
           <div
             style={{
-              textAlign: "center",
-              marginTop: "40px",
-              padding: "clamp(20px, 4vw, 32px)",
-              background: e ? "#00FF4111" : "#00D4AA18",
-              borderRadius: "20px",
-              border: `2px solid ${e ? "#00FF4144" : "#00D4AA44"}`,
+              display: "flex",
+              flexDirection: "column",
+              gap: 12,
+              animation: "fadeIn 0.3s ease",
             }}
           >
-            <div
+            <p
               style={{
-                fontSize: "clamp(2.5rem, 6vw, 3.5rem)",
-                marginBottom: "12px",
-              }}
-            >
-              ✅
-            </div>
-            <div
-              style={{
-                fontFamily: "'Fredoka', sans-serif",
-                fontSize: "clamp(1.2rem, 3vw, 1.5rem)",
-                color: e ? "#00FF41" : "#00D4AA",
-                marginBottom: "8px",
-                fontWeight: 700,
-              }}
-            >
-              Leitura do Relatório Concluída
-            </div>
-            <div
-              style={{
-                fontSize: "clamp(0.9rem, 2vw, 1rem)",
+                fontSize: "0.7rem",
+                fontWeight: 800,
                 color: c.textoSub,
-                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: 1,
+                margin: 0,
               }}
             >
-              Você já pode fechar o dossiê e prosseguir para as Tarefas de
-              Campo.
+              🔍 O que você vai descobrir
+            </p>
+            {topicos.length > 0 ? (
+              topicos.map((topico, i) => (
+                <div
+                  key={i}
+                  style={{
+                    background: c.card,
+                    borderRadius: 14,
+                    padding: "14px 16px",
+                    border: `1.5px solid ${c.borda}`,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 12,
+                    animation: `fadeIn 0.${3 + i}s ease`,
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 28,
+                      height: 28,
+                      borderRadius: "50%",
+                      flexShrink: 0,
+                      background: "linear-gradient(135deg, #00D4AA, #0099FF)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      color: "#fff",
+                      fontWeight: 800,
+                      fontSize: "0.78rem",
+                      fontFamily: "'Fredoka', sans-serif",
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "0.92rem",
+                      color: c.texto,
+                      margin: 0,
+                      lineHeight: 1.5,
+                      fontWeight: 600,
+                    }}
+                  >
+                    {topico}
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div
+                style={{
+                  background: c.card,
+                  borderRadius: 14,
+                  padding: "24px",
+                  textAlign: "center",
+                  border: `1.5px dashed ${c.borda}`,
+                }}
+              >
+                <p
+                  style={{ color: c.textoSub, fontSize: "0.88rem", margin: 0 }}
+                >
+                  Gere uma nova missão para ver os tópicos aqui.
+                </p>
+              </div>
+            )}
+
+            <div
+              style={{
+                background: c.card,
+                borderRadius: 14,
+                padding: "14px 16px",
+                border: `1.5px solid ${c.borda}`,
+                textAlign: "center",
+                marginTop: 4,
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.78rem",
+                  color: c.textoSub,
+                  margin: "0 0 10px",
+                }}
+              >
+                Quer ouvir sobre cada um desses tópicos?
+              </p>
+              <button
+                onClick={() => setAba("ouvir")}
+                style={{
+                  padding: "10px 24px",
+                  borderRadius: 20,
+                  border: "none",
+                  background: "linear-gradient(135deg, #00D4AA, #0099FF)",
+                  color: "#fff",
+                  fontWeight: 800,
+                  fontSize: "0.88rem",
+                  cursor: "pointer",
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                🎙️ Ouvir o roteiro completo
+              </button>
             </div>
           </div>
         )}
-      </div>
 
-      {/* PAINEL DE CONTROLE INFERIOR */}
-      <div
-        style={{
-          padding: "clamp(16px, 3vw, 24px)",
-          background: c.card,
-          borderTop: `1px solid ${c.borda}`,
-          flexShrink: 0,
-          boxShadow: "0 -4px 20px rgba(0,0,0,0.05)",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: "clamp(8px, 2vw, 12px)",
-            marginBottom: "20px",
-          }}
-        >
-          {VELOCIDADES.map((v, i) => (
-            <button
-              key={i}
-              onClick={() => mudarVelocidade(i)}
+        {/* ABA OUVIR */}
+        {aba === "ouvir" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 16,
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            <div
               style={{
-                padding: "8px 20px",
-                borderRadius: "20px",
-                background:
-                  velIdx === i
-                    ? e
-                      ? "#00FF4122"
-                      : "#00D4AA22"
-                    : "transparent",
-                border: `2px solid ${velIdx === i ? (e ? "#00FF41" : "#00D4AA") : c.borda}`,
-                color: velIdx === i ? (e ? "#00FF41" : "#00D4AA") : c.textoSub,
-                fontSize: "0.85rem",
-                fontWeight: 700,
-                cursor: "pointer",
-                transition: "all 0.2s",
+                background: c.card,
+                borderRadius: 14,
+                padding: "12px 16px",
+                border: `1.5px solid ${c.borda}`,
+                display: "flex",
+                alignItems: "center",
+                gap: 10,
               }}
             >
-              {v.label}
-            </button>
-          ))}
-        </div>
+              <span style={{ fontSize: "1.4rem" }}>🎙️</span>
+              <div>
+                <p
+                  style={{
+                    fontFamily: "'Fredoka', sans-serif",
+                    fontSize: "0.95rem",
+                    color: c.texto,
+                    margin: 0,
+                    fontWeight: 600,
+                  }}
+                >
+                  {tituloPodcast}
+                </p>
+                <p
+                  style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}
+                >
+                  Narrado pela IA · Leitura acompanhada palavra por palavra
+                </p>
+              </div>
+            </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: "clamp(16px, 3vw, 24px)",
-            alignItems: "center",
-          }}
-        >
-          <button
-            onClick={reiniciar}
-            disabled={total === 0}
-            title="Reiniciar Dossiê"
-            style={{
-              width: "56px",
-              height: "56px",
-              background: c.card,
-              border: `2px solid ${c.borda}`,
-              borderRadius: "50%",
-              color: c.textoSub,
-              fontSize: "1.4rem",
-              cursor: total === 0 ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-              opacity: total === 0 ? 0.5 : 1,
-            }}
-            onMouseEnter={(e) => {
-              if (total > 0) e.currentTarget.style.borderColor = c.texto;
-            }}
-            onMouseLeave={(e) => (e.currentTarget.style.borderColor = c.borda)}
-          >
-            🔄
-          </button>
-
-          <button
-            onClick={tocando ? pausar : idx >= 0 ? retomar : play}
-            disabled={total === 0}
-            style={{
-              width: "80px",
-              height: "80px",
-              background: e
-                ? "#00FF41"
-                : "linear-gradient(135deg, #00D4AA, #0099FF)",
-              border: "none",
-              borderRadius: "50%",
-              color: e ? "#000" : "#FFF",
-              fontSize: "2rem",
-              cursor: total === 0 ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              boxShadow: e
-                ? "0 4px 20px rgba(0, 255, 65, 0.4)"
-                : "0 4px 20px rgba(0,212,170,0.4)",
-              transition: "transform 0.1s",
-              opacity: total === 0 ? 0.5 : 1,
-            }}
-            onMouseDown={(e) => {
-              if (total > 0) e.currentTarget.style.transform = "scale(0.95)";
-            }}
-            onMouseUp={(e) => {
-              if (total > 0) e.currentTarget.style.transform = "scale(1)";
-            }}
-          >
-            {tocando ? "⏸" : "▶"}
-          </button>
-
-          <button
-            onClick={parar}
-            disabled={total === 0}
-            title="Interromper"
-            style={{
-              width: "56px",
-              height: "56px",
-              background: "#FF6B6B15",
-              border: "2px solid #FF6B6B44",
-              borderRadius: "50%",
-              color: "#FF6B6B",
-              fontSize: "1.4rem",
-              cursor: total === 0 ? "not-allowed" : "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              transition: "all 0.2s",
-              opacity: total === 0 ? 0.5 : 1,
-            }}
-          >
-            ⏹
-          </button>
-        </div>
+            {roteiro ? (
+              <PlayerKaraoke texto={roteiro} tema={tema} c={c} />
+            ) : (
+              <div
+                style={{
+                  background: c.card,
+                  borderRadius: 14,
+                  padding: "24px",
+                  textAlign: "center",
+                  border: `1.5px dashed ${c.borda}`,
+                }}
+              >
+                <p
+                  style={{ color: c.textoSub, fontSize: "0.88rem", margin: 0 }}
+                >
+                  Gere uma nova missão para ouvir o roteiro aqui.
+                </p>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800&display=swap');
-        @keyframes piscar { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
+        @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
       `}</style>
     </div>
   );
