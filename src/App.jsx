@@ -19,6 +19,7 @@ import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
 import AgentePage from "./pages/AgentePage";
 import PaisPage from "./pages/PaisPage";
+import AdminPage from "./pages/AdminPage";
 import TermosPage from "./pages/TermosPage";
 import PrivacidadePage from "./pages/PrivacidadePage";
 import ConquistasPage from "./pages/ConquistasPage";
@@ -28,6 +29,7 @@ import DemoPage from "./pages/DemoPage";
 import LockScreen from "./components/LockScreen";
 import FooterEduPlay from "./components/FooterEduPlay";
 
+const ADMIN_EMAIL = "thiago.rpba@gmail.com";
 const ROTAS_PUBLICAS = ["/termos", "/privacidade"];
 
 export default function App() {
@@ -38,8 +40,6 @@ export default function App() {
   const navigate = useNavigate();
 
   const [viaLanding, setViaLanding] = useState(false);
-
-  // Firebase Auth — guarda o user object completo para passar ao PaisPage
   const [paisUser, setPaisUser] = useState(null);
   const [authChecked, setAuthChecked] = useState(false);
 
@@ -56,9 +56,10 @@ export default function App() {
   const isRotaLogin = pathname === "/login";
   const isRotaDemo = pathname === "/demo";
   const isRotaPais = pathname === "/pais";
+  const isRotaAdmin = pathname === "/admin";
   const isRotaAgente = pathname.startsWith("/agente/");
 
-  // ── 1. Páginas legais ──────────────────────────────────────────────────────
+  // ── 1. Páginas legais ──
   if (isRotaPublica) {
     return (
       <div
@@ -79,18 +80,16 @@ export default function App() {
     );
   }
 
-  // ── 2. Login do responsável ────────────────────────────────────────────────
+  // ── 2. Login ──
   if (isRotaLogin) {
     if (authChecked && paisUser) return <Navigate to="/pais" replace />;
     return <LoginPage />;
   }
 
-  // ── 3. Demo pública ────────────────────────────────────────────────────────
-  if (isRotaDemo) {
-    return <DemoPage />;
-  }
+  // ── 3. Demo ──
+  if (isRotaDemo) return <DemoPage />;
 
-  // ── 4. Entrada da criança pelo link do agente ─────────────────────────────
+  // ── 4. Agente (criança pelo link) ──
   if (isRotaAgente) {
     return (
       <Routes>
@@ -99,7 +98,7 @@ export default function App() {
     );
   }
 
-  // ── 5. Área do responsável — protegida por Firebase Auth ──────────────────
+  // ── 5. Painel do responsável ──
   if (isRotaPais) {
     if (!authChecked) return null;
     if (!paisUser) return <Navigate to="/login" replace />;
@@ -124,7 +123,15 @@ export default function App() {
     );
   }
 
-  // ── 6. Onboarding da criança ───────────────────────────────────────────────
+  // ── 6. Painel admin (só thiago.rpba@gmail.com) ──
+  if (isRotaAdmin) {
+    if (!authChecked) return null;
+    if (!paisUser) return <Navigate to="/login" replace />;
+    if (paisUser.email !== ADMIN_EMAIL) return <Navigate to="/" replace />;
+    return <AdminPage userPai={paisUser} />;
+  }
+
+  // ── 7. Onboarding da criança ──
   if (!playerName) {
     if (!viaLanding) {
       return (
@@ -135,26 +142,21 @@ export default function App() {
       );
     }
     return (
-      <CodigoPage
-        onRegister={saveName}
-        onVoltar={() => setViaLanding(false)}
-      />
+      <CodigoPage onRegister={saveName} onVoltar={() => setViaLanding(false)} />
     );
   }
 
-  // ── 7. Controle de tempo ───────────────────────────────────────────────────
-  if (timer.bloqueado && !timer.semLimite) {
+  // ── 8. Controle de tempo ──
+  if (timer.bloqueado && !timer.semLimite)
     return <LockScreen timer={timer} lock={lock} />;
-  }
 
-  // ── 8. App principal da criança ───────────────────────────────────────────
+  // ── 9. App da criança ──
   return (
     <Routes>
       <Route
         path="/"
         element={<HomePage playerName={playerName} timer={timer} />}
       />
-
       <Route path="/conquistas" element={<ConquistasPage />} />
       <Route path="/mapa" element={<MapaPage />} />
       <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
@@ -162,4 +164,3 @@ export default function App() {
     </Routes>
   );
 }
-

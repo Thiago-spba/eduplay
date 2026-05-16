@@ -1495,23 +1495,45 @@ export default function PaisPage({ userPai, timer }) {
             Painel do Responsável
           </span>
         </div>
-        <button
-          onClick={alternarTema}
-          style={{
-            width: 34,
-            height: 34,
-            borderRadius: 10,
-            border: `2px solid ${c.borda}`,
-            background: e ? "#1A2B3C" : "#fff",
-            fontSize: "1rem",
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-        >
-          {e ? "☀️" : "🌙"}
-        </button>
+        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+          {userPai?.email === "thiago.rpba@gmail.com" && (
+            <button
+              onClick={() => navigate("/admin")}
+              title="Painel Admin"
+              style={{
+                width: 34,
+                height: 34,
+                borderRadius: 10,
+                border: `2px solid ${c.borda}`,
+                background: e ? "#1A2B3C" : "#fff",
+                fontSize: "1rem",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              🛠️
+            </button>
+          )}
+          <button
+            onClick={alternarTema}
+            style={{
+              width: 34,
+              height: 34,
+              borderRadius: 10,
+              border: `2px solid ${c.borda}`,
+              background: e ? "#1A2B3C" : "#fff",
+              fontSize: "1rem",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            {e ? "☀️" : "🌙"}
+          </button>
+        </div>
       </header>
 
       <main

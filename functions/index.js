@@ -347,3 +347,104 @@ REGRAS INVIOLÁVEIS:
     }
   }
 )
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDUPLAY — Cloud Function: Google TTS (voz neural brasileira)
+// ═══════════════════════════════════════════════════════════════════════
+const GOOGLE_TTS_KEY = defineSecret('GOOGLE_TTS_KEY')
+
+exports.gerarAudio = onCall(
+  {
+    secrets: [GOOGLE_TTS_KEY],
+    region: 'us-central1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    const { texto } = request.data
+    if (!texto || typeof texto !== 'string' || texto.length > 5000) {
+      throw new HttpsError('invalid-argument', 'Texto inválido.')
+    }
+
+    try {
+      const response = await fetch(
+        `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY.value()}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            input: { text: texto.trim().slice(0, 5000) },
+            voice: {
+              languageCode: 'pt-BR',
+              name: 'pt-BR-Wavenet-A',
+              ssmlGender: 'FEMALE',
+            },
+            audioConfig: {
+              audioEncoding: 'MP3',
+              speakingRate: 0.92,
+              pitch: 1.0,
+            },
+          }),
+        }
+      )
+
+      if (!response.ok) {
+        const err = await response.text()
+        console.error('[GOOGLE TTS ERROR]', err)
+        throw new HttpsError('internal', 'Erro ao gerar áudio.')
+      }
+
+      const data = await response.json()
+      return { ok: true, audioBase64: data.audioContent }
+    } catch (err) {
+      console.error('[GOOGLE TTS]', err)
+      throw new HttpsError('internal', 'Falha ao gerar áudio.')
+    }
+  }
+)
+
+// ═══════════════════════════════════════════════════════════════════════
+// EDUPLAY — Cloud Function: Gerar metadados do podcast via IA
+// ═══════════════════════════════════════════════════════════════════════
+exports.gerarMetadadosPodcast = onCall(
+  {
+    secrets: [ANTHROPIC_KEY],
+    region: 'us-central1',
+    cors: true,
+    invoker: 'public',
+    timeoutSeconds: 30,
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    const { disciplina, bimestre, serie } = request.data
+    if (!disciplina || !bimestre || !serie) throw new HttpsError('invalid-argument', 'Dados inválidos.')
+
+    const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
+    const nomeDisc = NOMES.disciplina[disciplina] || disciplina
+    const nomeSerie = NOMES.serie[serie] || serie
+    const nomeBim = NOMES.bimestre[bimestre] || bimestre
+
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 300,
+      messages: [{
+        role: 'user',
+        content: `Crie um título e descrição curta para um podcast educacional.
+Disciplina: ${nomeDisc} | Série: ${nomeSerie} | ${nomeBim}
+Conteúdo: ${curriculoEspecifico}
+
+Retorne APENAS este JSON sem markdown:
+{"titulo":"título criativo e investigativo (max 60 chars)","descricao":"descrição envolvente para crianças de 11-13 anos (max 120 chars)"}`
+      }]
+    })
+
+    const text = msg.content[0].text
+    const json = JSON.parse(text.substring(text.indexOf('{'), text.lastIndexOf('}') + 1))
+    return { titulo: json.titulo, descricao: json.descricao }
+  }
+)

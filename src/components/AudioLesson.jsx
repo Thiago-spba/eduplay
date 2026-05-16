@@ -1,142 +1,205 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
+import { getFunctions, httpsCallable } from "firebase/functions";
 
-const VELOCIDADES = [
-  { label: "🐢 Lento", value: 0.85 },
-  { label: "▶ Normal", value: 1.0 },
-  { label: "🐇 Rápido", value: 1.25 },
+// ── Divide roteiro em blocos por pontuação natural ──
+function dividirEmBlocos(texto) {
+  if (!texto) return [];
+  const frases = texto
+    .replace(/([.!?])\s+/g, "$1|")
+    .split("|")
+    .map((f) => f.trim())
+    .filter((f) => f.length > 0);
+  const blocos = [];
+  let atual = "";
+  for (const frase of frases) {
+    if (atual.length + frase.length < 160) {
+      atual += (atual ? " " : "") + frase;
+    } else {
+      if (atual) blocos.push(atual);
+      atual = frase;
+    }
+  }
+  if (atual) blocos.push(atual);
+  return blocos;
+}
+
+// ── Divide texto em palavras para modo Ler ──
+function dividirEmPalavras(texto) {
+  if (!texto) return [];
+  return texto.trim().split(/\s+/);
+}
+
+const VELOCIDADES_OUVIR = [
+  { label: "🐢 Lento", rate: 0.75 },
+  { label: "▶ Normal", rate: 1.0 },
+  { label: "🐇 Rápido", rate: 1.3 },
+];
+const VELOCIDADES_LER = [
+  { label: "🐢 Devagar", ms: 600 },
+  { label: "▶ Normal", ms: 380 },
+  { label: "🐇 Rápido", ms: 200 },
 ];
 
-// ── Player TTS com karaokê ──
-function PlayerKaraoke({ texto, tema, c }) {
-  const [tocando, setTocando] = useState(false);
-  const [idx, setIdx] = useState(-1);
-  const [velIdx, setVelIdx] = useState(1);
-  const [concluido, setConcluido] = useState(false);
-  const timerRef = useRef(null);
-  const speechRef = useRef(null);
-  const palavraRef = useRef(null);
+// ── Animação de ondas sonoras ──
+function OndasSonoras() {
+  return (
+    <div
+      style={{ display: "flex", alignItems: "flex-end", gap: 3, height: 20 }}
+    >
+      {[1, 2, 3, 4, 3, 2, 1].map((h, i) => (
+        <div
+          key={i}
+          style={{
+            width: 3,
+            borderRadius: 2,
+            background: "linear-gradient(180deg, #3B82F6, #00D4AA)",
+            animationName: "onda",
+            animationDuration: `${0.8 + i * 0.15}s`,
+            animationTimingFunction: "ease-in-out",
+            animationIterationCount: "infinite",
+            animationDirection: "alternate",
+            animationDelay: `${i * 0.1}s`,
+            height: `${h * 4}px`,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
 
-  const palavras = texto ? texto.trim().split(/\s+/) : [];
-  const total = palavras.length;
-  const progresso = total > 0 && idx >= 0 ? Math.round((idx / total) * 100) : 0;
+// ══════════════════════════════════════════════════
+// MODO OUVIR — Google TTS Neural
+// ══════════════════════════════════════════════════
+function ModoOuvir({ texto, c, velIdx, setVelIdx }) {
+  const [tocando, setTocando] = useState(false);
+  const [blocoAtual, setBlocoAtual] = useState(0);
+  const [concluido, setConcluido] = useState(false);
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+
+  const audioRef = useRef(null);
+  const containerRef = useRef(null);
+  const blocoRef = useRef(null);
+  const cacheRef = useRef({});
+
+  const blocos = dividirEmBlocos(texto);
+  const total = blocos.length;
+  const progresso = total > 0 ? Math.round((blocoAtual / total) * 100) : 0;
 
   useEffect(() => {
-    if (palavraRef.current) {
-      palavraRef.current.scrollIntoView({
-        behavior: "smooth",
-        block: "center",
-      });
-    }
-  }, [idx]);
+    if (!containerRef.current || !blocoRef.current) return;
+    const cont = containerRef.current;
+    const bloco = blocoRef.current;
+    cont.scrollTo({
+      top: Math.max(
+        0,
+        bloco.offsetTop - cont.clientHeight / 2 + bloco.offsetHeight / 2,
+      ),
+      behavior: "smooth",
+    });
+  }, [blocoAtual]);
 
   useEffect(() => {
     return () => {
-      clearInterval(timerRef.current);
-      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      audioRef.current?.pause();
     };
   }, []);
 
-  const parar = useCallback(() => {
-    clearInterval(timerRef.current);
-    if (window.speechSynthesis) window.speechSynthesis.cancel();
-    setTocando(false);
-  }, []);
-
-  const iniciarDestaque = useCallback(
-    (inicio = 0) => {
-      clearInterval(timerRef.current);
-      if (total === 0) return;
-      let i = inicio;
-      setIdx(i);
-      const msPerPalavra =
-        VELOCIDADES[velIdx].value === 0.85
-          ? 520
-          : VELOCIDADES[velIdx].value === 1.25
-            ? 280
-            : 380;
-      timerRef.current = setInterval(() => {
-        i++;
-        if (i >= total) {
-          clearInterval(timerRef.current);
-          setTocando(false);
-          setIdx(-1);
-          setConcluido(true);
-        } else {
-          setIdx(i);
+  const lerBloco = useCallback(
+    async (indice) => {
+      if (indice >= total) {
+        setTocando(false);
+        setConcluido(true);
+        return;
+      }
+      setBlocoAtual(indice);
+      setCarregando(true);
+      setErro("");
+      try {
+        let base64 = cacheRef.current[indice];
+        if (!base64) {
+          const fn = httpsCallable(
+            getFunctions(undefined, "us-central1"),
+            "gerarAudio",
+          );
+          const r = await fn({ texto: blocos[indice] });
+          base64 = r.data.audioBase64;
+          cacheRef.current[indice] = base64;
         }
-      }, msPerPalavra);
+        setCarregando(false);
+        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        audio.playbackRate = VELOCIDADES_OUVIR[velIdx].rate;
+        audioRef.current = audio;
+        audio.onplay = () => setTocando(true);
+        audio.onended = () => lerBloco(indice + 1);
+        audio.onerror = () => {
+          setErro("Erro ao reproduzir. Tente novamente.");
+          setTocando(false);
+          setCarregando(false);
+        };
+        await audio.play();
+      } catch {
+        setErro("Erro ao gerar áudio. Tente novamente.");
+        setTocando(false);
+        setCarregando(false);
+      }
     },
-    [total, velIdx],
+    [blocos, total, velIdx],
   );
 
   const play = useCallback(() => {
-    if (total === 0) return;
     if (concluido) {
       setConcluido(false);
-      setIdx(-1);
-    }
-    setTocando(true);
-
-    if (window.speechSynthesis) {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(texto);
-      u.lang = "pt-BR";
-      u.rate = VELOCIDADES[velIdx].value;
-      const vozes = window.speechSynthesis.getVoices();
-      const voz =
-        vozes.find(
-          (v) => v.lang?.startsWith("pt") && v.name.includes("Google"),
-        ) || vozes.find((v) => v.lang?.startsWith("pt"));
-      if (voz) u.voice = voz;
-      u.onend = () => {
-        setTocando(false);
-        setIdx(-1);
-        setConcluido(true);
-      };
-      speechRef.current = u;
-      window.speechSynthesis.speak(u);
-    }
-    iniciarDestaque(idx >= 0 ? idx : 0);
-  }, [velIdx, idx, iniciarDestaque, concluido, total, texto]);
-
-  const pausar = useCallback(() => {
-    clearInterval(timerRef.current);
-    if (window.speechSynthesis) window.speechSynthesis.pause();
+      setBlocoAtual(0);
+      cacheRef.current = {};
+      lerBloco(0);
+    } else lerBloco(blocoAtual);
+  }, [concluido, blocoAtual, lerBloco]);
+  const pausar = () => {
+    audioRef.current?.pause();
     setTocando(false);
-  }, []);
-
-  const retomar = useCallback(() => {
+  };
+  const retomar = () => {
+    audioRef.current?.play();
     setTocando(true);
-    if (window.speechSynthesis) window.speechSynthesis.resume();
-    iniciarDestaque(idx);
-  }, [idx, iniciarDestaque]);
-
+  };
+  const parar = () => {
+    audioRef.current?.pause();
+    audioRef.current = null;
+    setTocando(false);
+    setCarregando(false);
+  };
   const reiniciar = useCallback(() => {
     parar();
-    setIdx(-1);
+    setBlocoAtual(0);
     setConcluido(false);
-    setTimeout(() => play(), 100);
-  }, [parar, play]);
-
+    cacheRef.current = {};
+    setTimeout(() => lerBloco(0), 100);
+  }, [lerBloco]);
   const mudarVel = (i) => {
     setVelIdx(i);
-    if (tocando) {
-      parar();
-      setTimeout(() => play(), 100);
-    }
+    if (audioRef.current)
+      audioRef.current.playbackRate = VELOCIDADES_OUVIR[i].rate;
   };
 
-  const e = tema === "escuro";
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Barra de progresso */}
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        gap: 8,
+      }}
+    >
+      {/* Progresso */}
       <div
         style={{
-          height: 6,
+          height: 5,
           background: c.borda,
           borderRadius: 3,
           overflow: "hidden",
+          flexShrink: 0,
         }}
       >
         <div
@@ -145,47 +208,72 @@ function PlayerKaraoke({ texto, tema, c }) {
             width: `${progresso}%`,
             background: "linear-gradient(90deg, #00D4AA, #0099FF)",
             borderRadius: 3,
-            transition: "width 0.3s",
+            transition: "width 0.4s",
           }}
         />
       </div>
 
-      {/* Texto com karaokê */}
+      {/* Texto com scroll interno */}
       <div
+        ref={containerRef}
         style={{
-          background: c.card2,
-          borderRadius: 16,
-          padding: "20px",
-          maxHeight: 260,
+          flex: 1,
+          minHeight: 0,
           overflowY: "auto",
+          overflowX: "hidden",
+          background: c.card2,
+          borderRadius: 14,
+          padding: "10px",
           border: `1.5px solid ${c.borda}`,
-          lineHeight: 2,
-          fontSize: "0.95rem",
-          textAlign: "justify",
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          scrollbarWidth: "thin",
         }}
       >
-        {palavras.map((palavra, i) => (
-          <span
+        {blocos.map((bloco, i) => (
+          <div
             key={i}
-            ref={i === idx ? palavraRef : null}
+            ref={i === blocoAtual ? blocoRef : null}
             style={{
-              color: i === idx ? "#fff" : i < idx ? c.texto : c.textoSub,
-              background: i === idx ? "#00D4AA" : "transparent",
-              borderRadius: 4,
-              padding: i === idx ? "1px 5px" : "1px 0",
-              fontWeight: i === idx ? 800 : 500,
-              transition: "all 0.1s",
+              padding: "8px 12px",
+              borderRadius: 10,
+              background:
+                i === blocoAtual
+                  ? "linear-gradient(135deg, #00D4AA22, #0099FF18)"
+                  : "transparent",
+              border: `1.5px solid ${i === blocoAtual ? "#00D4AA55" : "transparent"}`,
+              fontSize: "clamp(0.85rem, 2.5vw, 1rem)",
+              fontWeight: i === blocoAtual ? 700 : 400,
+              color:
+                i < blocoAtual
+                  ? c.textoSub
+                  : i === blocoAtual
+                    ? c.texto
+                    : c.textoSub,
+              lineHeight: 1.6,
+              transition: "all 0.3s",
+              opacity: i > blocoAtual + 3 ? 0.4 : 1,
             }}
           >
-            {palavra}{" "}
-          </span>
+            {i < blocoAtual && (
+              <span
+                style={{
+                  color: "#00D4AA",
+                  marginRight: 5,
+                  fontSize: "0.75rem",
+                }}
+              >
+                ✓
+              </span>
+            )}
+            {bloco}
+          </div>
         ))}
-
         {concluido && (
           <div
             style={{
               textAlign: "center",
-              marginTop: 20,
               padding: "14px",
               background: "#00D4AA18",
               borderRadius: 12,
@@ -195,7 +283,7 @@ function PlayerKaraoke({ texto, tema, c }) {
             <p
               style={{
                 fontFamily: "'Fredoka', sans-serif",
-                fontSize: "1rem",
+                fontSize: "clamp(0.9rem, 2.5vw, 1rem)",
                 color: "#00D4AA",
                 margin: 0,
                 fontWeight: 700,
@@ -207,21 +295,44 @@ function PlayerKaraoke({ texto, tema, c }) {
         )}
       </div>
 
+      {erro && (
+        <p
+          style={{
+            textAlign: "center",
+            fontSize: "0.75rem",
+            color: "#EF4444",
+            fontWeight: 700,
+            margin: 0,
+            flexShrink: 0,
+          }}
+        >
+          ⚠️ {erro}
+        </p>
+      )}
+
       {/* Velocidade */}
-      <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
-        {VELOCIDADES.map((v, i) => (
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          justifyContent: "center",
+          flexShrink: 0,
+          flexWrap: "wrap",
+        }}
+      >
+        {VELOCIDADES_OUVIR.map((v, i) => (
           <button
             key={i}
             onClick={() => mudarVel(i)}
             style={{
-              padding: "6px 14px",
+              padding: "5px 12px",
               borderRadius: 20,
+              cursor: "pointer",
               background: velIdx === i ? "#00D4AA22" : "transparent",
               border: `1.5px solid ${velIdx === i ? "#00D4AA" : c.borda}`,
               color: velIdx === i ? "#00D4AA" : c.textoSub,
-              fontSize: "0.78rem",
+              fontSize: "clamp(0.7rem, 2vw, 0.78rem)",
               fontWeight: 700,
-              cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
             }}
           >
@@ -236,21 +347,21 @@ function PlayerKaraoke({ texto, tema, c }) {
           display: "flex",
           justifyContent: "center",
           alignItems: "center",
-          gap: 20,
+          gap: 16,
+          flexShrink: 0,
         }}
       >
         <button
           onClick={reiniciar}
-          disabled={total === 0}
           style={{
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
+            cursor: "pointer",
             background: "transparent",
             border: `2px solid ${c.borda}`,
             color: c.textoSub,
-            fontSize: "1.2rem",
-            cursor: "pointer",
+            fontSize: "1rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -258,40 +369,341 @@ function PlayerKaraoke({ texto, tema, c }) {
         >
           🔄
         </button>
-
         <button
-          onClick={tocando ? pausar : idx >= 0 ? retomar : play}
-          disabled={total === 0}
+          onClick={
+            carregando
+              ? undefined
+              : tocando
+                ? pausar
+                : concluido
+                  ? play
+                  : blocoAtual > 0
+                    ? retomar
+                    : play
+          }
           style={{
-            width: 70,
-            height: 70,
+            width: "clamp(56px, 10vw, 68px)",
+            height: "clamp(56px, 10vw, 68px)",
             borderRadius: "50%",
             border: "none",
+            cursor: carregando ? "wait" : "pointer",
             background: "linear-gradient(135deg, #00D4AA, #0099FF)",
             color: "#fff",
-            fontSize: "1.8rem",
-            cursor: "pointer",
+            fontSize: carregando ? "1.1rem" : "1.7rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
             boxShadow: "0 4px 20px rgba(0,212,170,0.4)",
+            transition: "all 0.2s",
           }}
+          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.95)")}
+          onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
         >
-          {tocando ? "⏸" : "▶"}
+          {carregando ? "⏳" : tocando ? "⏸" : "▶"}
         </button>
-
         <button
           onClick={parar}
-          disabled={total === 0}
           style={{
-            width: 48,
-            height: 48,
+            width: 44,
+            height: 44,
             borderRadius: "50%",
+            cursor: "pointer",
             background: "#FF6B6B15",
             border: "2px solid #FF6B6B44",
             color: "#FF6B6B",
-            fontSize: "1.2rem",
+            fontSize: "1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          ⏹
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════
+// MODO LER — destaque palavra por palavra
+// ══════════════════════════════════════════════════
+function ModoLer({ texto, c, velIdx, setVelIdx }) {
+  const [tocando, setTocando] = useState(false);
+  const [idxPalavra, setIdxPalavra] = useState(-1);
+  const [concluido, setConcluido] = useState(false);
+
+  const timerRef = useRef(null);
+  const containerRef = useRef(null);
+  const palavraRef = useRef(null);
+
+  const palavras = dividirEmPalavras(texto);
+  const total = palavras.length;
+  const progresso =
+    total > 0 && idxPalavra >= 0 ? Math.round((idxPalavra / total) * 100) : 0;
+
+  useEffect(() => {
+    if (!containerRef.current || !palavraRef.current) return;
+    const cont = containerRef.current;
+    const palavra = palavraRef.current;
+    cont.scrollTo({
+      top: Math.max(
+        0,
+        palavra.offsetTop - cont.clientHeight / 2 + palavra.offsetHeight / 2,
+      ),
+      behavior: "smooth",
+    });
+  }, [idxPalavra]);
+
+  useEffect(() => {
+    return () => clearInterval(timerRef.current);
+  }, []);
+
+  const iniciar = useCallback(
+    (inicio = 0) => {
+      clearInterval(timerRef.current);
+      let i = inicio;
+      setIdxPalavra(i);
+      timerRef.current = setInterval(() => {
+        i++;
+        if (i >= total) {
+          clearInterval(timerRef.current);
+          setTocando(false);
+          setIdxPalavra(-1);
+          setConcluido(true);
+        } else setIdxPalavra(i);
+      }, VELOCIDADES_LER[velIdx].ms);
+    },
+    [total, velIdx],
+  );
+
+  const play = useCallback(() => {
+    if (concluido) {
+      setConcluido(false);
+      setIdxPalavra(0);
+      setTocando(true);
+      iniciar(0);
+    } else {
+      setTocando(true);
+      iniciar(idxPalavra >= 0 ? idxPalavra : 0);
+    }
+  }, [concluido, idxPalavra, iniciar]);
+  const pausar = () => {
+    clearInterval(timerRef.current);
+    setTocando(false);
+  };
+  const parar = () => {
+    clearInterval(timerRef.current);
+    setTocando(false);
+    setIdxPalavra(-1);
+  };
+  const reiniciar = () => {
+    parar();
+    setConcluido(false);
+    setTimeout(() => {
+      setTocando(true);
+      iniciar(0);
+    }, 100);
+  };
+  const mudarVel = (i) => {
+    setVelIdx(i);
+    if (tocando) {
+      pausar();
+      setTimeout(() => {
+        setTocando(true);
+        iniciar(idxPalavra >= 0 ? idxPalavra : 0);
+      }, 100);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        flex: 1,
+        minHeight: 0,
+        gap: 8,
+      }}
+    >
+      {/* Progresso */}
+      <div
+        style={{
+          height: 5,
+          background: c.borda,
+          borderRadius: 3,
+          overflow: "hidden",
+          flexShrink: 0,
+        }}
+      >
+        <div
+          style={{
+            height: "100%",
+            width: `${progresso}%`,
+            background: "linear-gradient(90deg, #3B82F6, #00D4AA)",
+            borderRadius: 3,
+            transition: "width 0.2s",
+          }}
+        />
+      </div>
+
+      {/* Texto com scroll interno */}
+      <div
+        ref={containerRef}
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: "auto",
+          overflowX: "hidden",
+          background: c.card2,
+          borderRadius: 14,
+          padding: "10px 14px",
+          border: `1.5px solid ${c.borda}`,
+          fontSize: "clamp(0.9rem, 2.5vw, 1.05rem)",
+          lineHeight: 2.2,
+          textAlign: "justify",
+          color: c.textoSub,
+          scrollbarWidth: "thin",
+        }}
+      >
+        {palavras.map((palavra, i) => (
+          <span
+            key={i}
+            ref={i === idxPalavra ? palavraRef : null}
+            style={{
+              color:
+                i === idxPalavra
+                  ? "#fff"
+                  : i < idxPalavra
+                    ? c.texto
+                    : c.textoSub,
+              background: i === idxPalavra ? "#3B82F6" : "transparent",
+              borderRadius: 5,
+              padding: i === idxPalavra ? "1px 5px" : "1px 0",
+              fontWeight: i === idxPalavra ? 800 : 400,
+              transition: "all 0.1s",
+            }}
+          >
+            {palavra}{" "}
+          </span>
+        ))}
+        {concluido && (
+          <div
+            style={{
+              textAlign: "center",
+              marginTop: 16,
+              padding: "14px",
+              background: "#3B82F618",
+              borderRadius: 12,
+              border: "1.5px solid #3B82F644",
+            }}
+          >
+            <p
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "clamp(0.9rem, 2.5vw, 1rem)",
+                color: "#3B82F6",
+                margin: 0,
+                fontWeight: 700,
+              }}
+            >
+              ✅ Leitura concluída, Agente!
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Velocidade */}
+      <div
+        style={{
+          display: "flex",
+          gap: 6,
+          justifyContent: "center",
+          flexShrink: 0,
+          flexWrap: "wrap",
+        }}
+      >
+        {VELOCIDADES_LER.map((v, i) => (
+          <button
+            key={i}
+            onClick={() => mudarVel(i)}
+            style={{
+              padding: "5px 12px",
+              borderRadius: 20,
+              cursor: "pointer",
+              background: velIdx === i ? "#3B82F622" : "transparent",
+              border: `1.5px solid ${velIdx === i ? "#3B82F6" : c.borda}`,
+              color: velIdx === i ? "#3B82F6" : c.textoSub,
+              fontSize: "clamp(0.7rem, 2vw, 0.78rem)",
+              fontWeight: 700,
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Controles */}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 16,
+          flexShrink: 0,
+        }}
+      >
+        <button
+          onClick={reiniciar}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
             cursor: "pointer",
+            background: "transparent",
+            border: `2px solid ${c.borda}`,
+            color: c.textoSub,
+            fontSize: "1rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          🔄
+        </button>
+        <button
+          onClick={tocando ? pausar : play}
+          style={{
+            width: "clamp(56px, 10vw, 68px)",
+            height: "clamp(56px, 10vw, 68px)",
+            borderRadius: "50%",
+            border: "none",
+            cursor: "pointer",
+            background: "linear-gradient(135deg, #3B82F6, #6366F1)",
+            color: "#fff",
+            fontSize: "1.7rem",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 4px 20px rgba(59,130,246,0.4)",
+            transition: "all 0.2s",
+          }}
+          onMouseDown={(e) => (e.currentTarget.style.transform = "scale(0.95)")}
+          onMouseUp={(e) => (e.currentTarget.style.transform = "scale(1)")}
+        >
+          {tocando ? "⏸" : "▶"}
+        </button>
+        <button
+          onClick={parar}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: "50%",
+            cursor: "pointer",
+            background: "#FF6B6B15",
+            border: "2px solid #FF6B6B44",
+            color: "#FF6B6B",
+            fontSize: "1rem",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -314,18 +726,16 @@ export default function AudioLesson({
   alternarTema,
   c,
 }) {
-  const [aba, setAba] = useState("resumo"); // resumo | topicos | ouvir
-
+  const [aba, setAba] = useState("resumo");
+  const [modo, setModo] = useState("ouvir"); // "ouvir" | "ler"
+  const [velIdx, setVelIdx] = useState(1);
   const e = tema === "escuro";
 
-  // Extrai os dados da missão
   const resumo = missao?.resumo || "";
   const topicos = missao?.topicos || [];
   const roteiro = missao?.roteiroPodcast || "";
   const tituloMissao = missao?.titulo || "Explicação";
   const tituloPodcast = missao?.video?.titulo || "Ouvir o roteiro";
-
-  // Fallback: se não tem resumo ainda (missões antigas), usa o roteiroPodcast
   const textoResumo = resumo || roteiro;
 
   const ABAS = [
@@ -344,44 +754,46 @@ export default function AudioLesson({
         display: "flex",
         flexDirection: "column",
         fontFamily: "'Nunito', sans-serif",
+        overflow: "hidden",
       }}
     >
-      {/* ── HEADER ── */}
+      {/* HEADER */}
       <div
         style={{
-          padding: "14px 16px",
+          padding: "12px 16px",
+          flexShrink: 0,
           display: "flex",
           alignItems: "center",
-          gap: 12,
+          gap: 10,
           borderBottom: `1.5px solid ${c.borda}`,
           background: e ? "#0D1820" : "#fff",
-          flexShrink: 0,
         }}
       >
         <button
-          onClick={onFechar}
+          onClick={() => {
+            onFechar();
+          }}
           style={{
-            width: 42,
-            height: 42,
+            width: 40,
+            height: 40,
             borderRadius: 12,
+            flexShrink: 0,
             background: "#FF6B6B15",
             border: "2px solid #FF6B6B44",
             color: "#FF6B6B",
-            fontSize: "1.1rem",
+            fontSize: "1rem",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            flexShrink: 0,
           }}
         >
           ✕
         </button>
-
         <div style={{ flex: 1, minWidth: 0 }}>
           <div
             style={{
-              fontSize: "0.68rem",
+              fontSize: "clamp(0.62rem, 1.5vw, 0.68rem)",
               color: "#00D4AA",
               fontWeight: 800,
               textTransform: "uppercase",
@@ -393,7 +805,7 @@ export default function AudioLesson({
           <div
             style={{
               fontFamily: "'Fredoka', sans-serif",
-              fontSize: "1rem",
+              fontSize: "clamp(0.9rem, 2.5vw, 1rem)",
               color: c.texto,
               fontWeight: 700,
               whiteSpace: "nowrap",
@@ -404,32 +816,30 @@ export default function AudioLesson({
             {tituloMissao}
           </div>
         </div>
-
         <button
           onClick={alternarTema}
           style={{
-            width: 38,
-            height: 38,
+            width: 36,
+            height: 36,
             borderRadius: 10,
+            flexShrink: 0,
             background: e ? "#1A2B3C" : "#fff",
             border: `2px solid ${c.borda}`,
-            fontSize: "1rem",
+            fontSize: "0.95rem",
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            flexShrink: 0,
           }}
         >
           {e ? "☀️" : "🌙"}
         </button>
       </div>
 
-      {/* ── ABAS ── */}
+      {/* ABAS */}
       <div
         style={{
           display: "flex",
-          gap: 0,
           flexShrink: 0,
           borderBottom: `1.5px solid ${c.borda}`,
           background: e ? "#0D1820" : "#fff",
@@ -441,19 +851,19 @@ export default function AudioLesson({
             onClick={() => setAba(a.id)}
             style={{
               flex: 1,
-              padding: "12px 8px",
+              padding: "10px 6px",
               background: aba === a.id ? "#00D4AA12" : "transparent",
               border: "none",
               borderBottom: `3px solid ${aba === a.id ? "#00D4AA" : "transparent"}`,
               color: aba === a.id ? "#00D4AA" : c.textoSub,
               fontWeight: aba === a.id ? 800 : 600,
-              fontSize: "0.82rem",
+              fontSize: "clamp(0.72rem, 2vw, 0.82rem)",
               cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              gap: 5,
+              gap: 4,
               transition: "all 0.2s",
             }}
           >
@@ -462,38 +872,36 @@ export default function AudioLesson({
         ))}
       </div>
 
-      {/* ── CONTEÚDO ── */}
+      {/* CONTEÚDO */}
       <div
         style={{
           flex: 1,
-          overflowY: "auto",
-          padding: "20px 16px",
-          maxWidth: 640,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+          padding: "12px 16px",
+          maxWidth: 680,
           margin: "0 auto",
           width: "100%",
+          boxSizing: "border-box",
+          overflowY: aba === "ouvir" ? "hidden" : "auto",
+          gap: 12,
         }}
       >
-        {/* ABA RESUMO */}
+        {/* RESUMO */}
         {aba === "resumo" && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              animation: "fadeIn 0.3s ease",
-            }}
-          >
+          <div style={{ animation: "fadeIn 0.3s ease" }}>
             <div
               style={{
-                background: `linear-gradient(135deg, #00D4AA18, #0099FF08)`,
+                background: "linear-gradient(135deg, #00D4AA18, #0099FF08)",
                 borderRadius: 18,
-                padding: "20px",
+                padding: "18px",
                 border: "1.5px solid #00D4AA33",
               }}
             >
               <p
                 style={{
-                  fontSize: "0.7rem",
+                  fontSize: "clamp(0.65rem, 1.8vw, 0.7rem)",
                   fontWeight: 800,
                   color: "#00D4AA",
                   textTransform: "uppercase",
@@ -506,7 +914,7 @@ export default function AudioLesson({
               {textoResumo ? (
                 <p
                   style={{
-                    fontSize: "1rem",
+                    fontSize: "clamp(0.9rem, 2.5vw, 1rem)",
                     color: c.texto,
                     lineHeight: 1.8,
                     margin: 0,
@@ -528,58 +936,22 @@ export default function AudioLesson({
                 </p>
               )}
             </div>
-
-            <div
-              style={{
-                background: c.card,
-                borderRadius: 14,
-                padding: "14px 16px",
-                border: `1.5px solid ${c.borda}`,
-                textAlign: "center",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.78rem",
-                  color: c.textoSub,
-                  margin: "0 0 10px",
-                }}
-              >
-                Quer ouvir a explicação completa?
-              </p>
-              <button
-                onClick={() => setAba("ouvir")}
-                style={{
-                  padding: "10px 24px",
-                  borderRadius: 20,
-                  border: "none",
-                  background: "linear-gradient(135deg, #00D4AA, #0099FF)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: "0.88rem",
-                  cursor: "pointer",
-                  fontFamily: "'Nunito', sans-serif",
-                }}
-              >
-                🎙️ Ouvir agora
-              </button>
-            </div>
           </div>
         )}
 
-        {/* ABA TÓPICOS */}
+        {/* TÓPICOS */}
         {aba === "topicos" && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 12,
+              gap: 10,
               animation: "fadeIn 0.3s ease",
             }}
           >
             <p
               style={{
-                fontSize: "0.7rem",
+                fontSize: "clamp(0.65rem, 1.8vw, 0.7rem)",
                 fontWeight: 800,
                 color: c.textoSub,
                 textTransform: "uppercase",
@@ -596,18 +968,17 @@ export default function AudioLesson({
                   style={{
                     background: c.card,
                     borderRadius: 14,
-                    padding: "14px 16px",
+                    padding: "12px 14px",
                     border: `1.5px solid ${c.borda}`,
                     display: "flex",
                     alignItems: "flex-start",
-                    gap: 12,
-                    animation: `fadeIn 0.${3 + i}s ease`,
+                    gap: 10,
                   }}
                 >
                   <div
                     style={{
-                      width: 28,
-                      height: 28,
+                      width: 26,
+                      height: 26,
                       borderRadius: "50%",
                       flexShrink: 0,
                       background: "linear-gradient(135deg, #00D4AA, #0099FF)",
@@ -616,7 +987,7 @@ export default function AudioLesson({
                       justifyContent: "center",
                       color: "#fff",
                       fontWeight: 800,
-                      fontSize: "0.78rem",
+                      fontSize: "0.75rem",
                       fontFamily: "'Fredoka', sans-serif",
                     }}
                   >
@@ -624,7 +995,7 @@ export default function AudioLesson({
                   </div>
                   <p
                     style={{
-                      fontSize: "0.92rem",
+                      fontSize: "clamp(0.85rem, 2.5vw, 0.92rem)",
                       color: c.texto,
                       margin: 0,
                       lineHeight: 1.5,
@@ -652,73 +1023,90 @@ export default function AudioLesson({
                 </p>
               </div>
             )}
-
-            <div
-              style={{
-                background: c.card,
-                borderRadius: 14,
-                padding: "14px 16px",
-                border: `1.5px solid ${c.borda}`,
-                textAlign: "center",
-                marginTop: 4,
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.78rem",
-                  color: c.textoSub,
-                  margin: "0 0 10px",
-                }}
-              >
-                Quer ouvir sobre cada um desses tópicos?
-              </p>
-              <button
-                onClick={() => setAba("ouvir")}
-                style={{
-                  padding: "10px 24px",
-                  borderRadius: 20,
-                  border: "none",
-                  background: "linear-gradient(135deg, #00D4AA, #0099FF)",
-                  color: "#fff",
-                  fontWeight: 800,
-                  fontSize: "0.88rem",
-                  cursor: "pointer",
-                  fontFamily: "'Nunito', sans-serif",
-                }}
-              >
-                🎙️ Ouvir o roteiro completo
-              </button>
-            </div>
           </div>
         )}
 
-        {/* ABA OUVIR */}
+        {/* OUVIR */}
         {aba === "ouvir" && (
           <div
             style={{
               display: "flex",
               flexDirection: "column",
-              gap: 16,
+              flex: 1,
+              minHeight: 0,
+              gap: 10,
               animation: "fadeIn 0.3s ease",
             }}
           >
+            {/* Seletor de modo */}
+            <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+              <button
+                onClick={() => setModo("ouvir")}
+                style={{
+                  flex: 1,
+                  padding: "9px 8px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  background: modo === "ouvir" ? "#00D4AA15" : "transparent",
+                  border: `2px solid ${modo === "ouvir" ? "#00D4AA" : c.borda}`,
+                  color: modo === "ouvir" ? "#00D4AA" : c.textoSub,
+                  fontWeight: 800,
+                  fontSize: "clamp(0.75rem, 2vw, 0.85rem)",
+                  fontFamily: "'Nunito', sans-serif",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                🎧 Ouvir
+              </button>
+              <button
+                onClick={() => setModo("ler")}
+                style={{
+                  flex: 1,
+                  padding: "9px 8px",
+                  borderRadius: 12,
+                  cursor: "pointer",
+                  background: modo === "ler" ? "#3B82F615" : "transparent",
+                  border: `2px solid ${modo === "ler" ? "#3B82F6" : c.borda}`,
+                  color: modo === "ler" ? "#3B82F6" : c.textoSub,
+                  fontWeight: 800,
+                  fontSize: "clamp(0.75rem, 2vw, 0.85rem)",
+                  fontFamily: "'Nunito', sans-serif",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  transition: "all 0.2s",
+                }}
+              >
+                📖 Ler
+              </button>
+            </div>
+
+            {/* Info */}
             <div
               style={{
                 background: c.card,
-                borderRadius: 14,
-                padding: "12px 16px",
+                borderRadius: 12,
+                padding: "10px 14px",
                 border: `1.5px solid ${c.borda}`,
                 display: "flex",
                 alignItems: "center",
                 gap: 10,
+                flexShrink: 0,
               }}
             >
-              <span style={{ fontSize: "1.4rem" }}>🎙️</span>
+              <span style={{ fontSize: "1.2rem" }}>
+                {modo === "ouvir" ? "🎙️" : "📖"}
+              </span>
               <div>
                 <p
                   style={{
                     fontFamily: "'Fredoka', sans-serif",
-                    fontSize: "0.95rem",
+                    fontSize: "clamp(0.85rem, 2vw, 0.92rem)",
                     color: c.texto,
                     margin: 0,
                     fontWeight: 600,
@@ -727,15 +1115,36 @@ export default function AudioLesson({
                   {tituloPodcast}
                 </p>
                 <p
-                  style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}
+                  style={{
+                    fontSize: "clamp(0.65rem, 1.8vw, 0.7rem)",
+                    color: c.textoSub,
+                    margin: 0,
+                  }}
                 >
-                  Narrado pela IA · Leitura acompanhada palavra por palavra
+                  {modo === "ouvir"
+                    ? "Voz neural brasileira · Toque ▶ para ouvir"
+                    : "Acompanhe palavra por palavra · Toque ▶ para iniciar"}
                 </p>
               </div>
             </div>
 
+            {/* Player */}
             {roteiro ? (
-              <PlayerKaraoke texto={roteiro} tema={tema} c={c} />
+              modo === "ouvir" ? (
+                <ModoOuvir
+                  texto={roteiro}
+                  c={c}
+                  velIdx={velIdx}
+                  setVelIdx={setVelIdx}
+                />
+              ) : (
+                <ModoLer
+                  texto={roteiro}
+                  c={c}
+                  velIdx={velIdx}
+                  setVelIdx={setVelIdx}
+                />
+              )
             ) : (
               <div
                 style={{
@@ -744,6 +1153,7 @@ export default function AudioLesson({
                   padding: "24px",
                   textAlign: "center",
                   border: `1.5px dashed ${c.borda}`,
+                  flex: 1,
                 }}
               >
                 <p
@@ -753,6 +1163,69 @@ export default function AudioLesson({
                 </p>
               </div>
             )}
+
+            {/* Card Em Breve com animação */}
+            <div
+              style={{
+                background: e
+                  ? "rgba(59,130,246,0.08)"
+                  : "rgba(59,130,246,0.06)",
+                borderRadius: 14,
+                padding: "12px 16px",
+                border: "1.5px solid rgba(59,130,246,0.25)",
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ fontSize: "1.2rem" }}>🎧</span>
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "clamp(0.62rem, 1.5vw, 0.68rem)",
+                        fontWeight: 800,
+                        color: "#3B82F6",
+                        margin: 0,
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      Em breve
+                    </p>
+                    <p
+                      style={{
+                        fontFamily: "'Fredoka', sans-serif",
+                        fontSize: "clamp(0.82rem, 2vw, 0.9rem)",
+                        color: c.texto,
+                        margin: 0,
+                        fontWeight: 700,
+                      }}
+                    >
+                      Podcast com Especialistas
+                    </p>
+                  </div>
+                </div>
+                <OndasSonoras />
+              </div>
+              <p
+                style={{
+                  fontSize: "clamp(0.72rem, 2vw, 0.8rem)",
+                  color: c.textoSub,
+                  margin: 0,
+                  lineHeight: 1.5,
+                }}
+              >
+                Professores especialistas e pedagogos explicando cada tema de um
+                jeito que você nunca vai esquecer.
+              </p>
+            </div>
           </div>
         )}
       </div>
@@ -760,6 +1233,7 @@ export default function AudioLesson({
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes fadeIn { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes onda { from{transform:scaleY(0.3)} to{transform:scaleY(1)} }
       `}</style>
     </div>
   );

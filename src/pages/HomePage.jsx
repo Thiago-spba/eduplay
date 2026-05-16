@@ -140,9 +140,14 @@ export default function HomePage({ playerName }) {
     badges.push({ icone: "💡", label: "Voltou para aprender" });
 
   // ── Trocar usuário ──
-  const trocarUsuario = () => {
+  const trocarUsuario = async () => {
     localStorage.removeItem("eduplay_player_name");
     localStorage.removeItem("eduplay_codigo_acesso");
+    try {
+      const { signOut } = await import("firebase/auth");
+      const { auth } = await import("../services/firebase");
+      await signOut(auth);
+    } catch {}
     window.location.replace("/");
   };
 
