@@ -511,24 +511,34 @@ export default function AgentePage() {
                 }}
               />
             </div>
-            <p style={{ fontSize: "0.78rem", color: "#9FE1CB" }}>
+            <p
+              style={{
+                fontSize: "0.78rem",
+                color: "#9FE1CB",
+                marginBottom: 16,
+              }}
+            >
               {pwaInstalado
                 ? "✅ App instalado — entrando..."
-                : "Entrando no EduPlay..."}
+                : "Pronto para jogar!"}
             </p>
-            {!pwaInstalado && !deferredPrompt && (
-              <p
-                style={{
-                  fontSize: "0.72rem",
-                  color: "rgba(159,225,203,0.7)",
-                  marginTop: 8,
-                  lineHeight: 1.5,
-                }}
-              >
-                💡 Dica: adicione este link aos favoritos para entrar mais
-                rápido.
-              </p>
-            )}
+            <button
+              onClick={entrarSemInstalar}
+              style={{
+                width: "100%",
+                padding: "14px",
+                borderRadius: 14,
+                border: "none",
+                background: "#E1F5EE",
+                color: "#0F6E56",
+                fontWeight: 900,
+                fontSize: "1rem",
+                cursor: "pointer",
+                fontFamily: "'Nunito', sans-serif",
+              }}
+            >
+              🚀 Entrar nas missões
+            </button>
           </>
         )}
       </div>
