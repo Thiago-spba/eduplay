@@ -10,6 +10,7 @@ import {
   marcarMissaoFeita,
   registrarMissaoConcluida,
   salvarMissao,
+  salvarSessaoQuiz,
 } from "../services/db";
 import { gerarMissaoIA } from "../services/ia";
 import { signInAnonymously } from "firebase/auth";
@@ -804,6 +805,15 @@ export default function SubjectPage() {
             codigoAcesso,
             `${disciplinaId}_${moduloSelecionado.id}`,
           ),
+          // ── Salva resultado para o painel dos pais ──
+          salvarSessaoQuiz(codigoAcesso, {
+            disciplina: disciplinaId,
+            tituloMissao: moduloSelecionado.titulo || "",
+            topicos: moduloSelecionado.topicos || [],
+            acertos,
+            total,
+            percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
+          }),
         ]);
         setMissoes((prev) => prev.filter((m) => m.id !== moduloSelecionado.id));
       } catch (err) {

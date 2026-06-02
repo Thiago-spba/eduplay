@@ -14,6 +14,7 @@ import {
   getTodasMissoes,
   contarMissoesHoje,
   registrarConsentimentoECA,
+  getSessoesQuiz,
 } from "../services/db";
 
 // ── Constantes ──
@@ -60,7 +61,35 @@ const INSIGHTS = [
   "Missões variadas entre disciplinas desenvolvem pensamento interdisciplinar desde cedo.",
 ];
 
-// ── Escolas públicas/técnicas — dinâmico por série ──
+// ── Perguntas para o pai testar o filho por disciplina ──
+const PERGUNTAS_PAI = {
+  historia: [
+    "O que você aprendeu sobre esse período?",
+    "Quem foram as pessoas mais importantes dessa época?",
+    "Como isso afetou o Brasil ou o mundo?",
+  ],
+  geografia: [
+    "Me mostra onde fica isso no mapa?",
+    "Por que esse lugar é importante?",
+    "Como isso afeta nossa vida hoje?",
+  ],
+  matematica: [
+    "Me explica como você resolve isso?",
+    "Onde usamos isso no dia a dia?",
+    "Consegue me dar um exemplo com dinheiro?",
+  ],
+  ciencias: [
+    "Como você explicaria isso para um amigo?",
+    "Por que isso acontece na natureza?",
+    "Você consegue ver isso em alguma coisa ao seu redor?",
+  ],
+  portugues: [
+    "Me conta o que você leu com suas palavras?",
+    "Qual parte você achou mais interessante?",
+    "Você consegue escrever uma frase usando o que aprendeu?",
+  ],
+};
+
 const ESCOLAS_PUBLICAS = {
   "6ano": [
     {
@@ -150,7 +179,6 @@ const ESCOLAS_PUBLICAS = {
   ],
 };
 
-// ── Escolas de prestígio com bolsa — dinâmico por série ──
 const ESCOLAS_BOLSAS = {
   "6ano": [
     {
@@ -240,7 +268,6 @@ const ESCOLAS_BOLSAS = {
   ],
 };
 
-// ── Utilitários ──
 async function gerarHash(texto) {
   const encoder = new TextEncoder();
   const data = encoder.encode(texto);
@@ -257,6 +284,19 @@ function gerarCodigo() {
   ).join("");
 }
 
+function formatarHora(timestamp) {
+  if (!timestamp) return "";
+  const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const agora = new Date();
+  const diff = agora - data;
+  if (diff < 60000) return "agora mesmo";
+  if (diff < 3600000) return `há ${Math.floor(diff / 60000)} min`;
+  if (diff < 86400000)
+    return `hoje às ${data.getHours()}h${String(data.getMinutes()).padStart(2, "0")}`;
+  if (diff < 172800000) return "ontem";
+  return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
 // ══════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
 // ══════════════════════════════════════════════════════
@@ -265,30 +305,26 @@ export default function PaisPage({ userPai, timer }) {
   const { tema, alternarTema } = useTema();
   const e = tema === "escuro";
 
-  // etapas: verificando | eca | cadastro | codigo | painel
   const [etapa, setEtapa] = useState("verificando");
   const [filho, setFilho] = useState(null);
   const [missoesPorDisc, setMissoesPorDisc] = useState({});
   const [missoesHoje, setMissoesHoje] = useState(0);
+  const [sessoesQuiz, setSessoesQuiz] = useState([]);
 
-  // Formulário ECA
   const [aceitouECA, setAceitouECA] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [mostrarECA, setMostrarECA] = useState(false);
   const [salvandoECA, setSalvandoECA] = useState(false);
   const [erroECA, setErroECA] = useState("");
 
-  // Formulário filho
   const [nomeFilho, setNomeFilho] = useState("");
   const [serieFilho, setSerieFilho] = useState("6ano");
   const [salvandoFilho, setSalvandoFilho] = useState(false);
   const [erroFilho, setErroFilho] = useState("");
 
-  // Código
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
 
-  // Painel
   const [secao, setSecao] = useState("visao");
   const [config, setConfig] = useState({
     serie: "6ano",
@@ -316,16 +352,11 @@ export default function PaisPage({ userPai, timer }) {
     azul: "#3B82F6",
   };
 
-  // ── Inicialização ──
   useEffect(() => {
     if (!userPai) return;
     const iniciar = async () => {
       try {
         let resp = await getResponsavel(userPai.uid);
-
-        // ── Migração automática de uid ──────────────────────────────
-        // Ocorre quando o usuário recria a conta Google e o uid muda.
-        // Busca pelo email e migra todos os dados para o novo uid.
         if (!resp && userPai.email) {
           const respAntigo = await getResponsavelPorEmail(userPai.email);
           if (respAntigo && respAntigo.id !== userPai.uid) {
@@ -333,27 +364,25 @@ export default function PaisPage({ userPai, timer }) {
             resp = await getResponsavel(userPai.uid);
           }
         }
-
         if (!resp) {
           setEtapa("eca");
           return;
         }
-
         const crianca = await getCriancaPorPai(userPai.uid);
         if (!crianca) {
           setEtapa("cadastro");
           return;
         }
-
         setFilho(crianca);
         setConfig((prev) => ({ ...prev, serie: crianca.serie || "6ano" }));
-
-        const [missoes, qtdHoje] = await Promise.all([
+        const [missoes, qtdHoje, sessoes] = await Promise.all([
           getTodasMissoes(crianca.id),
           contarMissoesHoje(crianca.id),
+          getSessoesQuiz(crianca.id),
         ]);
         setMissoesPorDisc(missoes);
         setMissoesHoje(qtdHoje);
+        setSessoesQuiz(sessoes);
         setEtapa("painel");
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
@@ -376,7 +405,6 @@ export default function PaisPage({ userPai, timer }) {
     if (timer?.ajustarTempo) timer.ajustarTempo(config.tempoEstudo);
   }, [config.tempoEstudo, timer]);
 
-  // ── ETAPA 1: Aceitar ECA ──
   const handleAceitarECA = async () => {
     if (!aceitouECA || !aceitouTermos) {
       setErroECA("Você precisa aceitar os dois termos para continuar.");
@@ -411,7 +439,6 @@ export default function PaisPage({ userPai, timer }) {
     }
   };
 
-  // ── ETAPA 2: Cadastrar filho ──
   const handleCadastrarFilho = async () => {
     if (!nomeFilho.trim()) {
       setErroFilho("Digite o nome do seu filho.");
@@ -431,7 +458,7 @@ export default function PaisPage({ userPai, timer }) {
       await criarCrianca(codigo, dados);
       setFilho({ id: codigo, ...dados });
       setConfig((prev) => ({ ...prev, serie: serieFilho }));
-      setEtapa("codigo"); // ← mostra o código antes do painel
+      setEtapa("codigo");
     } catch (err) {
       console.error("Erro ao cadastrar filho:", err);
       setErroFilho("Erro ao salvar. Tente novamente.");
@@ -440,7 +467,6 @@ export default function PaisPage({ userPai, timer }) {
     }
   };
 
-  // ── Gerar missão ──
   const gerarMissao = async (disciplinaId) => {
     if (limiteAtingido || !filho) return;
     setGerando(disciplinaId);
@@ -542,6 +568,15 @@ export default function PaisPage({ userPai, timer }) {
   );
   const serieAtual = filho?.serie || config.serie;
 
+  // ── Última sessão de quiz concluída ──
+  const ultimaSessao = sessoesQuiz?.[0] || null;
+  const discUltima = ultimaSessao
+    ? DISCIPLINAS.find((d) => d.id === ultimaSessao.disciplina)
+    : null;
+  const perguntasPai = ultimaSessao
+    ? PERGUNTAS_PAI[ultimaSessao.disciplina] || []
+    : [];
+
   // ══════════════════════════════════════════
   // RENDERIZAÇÃO POR ETAPA
   // ══════════════════════════════════════════
@@ -575,7 +610,6 @@ export default function PaisPage({ userPai, timer }) {
     );
   }
 
-  // ── ETAPA ECA ──
   if (etapa === "eca") {
     return (
       <div
@@ -626,7 +660,6 @@ export default function PaisPage({ userPai, timer }) {
             ← Sair
           </button>
         </div>
-
         <div
           style={{
             width: "100%",
@@ -655,7 +688,6 @@ export default function PaisPage({ userPai, timer }) {
               Antes de começar, precisamos do seu consentimento.
             </p>
           </div>
-
           <div
             style={{
               background: c.card,
@@ -716,7 +748,6 @@ export default function PaisPage({ userPai, timer }) {
                 </p>
               </div>
             </div>
-
             <div
               style={{
                 display: "flex",
@@ -836,7 +867,6 @@ export default function PaisPage({ userPai, timer }) {
                 </span>
               </label>
             </div>
-
             {erroECA && (
               <div
                 style={{
@@ -853,7 +883,6 @@ export default function PaisPage({ userPai, timer }) {
                 ⚠️ {erroECA}
               </div>
             )}
-
             <button
               onClick={handleAceitarECA}
               disabled={salvandoECA || !aceitouECA || !aceitouTermos}
@@ -881,7 +910,6 @@ export default function PaisPage({ userPai, timer }) {
             </button>
           </div>
         </div>
-
         {mostrarECA && (
           <div
             style={{
@@ -991,16 +1019,11 @@ export default function PaisPage({ userPai, timer }) {
             </div>
           </div>
         )}
-
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-          @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        `}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`}</style>
       </div>
     );
   }
 
-  // ── ETAPA CADASTRO ──
   if (etapa === "cadastro") {
     return (
       <div
@@ -1035,7 +1058,6 @@ export default function PaisPage({ userPai, timer }) {
             {e ? "☀️" : "🌙"}
           </button>
         </div>
-
         <div
           style={{
             width: "100%",
@@ -1059,7 +1081,6 @@ export default function PaisPage({ userPai, timer }) {
               Ele receberá um link exclusivo para acessar as missões
             </p>
           </div>
-
           <div
             style={{
               background: c.card,
@@ -1184,7 +1205,6 @@ export default function PaisPage({ userPai, timer }) {
               </button>
             </div>
           </div>
-
           <p
             style={{
               fontSize: "0.72rem",
@@ -1199,21 +1219,15 @@ export default function PaisPage({ userPai, timer }) {
             Em conformidade com o ECA Digital (Lei 14.155/2021).
           </p>
         </div>
-
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-          @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        `}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`}</style>
       </div>
     );
   }
 
-  // ── ETAPA CÓDIGO ──
   if (etapa === "codigo") {
     const nomeFirst = filho?.nome?.split(" ")[0] || "Agente";
     const slug = gerarSlug(filho?.nome, filho?.id);
     const linkCompleto = `https://eduplay.olloapp.com.br/agente/${slug}`;
-
     return (
       <div
         style={{
@@ -1257,7 +1271,6 @@ export default function PaisPage({ userPai, timer }) {
               Envie o link ou código para seu filho acessar as missões.
             </p>
           </div>
-
           <div
             style={{
               background: c.card,
@@ -1294,7 +1307,6 @@ export default function PaisPage({ userPai, timer }) {
             >
               {linkCompleto}
             </div>
-
             <p
               style={{
                 fontSize: "0.72rem",
@@ -1329,7 +1341,6 @@ export default function PaisPage({ userPai, timer }) {
                 {filho?.id}
               </span>
             </div>
-
             <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               <button
                 onClick={compartilharCodigoWhatsApp}
@@ -1390,7 +1401,6 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
           </div>
-
           <div
             style={{
               background: e ? "#0D1820" : "#F0FFF8",
@@ -1414,7 +1424,6 @@ export default function PaisPage({ userPai, timer }) {
               é o hábito de aprender. Você acabou de plantar essa semente."
             </p>
           </div>
-
           <button
             onClick={() => setEtapa("painel")}
             style={{
@@ -1434,11 +1443,7 @@ export default function PaisPage({ userPai, timer }) {
             Ir para o painel →
           </button>
         </div>
-
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-          @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
-        `}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`}</style>
       </div>
     );
   }
@@ -1710,6 +1715,257 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
 
+            {/* ══ CARD RELATÓRIO — O QUE O FILHO ESTUDOU ══ */}
+            {ultimaSessao ? (
+              <div
+                style={{
+                  background: c.card,
+                  border: `2px solid ${discUltima?.cor || c.accent}44`,
+                  borderRadius: 20,
+                  overflow: "hidden",
+                }}
+              >
+                {/* Cabeçalho verde */}
+                <div
+                  style={{
+                    background: `linear-gradient(135deg, ${discUltima?.cor || c.accent}22, ${discUltima?.cor || c.accent}08)`,
+                    padding: "14px 18px",
+                    borderBottom: `1.5px solid ${discUltima?.cor || c.accent}22`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <span style={{ fontSize: "1.4rem" }}>
+                        {discUltima?.icone || "📚"}
+                      </span>
+                      <div>
+                        <p
+                          style={{
+                            fontSize: "0.7rem",
+                            fontWeight: 800,
+                            color: discUltima?.cor || c.accent,
+                            margin: 0,
+                            textTransform: "uppercase",
+                            letterSpacing: 1,
+                          }}
+                        >
+                          Última atividade
+                        </p>
+                        <p
+                          style={{
+                            fontSize: "0.9rem",
+                            fontWeight: 800,
+                            color: c.texto,
+                            margin: 0,
+                          }}
+                        >
+                          {ultimaSessao.tituloMissao || discUltima?.label}
+                        </p>
+                      </div>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.7rem",
+                        color: c.textoSub,
+                        fontWeight: 600,
+                      }}
+                    >
+                      {formatarHora(ultimaSessao.criadoEm)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Aproveitamento */}
+                <div
+                  style={{
+                    padding: "14px 18px",
+                    borderBottom: `1.5px solid ${c.borda}`,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginBottom: 8,
+                    }}
+                  >
+                    <span
+                      style={{
+                        fontSize: "0.8rem",
+                        fontWeight: 700,
+                        color: c.textoSub,
+                      }}
+                    >
+                      Aproveitamento no quiz
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "0.9rem",
+                        fontWeight: 800,
+                        color:
+                          ultimaSessao.percentual >= 70
+                            ? "#00D4AA"
+                            : ultimaSessao.percentual >= 40
+                              ? "#F59E0B"
+                              : "#EF4444",
+                      }}
+                    >
+                      {ultimaSessao.acertos}/{ultimaSessao.total} —{" "}
+                      {ultimaSessao.percentual}%
+                    </span>
+                  </div>
+                  <div
+                    style={{
+                      height: 8,
+                      background: c.borda,
+                      borderRadius: 4,
+                      overflow: "hidden",
+                    }}
+                  >
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${ultimaSessao.percentual}%`,
+                        background:
+                          ultimaSessao.percentual >= 70
+                            ? "#00D4AA"
+                            : ultimaSessao.percentual >= 40
+                              ? "#F59E0B"
+                              : "#EF4444",
+                        borderRadius: 4,
+                        transition: "width 1s ease",
+                      }}
+                    />
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "0.72rem",
+                      color: c.textoSub,
+                      margin: "6px 0 0",
+                    }}
+                  >
+                    {ultimaSessao.percentual >= 70
+                      ? "✅ Ótimo desempenho! Seu filho entendeu bem o conteúdo."
+                      : ultimaSessao.percentual >= 40
+                        ? "📚 Desempenho regular. Vale reforçar o conteúdo."
+                        : "💪 Precisa de atenção. Converse sobre o tema com ele."}
+                  </p>
+                </div>
+
+                {/* Perguntas para testar */}
+                <div style={{ padding: "14px 18px" }}>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      color: c.textoSub,
+                      margin: "0 0 10px",
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    💬 Pergunte ao {filho?.nome?.split(" ")[0] || "seu filho"}{" "}
+                    hoje:
+                  </p>
+                  <div
+                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
+                  >
+                    {perguntasPai.map((q, i) => (
+                      <div
+                        key={i}
+                        style={{
+                          display: "flex",
+                          alignItems: "flex-start",
+                          gap: 8,
+                          padding: "10px 12px",
+                          background: c.card2,
+                          borderRadius: 10,
+                          border: `1.5px solid ${c.borda}`,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: "0.8rem",
+                            color: discUltima?.cor || c.accent,
+                            fontWeight: 800,
+                            flexShrink: 0,
+                            marginTop: 1,
+                          }}
+                        >
+                          {i + 1}.
+                        </span>
+                        <p
+                          style={{
+                            fontSize: "0.82rem",
+                            color: c.texto,
+                            margin: 0,
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {q}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "0.7rem",
+                      color: c.textoSub,
+                      margin: "10px 0 0",
+                      fontStyle: "italic",
+                      textAlign: "center",
+                    }}
+                  >
+                    Conversar sobre o conteúdo na hora do jantar fixa 2x mais do
+                    que só estudar.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div
+                style={{
+                  background: c.card,
+                  border: `1.5px dashed ${c.borda}`,
+                  borderRadius: 20,
+                  padding: "24px",
+                  textAlign: "center",
+                }}
+              >
+                <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>📋</div>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    fontWeight: 700,
+                    color: c.texto,
+                    margin: "0 0 6px",
+                  }}
+                >
+                  Nenhuma atividade ainda
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    color: c.textoSub,
+                    margin: 0,
+                    lineHeight: 1.5,
+                  }}
+                >
+                  Quando {filho?.nome?.split(" ")[0] || "seu filho"} concluir
+                  uma missão, você verá aqui o que ele estudou e seu
+                  aproveitamento.
+                </p>
+              </div>
+            )}
+
             {/* Insight */}
             <div
               style={{
@@ -1766,7 +2022,7 @@ export default function PaisPage({ userPai, timer }) {
               </p>
             </div>
 
-            {/* ── CARD 1: Escolas públicas/técnicas ── */}
+            {/* Escolas públicas */}
             <div
               style={{
                 background: c.card,
@@ -1900,7 +2156,7 @@ export default function PaisPage({ userPai, timer }) {
               </p>
             </div>
 
-            {/* ── CARD 2: Escolas de prestígio com bolsa ── */}
+            {/* Escolas bolsa */}
             <div
               style={{
                 background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
