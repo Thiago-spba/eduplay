@@ -1,10 +1,17 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import {
+  ref,
+  uploadBytesResumable,
+  getDownloadURL,
+  deleteObject,
+} from "firebase/storage";
 import {
   collection,
   addDoc,
   getDocs,
+  deleteDoc,
+  doc,
   serverTimestamp,
   orderBy,
   query,
@@ -124,6 +131,37 @@ export default function AdminPage({ userPai }) {
     };
     carregar();
   }, [status]);
+
+  const excluirPodcast = async (podcast) => {
+    if (
+      !window.confirm(
+        'Excluir "' + podcast.titulo + '"? Esta ação não pode ser desfeita.',
+      )
+    )
+      return;
+    try {
+      // Remove do Firestore
+      await deleteDoc(doc(db, "podcasts", podcast.id));
+      // Tenta remover do Storage — não bloqueia se falhar
+      if (podcast.url) {
+        try {
+          const urlObj = new URL(podcast.url);
+          const pathEncoded = urlObj.pathname.split("/o/")[1];
+          if (pathEncoded) {
+            const storagePath = decodeURIComponent(pathEncoded.split("?")[0]);
+            const storageRef = ref(storage, storagePath);
+            await deleteObject(storageRef);
+          }
+        } catch (storageErr) {
+          console.warn("Arquivo do Storage não encontrado:", storageErr);
+        }
+      }
+      setPodcasts((prev) => prev.filter((p) => p.id !== podcast.id));
+    } catch (err) {
+      console.error("Erro ao excluir podcast:", err);
+      alert("Erro ao excluir. Tente novamente.");
+    }
+  };
 
   const selecionarArquivo = (ev) => {
     const file = ev.target.files?.[0];
@@ -810,6 +848,23 @@ export default function AdminPage({ userPai }) {
                     >
                       {p.descricao}
                     </p>
+                    <button
+                      onClick={() => excluirPodcast(p)}
+                      style={{
+                        marginTop: 8,
+                        padding: "4px 12px",
+                        borderRadius: 8,
+                        border: "1.5px solid #EF444444",
+                        background: "#EF444415",
+                        color: "#EF4444",
+                        fontWeight: 700,
+                        fontSize: "0.72rem",
+                        cursor: "pointer",
+                        fontFamily: "'Nunito', sans-serif",
+                      }}
+                    >
+                      🗑️ Excluir
+                    </button>
                   </div>
                 );
               })}

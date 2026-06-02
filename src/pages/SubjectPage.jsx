@@ -4,6 +4,7 @@ import { useTema } from "../context/ThemeContext";
 import { disciplinas } from "../utils/content";
 import BottomNav from "../components/BottomNav";
 import AudioLesson from "../components/AudioLesson";
+import OlloAssistant from "../components/OlloAssistant";
 import {
   getMissoesPorDisciplina,
   marcarMissaoFeita,
@@ -126,16 +127,34 @@ function PageHeader({
   );
 }
 
-// ── Quiz com contagem de acertos corrigida ──
+// ── Embaralha array sem mutar o original ──
+function embaralhar(arr) {
+  return [...arr].sort(() => Math.random() - 0.5);
+}
+
+// ── Quiz com alternativas embaralhadas ──
 function Quiz({ perguntas, onConcluir, cor, c }) {
   const [indice, setIndice] = useState(0);
   const [sel, setSel] = useState(null);
   const [respondeu, setRespondeu] = useState(false);
   const [acertos, setAcertos] = useState(0);
 
-  if (!perguntas?.length) return null;
-  const q = perguntas[indice];
-  const total = perguntas.length;
+  // Embaralha as opções uma vez ao montar, guardando o texto correto
+  const [perguntasEmbaralhadas] = useState(() =>
+    perguntas.map((q) => {
+      const textoCorreto = q.opcoes[q.correta];
+      const opcoesNovas = embaralhar(q.opcoes);
+      return {
+        ...q,
+        opcoes: opcoesNovas,
+        correta: opcoesNovas.indexOf(textoCorreto),
+      };
+    }),
+  );
+
+  if (!perguntasEmbaralhadas?.length) return null;
+  const q = perguntasEmbaralhadas[indice];
+  const total = perguntasEmbaralhadas.length;
 
   const responder = (i) => {
     if (respondeu) return;
@@ -195,7 +214,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
           Pergunta {indice + 1} de {total}
         </span>
         <div style={{ display: "flex", gap: 5 }}>
-          {perguntas.map((_, i) => (
+          {perguntasEmbaralhadas.map((_, i) => (
             <div
               key={i}
               style={{
@@ -920,6 +939,7 @@ export default function SubjectPage() {
             </div>
           </div>
         )}
+        <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />
         <BottomNav />
       </div>
     );
@@ -1136,6 +1156,7 @@ export default function SubjectPage() {
             💡 Complete as atividades para marcar esta missão como concluída
           </div>
         </main>
+        <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />
         <BottomNav />
       </div>
     );

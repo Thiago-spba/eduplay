@@ -2,8 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
-import { getCrianca } from "../services/db";
-import { registrarAcessoDiario } from "../services/db";
+import { getCrianca, registrarAcessoDiario } from "../services/db";
 import { useTema } from "../context/ThemeContext";
 
 export default function AgentePage() {
@@ -15,6 +14,8 @@ export default function AgentePage() {
 
   const [etapa, setEtapa] = useState("verificando");
   const [nomeFilho, setNomeFilho] = useState("");
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [pwaInstalado, setPwaInstalado] = useState(false);
 
   const c = {
     bg: e ? "#0D141C" : "#F0FFF8",
@@ -27,6 +28,23 @@ export default function AgentePage() {
     verdeSub: "#9FE1CB",
   };
 
+  // ── Captura o evento de instalação do PWA ──
+  useEffect(() => {
+    const handler = (ev) => {
+      ev.preventDefault();
+      setDeferredPrompt(ev);
+    };
+    window.addEventListener("beforeinstallprompt", handler);
+
+    // Verifica se já está instalado
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      setPwaInstalado(true);
+    }
+
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+
+  // ── Verifica código e autentica criança ──
   useEffect(() => {
     if (!codigo) {
       setEtapa("invalido");
@@ -35,14 +53,12 @@ export default function AgentePage() {
 
     const verificar = async () => {
       try {
-        // 1. Garante auth anônimo para a criança
         let user = auth.currentUser;
         if (!user) {
           const result = await signInAnonymously(auth);
           user = result.user;
         }
 
-        // 2. Busca dados da criança no Firestore (coleção nova)
         const crianca = await getCrianca(codigo);
         if (!crianca) {
           setEtapa("invalido");
@@ -52,17 +68,17 @@ export default function AgentePage() {
         const nome = crianca.nome || "Agente";
         setNomeFilho(nome);
 
-        // 3. Salva identidade no localStorage como cache
+        // Salva no localStorage — persiste entre sessões quando instalado como PWA
         localStorage.setItem("eduplay_player_name", nome);
         localStorage.setItem("eduplay_codigo_acesso", codigo);
 
-        // 4. Registra acesso diário no Firestore
         await registrarAcessoDiario(codigo);
-
         setEtapa("bemvindo");
 
-        // 5. Redireciona para o app após animação
-        setTimeout(() => window.location.replace("/"), 2500);
+        // Se já está instalado como PWA, entra direto sem mostrar botão
+        if (window.matchMedia("(display-mode: standalone)").matches) {
+          setTimeout(() => window.location.replace("/"), 2000);
+        }
       } catch (err) {
         console.error("Erro ao verificar código:", err);
         setEtapa("invalido");
@@ -71,6 +87,19 @@ export default function AgentePage() {
 
     verificar();
   }, [codigo]);
+
+  const instalarPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === "accepted") {
+      setPwaInstalado(true);
+      setDeferredPrompt(null);
+      setTimeout(() => window.location.replace("/"), 1500);
+    }
+  };
+
+  const entrarSemInstalar = () => window.location.replace("/");
 
   // ── Verificando ──
   if (etapa === "verificando") {
@@ -180,9 +209,7 @@ export default function AgentePage() {
             Voltar ao início
           </button>
         </div>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
-        `}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`}</style>
       </div>
     );
   }
@@ -204,7 +231,7 @@ export default function AgentePage() {
       <div
         style={{
           width: "100%",
-          maxWidth: 360,
+          maxWidth: 380,
           textAlign: "center",
           animation: "entrar 0.4s ease",
         }}
@@ -212,7 +239,7 @@ export default function AgentePage() {
         <div
           style={{
             fontSize: "4rem",
-            marginBottom: 20,
+            marginBottom: 16,
             animation: "pulsar 1.5s ease-in-out infinite",
           }}
         >
@@ -232,33 +259,128 @@ export default function AgentePage() {
           style={{
             fontSize: "1rem",
             color: "#9FE1CB",
-            margin: "0 0 32px",
+            margin: "0 0 28px",
             lineHeight: 1.5,
           }}
         >
           Suas missões estão esperando por você.
         </p>
-        <div
-          style={{
-            height: 6,
-            background: "rgba(255,255,255,0.2)",
-            borderRadius: 3,
-            overflow: "hidden",
-          }}
-        >
+
+        {/* ── Botão de instalar PWA — só aparece se ainda não instalou ── */}
+        {!pwaInstalado && deferredPrompt && (
           <div
             style={{
-              height: "100%",
-              background: "#9FE1CB",
-              borderRadius: 3,
-              animation: "carregar 2.3s ease forwards",
+              background: "rgba(255,255,255,0.12)",
+              borderRadius: 20,
+              padding: "20px",
+              marginBottom: 16,
+              border: "1.5px solid rgba(255,255,255,0.2)",
             }}
-          />
-        </div>
-        <p style={{ fontSize: "0.78rem", color: "#9FE1CB", marginTop: 10 }}>
-          Entrando no EduPlay...
-        </p>
+          >
+            <div style={{ fontSize: "2rem", marginBottom: 8 }}>📲</div>
+            <p
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "1.1rem",
+                color: "#E1F5EE",
+                margin: "0 0 6px",
+                fontWeight: 700,
+              }}
+            >
+              Salvar na tela inicial
+            </p>
+            <p
+              style={{
+                fontSize: "0.82rem",
+                color: "#9FE1CB",
+                margin: "0 0 16px",
+                lineHeight: 1.5,
+              }}
+            >
+              Instale o EduPlay para entrar sem precisar digitar o código toda
+              vez.
+            </p>
+            <button
+              onClick={instalarPWA}
+              style={{
+                width: "100%",
+                padding: "13px",
+                borderRadius: 14,
+                border: "none",
+                background: "#E1F5EE",
+                color: c.verde,
+                fontWeight: 900,
+                fontSize: "0.95rem",
+                cursor: "pointer",
+                fontFamily: "'Nunito', sans-serif",
+                marginBottom: 8,
+              }}
+            >
+              📲 Instalar agora
+            </button>
+            <button
+              onClick={entrarSemInstalar}
+              style={{
+                width: "100%",
+                padding: "10px",
+                borderRadius: 14,
+                border: "1.5px solid rgba(255,255,255,0.3)",
+                background: "transparent",
+                color: "#9FE1CB",
+                fontWeight: 600,
+                fontSize: "0.82rem",
+                cursor: "pointer",
+                fontFamily: "'Nunito', sans-serif",
+              }}
+            >
+              Entrar sem instalar
+            </button>
+          </div>
+        )}
+
+        {/* ── Se PWA não disponível ou já instalado — entra direto ── */}
+        {(pwaInstalado || !deferredPrompt) && (
+          <>
+            <div
+              style={{
+                height: 6,
+                background: "rgba(255,255,255,0.2)",
+                borderRadius: 3,
+                overflow: "hidden",
+                marginBottom: 10,
+              }}
+            >
+              <div
+                style={{
+                  height: "100%",
+                  background: "#9FE1CB",
+                  borderRadius: 3,
+                  animation: "carregar 2s ease forwards",
+                }}
+              />
+            </div>
+            <p style={{ fontSize: "0.78rem", color: "#9FE1CB" }}>
+              {pwaInstalado
+                ? "✅ App instalado — entrando..."
+                : "Entrando no EduPlay..."}
+            </p>
+            {!pwaInstalado && !deferredPrompt && (
+              <p
+                style={{
+                  fontSize: "0.72rem",
+                  color: "rgba(159,225,203,0.7)",
+                  marginTop: 8,
+                  lineHeight: 1.5,
+                }}
+              >
+                💡 Dica: adicione este link aos favoritos para entrar mais
+                rápido.
+              </p>
+            )}
+          </>
+        )}
       </div>
+
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes pulsar  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
