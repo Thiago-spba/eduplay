@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useTema } from "../context/ThemeContext";
 import { gerarMissaoIA } from "../services/ia";
 import FooterEduPlay from "../components/FooterEduPlay";
@@ -128,20 +128,13 @@ const CONFIG_KEY = "eduplay_config";
 export default function RegisterPage({ onRegister, onVoltar }) {
   const { tema, alternarTema } = useTema();
 
-  // Fluxo de Etapas: 'cadastro' -> 'pin' -> 'briefing' (se necessário)
   const [etapa, setEtapa] = useState("cadastro");
-
-  // Dados do Estudante
   const [nome, setNome] = useState("");
   const [avatar, setAvatar] = useState("👦");
   const [categoria, setCategoria] = useState("pessoas");
   const [erro, setErro] = useState("");
-
-  // Dados do Comandante (PIN)
   const [pinDigitado, setPinDigitado] = useState("");
   const [erroPin, setErroPin] = useState("");
-
-  // Briefing Expresso
   const [gerandoInicial, setGerandoInicial] = useState(false);
 
   const e = tema === "escuro";
@@ -160,8 +153,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
     inputBorda: e ? "#2A4050" : "#A8C5C3",
     inputTexto: e ? "#D0E0E8" : "#4A4A4A",
     avatarBg: e ? "#1A2B3C" : "#EDE8DF",
-    avatarAtivo: e ? "#1A3A38" : "#D4E5E4",
-    avatarBorda: e ? "#00C896" : "#5A8F8C",
     botao: e ? "#00C896" : "#5A8F8C",
     alertaBg: e ? "#2A1010" : "#FDE8E8",
     alertaTexto: e ? "#FF6B6B" : "#C92A2A",
@@ -172,6 +163,12 @@ export default function RegisterPage({ onRegister, onVoltar }) {
     if (!nome.trim()) return setErro("Digite seu nome!");
     if (nome.trim().length < 2) return setErro("Nome muito curto!");
     setEtapa("pin");
+  };
+
+  // ── CORRIGIDO: apagarPin estava faltando ──
+  const apagarPin = () => {
+    setPinDigitado((p) => p.slice(0, -1));
+    setErroPin("");
   };
 
   const digitarPin = async (n) => {
@@ -206,6 +203,12 @@ export default function RegisterPage({ onRegister, onVoltar }) {
       };
       localStorage.setItem(CONFIG_KEY, JSON.stringify(novaConfig));
 
+      // ── CORRIGIDO: salva eduplay_serie que o SubjectPage usa ──
+      localStorage.setItem("eduplay_serie", serieId);
+
+      // ── CORRIGIDO: salva avatar escolhido ──
+      localStorage.setItem("eduplay_avatar", avatar);
+
       const missao = await gerarMissaoIA({
         disciplina: "portugues",
         serie: serieId,
@@ -219,6 +222,9 @@ export default function RegisterPage({ onRegister, onVoltar }) {
       onRegister(nome.trim());
     } catch (err) {
       console.error("Erro no briefing:", err);
+      // ── Mesmo com erro, garante que a série foi salva ──
+      localStorage.setItem("eduplay_serie", serieId);
+      localStorage.setItem("eduplay_avatar", avatar);
       onRegister(nome.trim());
     }
   };
@@ -335,6 +341,7 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                     color: cor.inputTexto,
                     outline: "none",
                     marginBottom: 20,
+                    boxSizing: "border-box",
                   }}
                 />
                 {erro && (
@@ -378,7 +385,9 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                         borderRadius: 20,
                         border: "none",
                         background:
-                          categoria === cat.id ? cor.catBg : "transparent",
+                          categoria === cat.id
+                            ? `${cor.botao}22`
+                            : "transparent",
                         color: categoria === cat.id ? cor.botao : cor.texto,
                         fontWeight: 700,
                         cursor: "pointer",
@@ -449,7 +458,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                       fontSize: "0.72rem",
                       fontWeight: 700,
                       color: cor.botao,
-                      background: cor.catBg,
                       padding: "4px 10px",
                       borderRadius: 20,
                     }}
@@ -461,7 +469,7 @@ export default function RegisterPage({ onRegister, onVoltar }) {
             </>
           )}
 
-          {/* ETAPA 2: PIN (PROTOCOLO DO COMANDANTE) */}
+          {/* ETAPA 2: PIN */}
           {etapa === "pin" && (
             <div
               style={{
@@ -472,7 +480,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                animation: "fadeInUp 0.3s ease",
                 scrollbarWidth: "thin",
               }}
             >
@@ -551,7 +558,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
               >
                 Protocolo do Comandante
               </h2>
-
               <div
                 style={{
                   background: cor.alertaBg,
@@ -586,7 +592,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                   Comandante-Chefe para liberar o novo Agente.
                 </p>
               </div>
-
               <div
                 style={{
                   display: "flex",
@@ -610,7 +615,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                   />
                 ))}
               </div>
-
               {erroPin && (
                 <p
                   style={{
@@ -624,7 +628,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                   {erroPin}
                 </p>
               )}
-
               <div
                 style={{
                   display: "grid",
@@ -664,7 +667,7 @@ export default function RegisterPage({ onRegister, onVoltar }) {
             </div>
           )}
 
-          {/* ETAPA 3: BRIEFING EXPRESSO */}
+          {/* ETAPA 3: BRIEFING */}
           {etapa === "briefing" && (
             <div
               style={{
@@ -694,7 +697,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
                 Comandante, defina o nível escolar para calibrarmos os desafios
                 do Agente <strong>{nome}</strong>:
               </p>
-
               {gerandoInicial ? (
                 <div style={{ padding: 20 }}>
                   <div
@@ -748,7 +750,6 @@ export default function RegisterPage({ onRegister, onVoltar }) {
       <style>{`
         @keyframes girarEstrelas { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes flutuar { 0%, 100% { transform: translateY(0px); } 50% { transform: translateY(-8px); } }
         @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes piscarEstrela { 0%, 100% { opacity: 0.4; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.3); filter: drop-shadow(0 0 4px rgba(255,215,0,0.8)); } }
       `}</style>

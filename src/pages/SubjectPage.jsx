@@ -697,11 +697,40 @@ export default function SubjectPage() {
             setCarregando(false);
             setGerandoAuto(true);
             try {
+              // ── Bimestre automático pelo mês atual ──
+              const mes = new Date().getMonth() + 1;
+              const bimestreAtual =
+                mes <= 4
+                  ? "1bimestre"
+                  : mes <= 7
+                    ? "2bimestre"
+                    : mes <= 10
+                      ? "3bimestre"
+                      : "4bimestre";
+
+              const serieAtual =
+                localStorage.getItem("eduplay_serie") || "6ano";
+
+              const temasPorDisciplina = {
+                historia:
+                  "Investigação histórica baseada no currículo do bimestre",
+                geografia:
+                  "Exploração geográfica baseada no currículo do bimestre",
+                matematica:
+                  "Desafio matemático baseado no currículo do bimestre",
+                ciencias:
+                  "Descoberta científica baseada no currículo do bimestre",
+                portugues:
+                  "Missão de linguagem baseada no currículo do bimestre",
+              };
+
               const missao = await gerarMissaoIA({
                 disciplina: disciplinaId,
-                serie: localStorage.getItem("eduplay_serie") || "6ano",
-                bimestre: "1bimestre",
-                tema: `Conteudo introdutorio de ${disciplinaId}`,
+                serie: serieAtual,
+                bimestre: bimestreAtual,
+                tema:
+                  temasPorDisciplina[disciplinaId] ||
+                  `Conteudo de ${disciplinaId}`,
               });
               await salvarMissao(codigoAcesso, disciplinaId, missao);
               const novaLista = await getMissoesPorDisciplina(
