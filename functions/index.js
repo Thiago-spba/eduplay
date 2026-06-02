@@ -373,33 +373,53 @@ exports.perguntarAssistente = onCall(
   }
 )
 // ═══════════════════════════════════════════════════════════════════════
-// gerarMensagemMotivacional — Mensagem pedagógica personalizada para o pai
+// gerarMensagemMotivacional — Mensagem + perguntas pedagógicas para o pai
 // ═══════════════════════════════════════════════════════════════════════
 exports.gerarMensagemMotivacional = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
-    const { nomeFilho, serie, totalMissoes, ultimoPercentual, diasAtivos } = request.data
-    if (!nomeFilho) throw new HttpsError('invalid-argument', 'Nome do filho obrigatório.')
+    const { nomeFilho, serie, totalMissoes, ultimoPercentual, diasAtivos, tituloMissao, topicos } = request.data
+    if (!nomeFilho) throw new HttpsError('invalid-argument', 'Nome do filho obrigatorio.')
+
     let nivelDesempenho = 'sem_dados'
     if (ultimoPercentual !== null && ultimoPercentual !== undefined) {
       if (ultimoPercentual >= 70) nivelDesempenho = 'otimo'
       else if (ultimoPercentual >= 40) nivelDesempenho = 'bom'
       else nivelDesempenho = 'ruim'
     }
+
     const contexto = {
       sem_dados: nomeFilho + ' ainda nao completou nenhuma atividade.',
       otimo:     nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — otimo desempenho.',
       bom:       nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — desempenho regular, em evolucao.',
       ruim:      nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — esta com dificuldades.',
     }[nivelDesempenho]
-    const prompt = 'Voce e um psicologo educacional especialista em motivacao parental.\n\nEscreva UMA mensagem curta (maximo 3 frases) para o RESPONSAVEL de ' + nomeFilho + ', aluno do ' + (serie || '6 ano') + '.\n\nCONTEXTO ATUAL:\n- ' + contexto + '\n- Total de missoes concluidas: ' + (totalMissoes || 0) + '\n- Dias ativos no app: ' + (diasAtivos || 0) + '\n\nREGRAS:\n- Fale DIRETAMENTE com o responsavel (use voce, seu filho)\n- Seja HONESTO: se ruim, diga que precisa de atencao\n- Termine com UMA acao concreta que o responsavel pode fazer HOJE\n- Tom: caloroso, direto, sem exageros\n- NAO use emojis no texto\n- NAO comece com Ola ou saudacoes\n\nResponda APENAS com o texto da mensagem, sem aspas, sem formatacao.'
+
+    const topicosTexto = topicos && topicos.length > 0 ? topicos.slice(0, 3).join(', ') : ''
+    const missaoTexto = tituloMissao ? 'Titulo da missao: ' + tituloMissao + '. Topicos estudados: ' + topicosTexto : ''
+
+    const prompt = 'Voce e um psicologo educacional especialista em motivacao parental.\n\nGere duas coisas para o responsavel de ' + nomeFilho + ', aluno do ' + (serie || '6 ano') + '.\n\nCONTEXTO:\n- ' + contexto + '\n- Total de missoes concluidas: ' + (totalMissoes || 0) + '\n- Dias ativos no app: ' + (diasAtivos || 0) + '\n- ' + missaoTexto + '\n\nRESPONDA APENAS COM ESTE JSON SEM MARKDOWN:\n{\n  "mensagem": "mensagem de 2-3 frases para o responsavel. Honesto sobre o desempenho. Termina com uma acao concreta para hoje. Sem emojis. Sem saudacao.",\n  "perguntas": [\n    "pergunta 1 especifica sobre o conteudo de ' + (tituloMissao || 'a missao') + ' — que o filho possa responder",\n    "pergunta 2 conectando o conteudo com situacoes do dia a dia do filho",\n    "pergunta 3 que estimule o filho a explicar o conceito com suas proprias palavras"\n  ]\n}'
+
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 200,
+      max_tokens: 400,
       messages: [{ role: 'user', content: prompt }],
     })
-    return { ok: true, mensagem: msg.content[0].text.trim() }
+
+    let resultado
+    try {
+      const texto = msg.content[0].text.trim()
+      const jsonStr = texto.substring(texto.indexOf('{'), texto.lastIndexOf('}') + 1)
+      resultado = JSON.parse(jsonStr)
+    } catch (err) {
+      resultado = {
+        mensagem: msg.content[0].text.trim(),
+        perguntas: ['O que voce aprendeu hoje?', 'Como explicaria isso para um amigo?', 'Onde usamos isso no dia a dia?']
+      }
+    }
+
+    return { ok: true, mensagem: resultado.mensagem, perguntas: resultado.perguntas || [] }
   }
 )

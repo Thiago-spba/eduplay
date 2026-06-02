@@ -787,6 +787,9 @@ export default function PaisPage({ userPai, timer }) {
     azul: "#3B82F6",
   };
 
+  // ── Perguntas geradas pela IA ──
+  const [perguntasIA, setPerguntasIA] = useState([]);
+
   // ── Gera mensagem motivacional via IA ──
   const gerarMensagemIA = async (crianca, sessoes, prog) => {
     setCarregandoMsg(true);
@@ -809,8 +812,13 @@ export default function PaisPage({ userPai, timer }) {
         totalMissoes: prog?.missoesFeitas || 0,
         ultimoPercentual: percentual,
         diasAtivos: prog?.diasAtivos?.length || 0,
+        tituloMissao: ultimaSessao?.tituloMissao || "",
+        topicos: ultimaSessao?.topicos || [],
       });
-      if (res.data?.ok) setMensagemIA(res.data.mensagem);
+      if (res.data?.ok) {
+        setMensagemIA(res.data.mensagem);
+        if (res.data.perguntas?.length > 0) setPerguntasIA(res.data.perguntas);
+      }
     } catch (err) {
       console.warn("Mensagem IA indisponível:", err);
       setMensagemIA(
@@ -2297,42 +2305,44 @@ export default function PaisPage({ userPai, timer }) {
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 8 }}
                   >
-                    {perguntasPai.map((q, i) => (
-                      <div
-                        key={i}
-                        style={{
-                          display: "flex",
-                          alignItems: "flex-start",
-                          gap: 8,
-                          padding: "10px 12px",
-                          background: c.card2,
-                          borderRadius: 10,
-                          border: `1.5px solid ${c.borda}`,
-                        }}
-                      >
-                        <span
+                    {(perguntasIA.length > 0 ? perguntasIA : perguntasPai).map(
+                      (q, i) => (
+                        <div
+                          key={i}
                           style={{
-                            fontSize: "0.8rem",
-                            color: discUltima?.cor || c.accent,
-                            fontWeight: 800,
-                            flexShrink: 0,
-                            marginTop: 1,
+                            display: "flex",
+                            alignItems: "flex-start",
+                            gap: 8,
+                            padding: "10px 12px",
+                            background: c.card2,
+                            borderRadius: 10,
+                            border: `1.5px solid ${c.borda}`,
                           }}
                         >
-                          {i + 1}.
-                        </span>
-                        <p
-                          style={{
-                            fontSize: "0.82rem",
-                            color: c.texto,
-                            margin: 0,
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {q}
-                        </p>
-                      </div>
-                    ))}
+                          <span
+                            style={{
+                              fontSize: "0.8rem",
+                              color: discUltima?.cor || c.accent,
+                              fontWeight: 800,
+                              flexShrink: 0,
+                              marginTop: 1,
+                            }}
+                          >
+                            {i + 1}.
+                          </span>
+                          <p
+                            style={{
+                              fontSize: "0.82rem",
+                              color: c.texto,
+                              margin: 0,
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            {q}
+                          </p>
+                        </div>
+                      ),
+                    )}
                   </div>
                 </div>
               </div>
