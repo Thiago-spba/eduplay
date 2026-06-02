@@ -306,3 +306,47 @@ export async function registrarConsentimentoECA(uid, dados) {
     { ...dados, criadoEm: serverTimestamp() }
   );
 }
+// ─────────────────────────────────────────────────────────────
+// TRIAL
+// ─────────────────────────────────────────────────────────────
+
+/** Verifica e inicia trial da criança */
+export async function verificarTrial(codigoAcesso) {
+  const ref = doc(db, "criancas", codigoAcesso);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return { ativo: false, diasRestantes: 0 };
+
+  const dados = snap.data();
+
+  if (dados.assinaturaAtiva === true) {
+    return { ativo: true, diasRestantes: 999, assinante: true };
+  }
+
+  if (!dados.trialInicio) {
+    await updateDoc(ref, { trialInicio: serverTimestamp() });
+    return { ativo: true, diasRestantes: 5, trial: true };
+  }
+
+  const inicio = dados.trialInicio.toDate
+    ? dados.trialInicio.toDate()
+    : new Date(dados.trialInicio);
+  const agora = new Date();
+  const diasPassados = Math.floor((agora - inicio) / (1000 * 60 * 60 * 24));
+  const diasRestantes = Math.max(0, 5 - diasPassados);
+
+  return {
+    ativo: diasRestantes > 0,
+    diasRestantes,
+    trial: true,
+    expirado: diasRestantes === 0,
+  };
+}
+
+/** Ativa assinatura da criança */
+export async function ativarAssinatura(codigoAcesso, dados) {
+  await updateDoc(doc(db, "criancas", codigoAcesso), {
+    assinaturaAtiva: true,
+    assinaturaInicio: serverTimestamp(),
+    ...dados,
+  });
+}

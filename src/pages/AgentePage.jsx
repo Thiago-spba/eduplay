@@ -2,7 +2,11 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
-import { getCrianca, registrarAcessoDiario } from "../services/db";
+import {
+  getCrianca,
+  registrarAcessoDiario,
+  verificarTrial,
+} from "../services/db";
 import { useTema } from "../context/ThemeContext";
 
 export default function AgentePage() {
@@ -14,6 +18,7 @@ export default function AgentePage() {
 
   const [etapa, setEtapa] = useState("verificando");
   const [nomeFilho, setNomeFilho] = useState("");
+  const [diasRestantes, setDiasRestantes] = useState(5);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [pwaInstalado, setPwaInstalado] = useState(false);
 
@@ -28,23 +33,17 @@ export default function AgentePage() {
     verdeSub: "#9FE1CB",
   };
 
-  // ── Captura o evento de instalação do PWA ──
   useEffect(() => {
     const handler = (ev) => {
       ev.preventDefault();
       setDeferredPrompt(ev);
     };
     window.addEventListener("beforeinstallprompt", handler);
-
-    // Verifica se já está instalado
-    if (window.matchMedia("(display-mode: standalone)").matches) {
+    if (window.matchMedia("(display-mode: standalone)").matches)
       setPwaInstalado(true);
-    }
-
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-  // ── Verifica código e autentica criança ──
   useEffect(() => {
     if (!codigo) {
       setEtapa("invalido");
@@ -67,15 +66,22 @@ export default function AgentePage() {
 
         const nome = crianca.nome || "Agente";
         setNomeFilho(nome);
-
-        // Salva no localStorage — persiste entre sessões quando instalado como PWA
         localStorage.setItem("eduplay_player_name", nome);
         localStorage.setItem("eduplay_codigo_acesso", codigo);
+        localStorage.setItem("eduplay_serie", crianca.serie || "6ano");
 
+        // ── Verifica trial ──
+        const trial = await verificarTrial(codigo);
+
+        if (!trial.ativo) {
+          setEtapa("trial_expirado");
+          return;
+        }
+
+        setDiasRestantes(trial.diasRestantes);
         await registrarAcessoDiario(codigo);
         setEtapa("bemvindo");
 
-        // Se já está instalado como PWA, entra direto sem mostrar botão
         if (window.matchMedia("(display-mode: standalone)").matches) {
           setTimeout(() => window.location.replace("/"), 2000);
         }
@@ -101,8 +107,7 @@ export default function AgentePage() {
 
   const entrarSemInstalar = () => window.location.replace("/");
 
-  // ── Verificando ──
-  if (etapa === "verificando") {
+  if (etapa === "verificando")
     return (
       <div
         style={{
@@ -135,16 +140,11 @@ export default function AgentePage() {
             Verificando seu acesso...
           </p>
         </div>
-        <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
-          @keyframes pulsar { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
-        `}</style>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes pulsar { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }`}</style>
       </div>
     );
-  }
 
-  // ── Inválido ──
-  if (etapa === "invalido") {
+  if (etapa === "invalido")
     return (
       <div
         style={{
@@ -212,7 +212,133 @@ export default function AgentePage() {
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`}</style>
       </div>
     );
-  }
+
+  // ── Trial expirado ──
+  if (etapa === "trial_expirado")
+    return (
+      <div
+        style={{
+          minHeight: "100dvh",
+          background: e ? "#0D141C" : "#FFF8F0",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "24px 20px",
+          fontFamily: "'Nunito', sans-serif",
+        }}
+      >
+        <div style={{ width: "100%", maxWidth: 380, textAlign: "center" }}>
+          <div style={{ fontSize: "4rem", marginBottom: 16 }}>⏰</div>
+          <h1
+            style={{
+              fontFamily: "'Fredoka', sans-serif",
+              fontSize: "1.8rem",
+              color: e ? "#E2E8F0" : "#1E293B",
+              margin: "0 0 10px",
+            }}
+          >
+            Período gratuito encerrado
+          </h1>
+          <p
+            style={{
+              fontSize: "0.9rem",
+              color: e ? "#94A3B8" : "#64748B",
+              lineHeight: 1.6,
+              margin: "0 0 24px",
+            }}
+          >
+            Os 5 dias gratuitos de{" "}
+            <strong>{nomeFilho.split(" ")[0] || "seu filho"}</strong> chegaram
+            ao fim.
+            <br />
+            <br />
+            Para continuar aprendendo, peça ao seu responsável para ativar o
+            plano mensal.
+          </p>
+          <div
+            style={{
+              background: e ? "#1A2633" : "#FFFFFF",
+              borderRadius: 20,
+              padding: "20px",
+              marginBottom: 20,
+              border: `2px solid #00D4AA44`,
+            }}
+          >
+            <p
+              style={{
+                fontSize: "0.75rem",
+                fontWeight: 800,
+                color: "#00D4AA",
+                margin: "0 0 8px",
+                textTransform: "uppercase",
+                letterSpacing: 1,
+              }}
+            >
+              Plano EduPlay
+            </p>
+            <p
+              style={{
+                fontFamily: "'Fredoka', sans-serif",
+                fontSize: "2rem",
+                color: e ? "#E2E8F0" : "#1E293B",
+                margin: "0 0 4px",
+                fontWeight: 700,
+              }}
+            >
+              R$ 20<span style={{ fontSize: "1rem" }}>/mês</span>
+            </p>
+            <p
+              style={{
+                fontSize: "0.82rem",
+                color: e ? "#94A3B8" : "#64748B",
+                margin: 0,
+              }}
+            >
+              Até 2 filhos · Cancele quando quiser
+            </p>
+            <div
+              style={{
+                marginTop: 14,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
+              }}
+            >
+              {[
+                "✅ Missões ilimitadas com IA",
+                "✅ Painel completo dos pais",
+                "✅ Currículo paulista 6º ao 9º ano",
+                "✅ Áudio explicativo em todas as missões",
+              ].map((item, i) => (
+                <p
+                  key={i}
+                  style={{
+                    fontSize: "0.82rem",
+                    color: e ? "#94A3B8" : "#64748B",
+                    margin: 0,
+                    textAlign: "left",
+                  }}
+                >
+                  {item}
+                </p>
+              ))}
+            </div>
+          </div>
+          <p
+            style={{
+              fontSize: "0.78rem",
+              color: e ? "#94A3B8" : "#64748B",
+              lineHeight: 1.5,
+            }}
+          >
+            Responsável: acesse <strong>eduplay.olloapp.com.br</strong> → "Sou
+            responsável" para assinar.
+          </p>
+        </div>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`}</style>
+      </div>
+    );
 
   // ── Bem-vindo ──
   return (
@@ -266,7 +392,34 @@ export default function AgentePage() {
           Suas missões estão esperando por você.
         </p>
 
-        {/* ── Botão de instalar PWA — só aparece se ainda não instalou ── */}
+        {/* Badge de dias restantes do trial */}
+        {diasRestantes <= 5 && diasRestantes > 0 && (
+          <div
+            style={{
+              background: "rgba(255,255,255,0.12)",
+              borderRadius: 12,
+              padding: "8px 16px",
+              marginBottom: 20,
+              display: "inline-block",
+              border: "1px solid rgba(255,255,255,0.2)",
+            }}
+          >
+            <p
+              style={{
+                fontSize: "0.78rem",
+                color: "#9FE1CB",
+                margin: 0,
+                fontWeight: 700,
+              }}
+            >
+              ⏳ {diasRestantes}{" "}
+              {diasRestantes === 1
+                ? "dia gratuito restante"
+                : "dias gratuitos restantes"}
+            </p>
+          </div>
+        )}
+
         {!pwaInstalado && deferredPrompt && (
           <div
             style={{
@@ -338,7 +491,6 @@ export default function AgentePage() {
           </div>
         )}
 
-        {/* ── Se PWA não disponível ou já instalado — entra direto ── */}
         {(pwaInstalado || !deferredPrompt) && (
           <>
             <div
@@ -380,7 +532,6 @@ export default function AgentePage() {
           </>
         )}
       </div>
-
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes pulsar  { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
