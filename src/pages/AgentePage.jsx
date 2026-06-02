@@ -219,124 +219,220 @@ export default function AgentePage() {
       <div
         style={{
           minHeight: "100dvh",
-          background: e ? "#0D141C" : "#FFF8F0",
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
-          padding: "24px 20px",
-          fontFamily: "'Nunito', sans-serif",
+          background:
+            "radial-gradient(circle at 50% 40%, #002b28 0%, #001211 65%, #000 100%)",
+          fontFamily: "'Montserrat', sans-serif",
+          color: "#fff",
+          overflow: "hidden",
+          position: "relative",
+          padding: "36px 24px 40px",
         }}
       >
-        <div style={{ width: "100%", maxWidth: 380, textAlign: "center" }}>
-          <div style={{ fontSize: "4rem", marginBottom: 16 }}>⏰</div>
-          <h1
+        {/* Planta + orbitais */}
+        <div
+          style={{
+            position: "relative",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            zIndex: 10,
+          }}
+        >
+          {/* Orbital container */}
+          <div
             style={{
-              fontFamily: "'Fredoka', sans-serif",
-              fontSize: "1.8rem",
-              color: e ? "#E2E8F0" : "#1E293B",
-              margin: "0 0 10px",
+              position: "absolute",
+              top: "42%",
+              left: "50%",
+              transform: "translate(-50%,-50%)",
+              width: 380,
+              height: 230,
+              pointerEvents: "none",
+              zIndex: 5,
             }}
           >
-            Período gratuito encerrado
+            <div
+              style={{
+                position: "absolute",
+                width: 13,
+                height: 13,
+                borderRadius: "50%",
+                background: "#fff",
+                boxShadow: "0 0 12px rgba(255,255,255,0.9)",
+                left: 0,
+                top: "50%",
+                animation: "orbit 5s linear infinite",
+                animationDelay: "-1.25s",
+              }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                width: 13,
+                height: 13,
+                borderRadius: "50%",
+                background: "#00e0ff",
+                boxShadow: "0 0 18px rgba(0,224,255,1)",
+                left: 0,
+                top: "50%",
+                animation: "orbit 5s linear infinite",
+                animationDelay: "-3.75s",
+              }}
+            />
+          </div>
+          <img
+            src="/images/planta_limpa.png"
+            alt="EduPlay"
+            style={{
+              width: 230,
+              height: "auto",
+              animation: "breathe 3s ease-in-out infinite",
+              position: "relative",
+              zIndex: 12,
+            }}
+          />
+          <h1
+            style={{
+              fontWeight: 700,
+              fontSize: "2.6rem",
+              color: "#00e0b3",
+              margin: "0",
+              letterSpacing: 1,
+              marginTop: -18,
+            }}
+          >
+            EduPlay
           </h1>
           <p
             style={{
-              fontSize: "0.9rem",
-              color: e ? "#94A3B8" : "#64748B",
-              lineHeight: 1.6,
-              margin: "0 0 24px",
+              fontWeight: 300,
+              fontSize: "1rem",
+              color: "#888",
+              margin: "6px 0 28px",
             }}
           >
-            Os 5 dias gratuitos de{" "}
-            <strong>{nomeFilho.split(" ")[0] || "seu filho"}</strong> chegaram
-            ao fim.
-            <br />
-            <br />
-            Para continuar aprendendo, peça ao seu responsável para ativar o
-            plano mensal.
-          </p>
-          <div
-            style={{
-              background: e ? "#1A2633" : "#FFFFFF",
-              borderRadius: 20,
-              padding: "20px",
-              marginBottom: 20,
-              border: `2px solid #00D4AA44`,
-            }}
-          >
-            <p
-              style={{
-                fontSize: "0.75rem",
-                fontWeight: 800,
-                color: "#00D4AA",
-                margin: "0 0 8px",
-                textTransform: "uppercase",
-                letterSpacing: 1,
-              }}
-            >
-              Plano EduPlay
-            </p>
-            <p
-              style={{
-                fontFamily: "'Fredoka', sans-serif",
-                fontSize: "2rem",
-                color: e ? "#E2E8F0" : "#1E293B",
-                margin: "0 0 4px",
-                fontWeight: 700,
-              }}
-            >
-              R$ 20<span style={{ fontSize: "1rem" }}>/mês</span>
-            </p>
-            <p
-              style={{
-                fontSize: "0.82rem",
-                color: e ? "#94A3B8" : "#64748B",
-                margin: 0,
-              }}
-            >
-              Até 2 filhos · Cancele quando quiser
-            </p>
-            <div
-              style={{
-                marginTop: 14,
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-              }}
-            >
-              {[
-                "✅ Missões ilimitadas com IA",
-                "✅ Painel completo dos pais",
-                "✅ Currículo paulista 6º ao 9º ano",
-                "✅ Áudio explicativo em todas as missões",
-              ].map((item, i) => (
-                <p
-                  key={i}
-                  style={{
-                    fontSize: "0.82rem",
-                    color: e ? "#94A3B8" : "#64748B",
-                    margin: 0,
-                    textAlign: "left",
-                  }}
-                >
-                  {item}
-                </p>
-              ))}
-            </div>
-          </div>
-          <p
-            style={{
-              fontSize: "0.78rem",
-              color: e ? "#94A3B8" : "#64748B",
-              lineHeight: 1.5,
-            }}
-          >
-            Responsável: acesse <strong>eduplay.olloapp.com.br</strong> → "Sou
-            responsável" para assinar.
+            Semeando o conhecimento, cultivando o futuro.
           </p>
         </div>
-        <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');`}</style>
+
+        {/* Mensagens rotativas */}
+        <div
+          style={{
+            textAlign: "center",
+            maxWidth: 340,
+            minHeight: 80,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <p
+            id="eduplay-msg"
+            style={{
+              fontFamily: "'Nunito', sans-serif",
+              fontSize: "1.08rem",
+              fontWeight: 700,
+              color: "#ddf5f0",
+              lineHeight: 1.7,
+              margin: 0,
+            }}
+          />
+        </div>
+
+        {/* Dots */}
+        <div
+          id="eduplay-dots"
+          style={{
+            display: "flex",
+            gap: 9,
+            justifyContent: "center",
+            margin: "14px 0 22px",
+          }}
+        />
+
+        {/* Botão */}
+        <button
+          onClick={() => navigate("/pais")}
+          style={{
+            padding: "14px 48px",
+            borderRadius: 30,
+            border: "none",
+            background: "linear-gradient(135deg,#00C853,#00BFA5)",
+            color: "#fff",
+            fontFamily: "'Nunito', sans-serif",
+            fontWeight: 900,
+            fontSize: "1rem",
+            cursor: "pointer",
+            animation: "pb 2.5s ease-in-out infinite",
+          }}
+        >
+          🌱 Continuar aprendendo
+        </button>
+        <p
+          style={{
+            fontSize: "0.73rem",
+            color: "rgba(255,255,255,0.35)",
+            marginTop: 9,
+            fontFamily: "'Montserrat', sans-serif",
+          }}
+        >
+          R$20/mês · até 2 filhos · cancele quando quiser
+        </p>
+
+        <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;700&family=Nunito:wght@700;800;900&display=swap');
+        @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.03)} }
+        @keyframes orbit {
+          0%   { transform:rotate(0deg)   translateX(-190px) scale(1);   z-index:5  }
+          49%  { z-index:5  }
+          50%  { transform:rotate(180deg) translateX(-190px) scale(1.5); z-index:15 }
+          100% { transform:rotate(360deg) translateX(-190px) scale(1);   z-index:15 }
+        }
+        @keyframes pb { 0%,100%{box-shadow:0 4px 22px rgba(0,200,83,.35)} 50%{box-shadow:0 6px 32px rgba(0,200,83,.6)} }
+        @keyframes fin { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        #eduplay-msg { animation: fin 0.6s ease; }
+      `}</style>
+
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+        (function(){
+          var NOME = '${nomeFilho.split(" ")[0] || "seu filho"}';
+          var MSGS = [
+            'Você decidiu que <span style="color:#00e0b3;font-weight:900">' + NOME + '</span> merece mais.<br>Essa decisão tem continuidade.',
+            'Os 5 dias de <span style="color:#00e0b3;font-weight:900">' + NOME + '</span> foram o começo.<br>O hábito leva 21 dias para se formar.',
+            'Pais que investem hoje não precisam<br>se preocupar com o amanhã de <span style="color:#00e0b3;font-weight:900">' + NOME + '</span>.',
+            'Menos que uma pizza.<br>O impacto de um professor todos os dias.',
+            'O momento mais fácil de desistir<br>é exatamente antes de virar rotina.',
+            '<span style="color:#00e0b3;font-weight:900">' + NOME + '</span> não sabe que você está aqui.<br>Mas vai sentir a diferença.',
+            'Consistência é o que separa<br>quem sonha de quem conquista.',
+            'O que você investe em <span style="color:#00e0b3;font-weight:900">' + NOME + '</span> hoje,<br>ele carrega para sempre.',
+          ];
+          var idx=0, timer;
+          var el=document.getElementById('eduplay-msg');
+          var dc=document.getElementById('eduplay-dots');
+          if(!el||!dc) return;
+          MSGS.forEach(function(_,i){
+            var d=document.createElement('div');
+            d.style.cssText='width:7px;height:7px;border-radius:50%;cursor:pointer;transition:.3s;background:'+(i===0?'#00e0b3':'rgba(255,255,255,0.2)');
+            d.onclick=function(){clearInterval(timer);idx=i;show(i);loop()};
+            dc.appendChild(d);
+          });
+          function show(i){
+            el.style.animation='none';void el.offsetHeight;el.style.animation='fin 0.6s ease';
+            el.innerHTML=MSGS[i];
+            Array.from(dc.children).forEach(function(d,j){d.style.background=j===i?'#00e0b3':'rgba(255,255,255,0.2)';d.style.transform=j===i?'scale(1.4)':'scale(1)'});
+          }
+          function loop(){timer=setInterval(function(){idx=(idx+1)%MSGS.length;show(idx)},3800)}
+          show(0);setTimeout(loop,3800);
+        })();
+      `,
+          }}
+        />
       </div>
     );
 

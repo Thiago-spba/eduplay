@@ -423,3 +423,115 @@ exports.gerarMensagemMotivacional = onCall(
     return { ok: true, mensagem: resultado.mensagem, perguntas: resultado.perguntas || [] }
   }
 )
+// ═══════════════════════════════════════════════════════════════════════
+// MERCADO PAGO — Assinaturas
+// ═══════════════════════════════════════════════════════════════════════
+const { onRequest } = require('firebase-functions/v2/https')
+const MP_ACCESS_TOKEN = defineSecret('MP_ACCESS_TOKEN')
+const MP_PUBLIC_KEY   = defineSecret('MP_PUBLIC_KEY')
+
+/** Cria link de checkout de assinatura no Mercado Pago */
+exports.criarAssinatura = onCall(
+  { secrets: [MP_ACCESS_TOKEN], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+    const { codigoAcesso, emailResponsavel, nomeResponsavel } = request.data
+    if (!codigoAcesso) throw new HttpsError('invalid-argument', 'Código de acesso obrigatório.')
+
+    try {
+      const response = await fetch('https://api.mercadopago.com/preapproval', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${MP_ACCESS_TOKEN.value()}`,
+        },
+        body: JSON.stringify({
+          reason: 'EduPlay — Plano Mensal',
+          auto_recurring: {
+            frequency: 1,
+            frequency_type: 'months',
+            transaction_amount: 20.00,
+            currency_id: 'BRL',
+          },
+          back_url: 'https://eduplay.olloapp.com.br/pais',
+          payer_email: emailResponsavel || '',
+          external_reference: codigoAcesso,
+          status: 'pending',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok || !data.init_point) {
+        console.error('Erro MP:', data)
+        throw new HttpsError('internal', 'Erro ao criar assinatura no Mercado Pago.')
+      }
+
+      // Salva referência no Firestore
+      await db.collection('criancas').doc(codigoAcesso).set({
+        mpPreapprovalId: data.id,
+        assinaturaStatus: 'pendente',
+        atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true })
+
+      return { ok: true, checkoutUrl: data.init_point, preapprovalId: data.id }
+    } catch (err) {
+      console.error('Erro criarAssinatura:', err)
+      throw new HttpsError('internal', 'Falha ao criar assinatura.')
+    }
+  }
+)
+
+/** Webhook do Mercado Pago — chamado quando pagamento é confirmado */
+exports.webhookMP = onRequest(
+  { secrets: [MP_ACCESS_TOKEN], region: 'us-central1', cors: true },
+  async (req, res) => {
+    if (req.method !== 'POST') { res.status(405).send('Method Not Allowed'); return; }
+
+    try {
+      const { type, data } = req.body
+
+      // Só processa notificações de assinatura
+      if (type !== 'preapproval') { res.status(200).send('OK'); return; }
+
+      const preapprovalId = data?.id
+      if (!preapprovalId) { res.status(200).send('OK'); return; }
+
+      // Busca detalhes da assinatura no MP
+      const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN.value()}` },
+      })
+      const assinatura = await mpResponse.json()
+
+      const codigoAcesso = assinatura.external_reference
+      const status = assinatura.status // authorized | paused | cancelled
+
+      if (!codigoAcesso) { res.status(200).send('OK'); return; }
+
+      if (status === 'authorized') {
+        // Pagamento confirmado — ativa acesso
+        await db.collection('criancas').doc(codigoAcesso).set({
+          assinaturaAtiva: true,
+          assinaturaStatus: 'ativa',
+          mpPreapprovalId: preapprovalId,
+          assinaturaInicio: admin.firestore.FieldValue.serverTimestamp(),
+          atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true })
+        console.log(`✅ Assinatura ativada: ${codigoAcesso}`)
+      } else if (status === 'cancelled' || status === 'paused') {
+        // Cancelado — desativa acesso
+        await db.collection('criancas').doc(codigoAcesso).set({
+          assinaturaAtiva: false,
+          assinaturaStatus: status,
+          atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true })
+        console.log(`❌ Assinatura ${status}: ${codigoAcesso}`)
+      }
+
+      res.status(200).send('OK')
+    } catch (err) {
+      console.error('Erro webhook MP:', err)
+      res.status(200).send('OK') // sempre retorna 200 para o MP não retentar
+    }
+  }
+)
