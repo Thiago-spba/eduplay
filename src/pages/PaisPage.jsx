@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
 import {
   getResponsavel,
   getResponsavelPorEmail,
@@ -15,9 +17,9 @@ import {
   contarMissoesHoje,
   registrarConsentimentoECA,
   getSessoesQuiz,
+  getProgresso,
 } from "../services/db";
 
-// ── Constantes ──
 const MAX_MISSOES_DIA = 3;
 const VERSAO_TERMOS = "1.0";
 
@@ -27,14 +29,12 @@ const SERIES = [
   { id: "8ano", label: "8º ano" },
   { id: "9ano", label: "9º ano" },
 ];
-
 const BIMESTRES = [
   { id: "1bimestre", label: "1º Bim" },
   { id: "2bimestre", label: "2º Bim" },
   { id: "3bimestre", label: "3º Bim" },
   { id: "4bimestre", label: "4º Bim" },
 ];
-
 const DISCIPLINAS = [
   { id: "historia", label: "História", icone: "📜", cor: "#C4A882" },
   { id: "geografia", label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
@@ -42,7 +42,6 @@ const DISCIPLINAS = [
   { id: "ciencias", label: "Ciências", icone: "🔬", cor: "#2E8B57" },
   { id: "portugues", label: "Português", icone: "✍️", cor: "#C0392B" },
 ];
-
 const FRASES_LOADING = [
   "Analisando o currículo escolar do seu filho...",
   "Preparando um plano pedagógico personalizado...",
@@ -50,18 +49,7 @@ const FRASES_LOADING = [
   "Cada missão é única — feita sob medida para ele...",
   "Transformando conhecimento em aventura...",
   "Quase pronto — seu filho vai se surpreender...",
-  "Calibrando o conteúdo com precisão pedagógica...",
-  "Criando perguntas que estimulam o raciocínio...",
 ];
-
-const INSIGHTS = [
-  "Consistência é mais poderosa que intensidade. 20 minutos por dia superam 2 horas no fim de semana.",
-  "Cada missão concluída fortalece conexões neurais reais — seu filho está literalmente crescendo.",
-  "A gamificação aumenta em até 48% a retenção de conteúdo em crianças de 10 a 14 anos.",
-  "Missões variadas entre disciplinas desenvolvem pensamento interdisciplinar desde cedo.",
-];
-
-// ── Perguntas para o pai testar o filho por disciplina ──
 const PERGUNTAS_PAI = {
   historia: [
     "O que você aprendeu sobre esse período?",
@@ -90,183 +78,434 @@ const PERGUNTAS_PAI = {
   ],
 };
 
-const ESCOLAS_PUBLICAS = {
-  "6ano": [
-    {
-      nome: "Colégio Militar de SP",
-      info: "Prova no 5º ano para entrar no 6º — foco em Mat. e Port.",
-      custo: "Gratuito",
-      icone: "🪖",
+// ══════════════════════════════════════════════════════════════
+// ESCOLAS — organizadas por categoria
+// ══════════════════════════════════════════════════════════════
+const CATEGORIAS_ESCOLAS = [
+  {
+    id: "militares",
+    icone: "🎖️",
+    titulo: "Militares e técnicas gratuitas",
+    cor: "#1D4ED8",
+    escolas: {
+      "6ano": [
+        {
+          nome: "Colégio Militar de SP",
+          info: "Prova no 5º ano — foco em Matemática e Português",
+          custo: "Gratuito",
+          detalhe:
+            "Uma das melhores estruturas de ensino do país. Disciplina, esporte e excelência acadêmica.",
+        },
+        {
+          nome: "Colégio Tiradentes (PM)",
+          info: "Seleção via processo seletivo aberto",
+          custo: "Gratuito",
+          detalhe:
+            "Rede de colégios da Polícia Militar com ensino de qualidade e ênfase em valores.",
+        },
+      ],
+      "7ano": [
+        {
+          nome: "Colégio Militar de SP",
+          info: "Vagas por transferência interna ou concurso",
+          custo: "Gratuito",
+          detalhe: "Ambiente disciplinado com alto nível acadêmico.",
+        },
+        {
+          nome: "Colégio Tiradentes (PM)",
+          info: "Processo seletivo anual",
+          custo: "Gratuito",
+          detalhe: "Ensino sólido com foco em cidadania e disciplina.",
+        },
+      ],
+      "8ano": [
+        {
+          nome: "Colégio Tiradentes (PM)",
+          info: "Processo seletivo — vagas limitadas",
+          custo: "Gratuito",
+          detalhe: "Prepare seu filho com um ano de antecedência.",
+        },
+        {
+          nome: "ETEC (Vestibulinho)",
+          info: "Entrada no 9º ano — prepare agora",
+          custo: "Gratuito",
+          detalhe: "Melhor ensino técnico público de SP. Altamente concorrido.",
+        },
+      ],
+      "9ano": [
+        {
+          nome: "ETEC (Vestibulinho)",
+          info: "Inscrições anuais — alta concorrência",
+          custo: "Gratuito",
+          detalhe:
+            "Ensino Médio + formação técnica. Porta para o mercado de trabalho.",
+        },
+        {
+          nome: "Liceu de Artes e Ofícios",
+          info: "Prova de admissão para Ensino Médio técnico",
+          custo: "Gratuito",
+          detalhe:
+            "Tradição de 150 anos em SP. Técnico em artes, design e tecnologia.",
+        },
+      ],
     },
-    {
-      nome: "ISMART",
-      info: "Inscrições a partir do 7º ano — comece a preparar agora",
-      custo: "Bolsa Integral",
-      icone: "🌟",
+  },
+  {
+    id: "bolsas",
+    icone: "🏆",
+    titulo: "Bolsas integrais em escolas de elite",
+    cor: "#D97706",
+    escolas: {
+      "6ano": [
+        {
+          nome: "ISMART",
+          info: "Inscrições a partir do 7º ano — prepare agora",
+          custo: "Bolsa Integral",
+          detalhe:
+            "Paga escola + transporte + alimentação em colégios como Bandeirantes e Santa Cruz.",
+        },
+        {
+          nome: "Etapa / Objetivo",
+          info: "Concurso de bolsas anual",
+          custo: "Até 100%",
+          detalhe:
+            "Quanto melhor a nota, maior o desconto. Inclui cursinho preparatório.",
+        },
+        {
+          nome: "Colégio Bandeirantes",
+          info: "Exame de admissão — alto rendimento",
+          custo: "Mensalidade",
+          detalhe:
+            "Um dos melhores índices de aprovação no vestibular do Brasil.",
+        },
+      ],
+      "7ano": [
+        {
+          nome: "ISMART",
+          info: "Inscrições abertas para o 7º ano",
+          custo: "Bolsa Integral",
+          detalhe:
+            "Processo seletivo rigoroso. Bolsa cobre escola + moradia + alimentação.",
+        },
+        {
+          nome: "Etapa / Objetivo",
+          info: "Concurso de bolsas — inscrições anuais",
+          custo: "Até 100%",
+          detalhe: "Avalia Português, Matemática e Raciocínio Lógico.",
+        },
+        {
+          nome: "Santo Américo / Porto Seguro",
+          info: "Fundações próprias para talentos",
+          custo: "Bolsa Integral",
+          detalhe:
+            "Fundações filantrópicas que financiam alunos de baixa renda com alto potencial.",
+        },
+      ],
+      "8ano": [
+        {
+          nome: "ISMART",
+          info: "Última chance antes do 9º ano",
+          custo: "Bolsa Integral",
+          detalhe: "Não deixe passar. Processo seletivo em novembro/dezembro.",
+        },
+        {
+          nome: "Etapa / Objetivo",
+          info: "Concurso de bolsas — desconto por mérito",
+          custo: "Até 100%",
+          detalhe: "Estude um ano antes para garantir o melhor desconto.",
+        },
+        {
+          nome: "Colégio Santa Cruz",
+          info: "Programa de bolsas socioeconômicas",
+          custo: "Bolsa Parcial",
+          detalhe:
+            "Um dos colégios mais conceituados de SP com programa de inclusão.",
+        },
+      ],
+      "9ano": [
+        {
+          nome: "ISMART",
+          info: "Última oportunidade — processo seletivo agora",
+          custo: "Bolsa Integral",
+          detalhe: "Se não tentou ainda, é a última chance. Não deixe passar.",
+        },
+        {
+          nome: "Etapa / Objetivo",
+          info: "Concurso de bolsas para o Ensino Médio",
+          custo: "Até 100%",
+          detalhe: "Prova em dezembro para início no ano seguinte.",
+        },
+        {
+          nome: "Colégio Móbile",
+          info: "Programa de bolsas por mérito",
+          custo: "Bolsa Parcial",
+          detalhe: "Alto índice de aprovação em medicina e engenharia.",
+        },
+      ],
     },
-    {
-      nome: "Bandeirantes",
-      info: "Exame de admissão no 6º ano — alto rendimento acadêmico",
-      custo: "Mensalidade",
-      icone: "🏛️",
+  },
+  {
+    id: "federais",
+    icone: "🔬",
+    titulo: "Institutos federais (IFSP, ETEC)",
+    cor: "#2E8B57",
+    escolas: {
+      "6ano": [
+        {
+          nome: "IFSP",
+          info: "Entrada no Ensino Médio — prepare com antecedência",
+          custo: "Gratuito",
+          detalhe:
+            "Instituto Federal de SP. Nível de ensino equivalente ao universitário. Altamente disputado.",
+        },
+        {
+          nome: "ETEC",
+          info: "Vestibulinho anual — múltiplas unidades em SP",
+          custo: "Gratuito",
+          detalhe:
+            "Mais de 70 unidades em SP. Ensino técnico + médio integrado.",
+        },
+      ],
+      "7ano": [
+        {
+          nome: "IFSP",
+          info: "Comece a preparar para a prova de admissão",
+          custo: "Gratuito",
+          detalhe:
+            "Prova seletiva com Matemática, Português e Ciências. Concorrência alta.",
+        },
+        {
+          nome: "ETEC",
+          info: "Vestibulinho — prepare-se com 2 anos de antecedência",
+          custo: "Gratuito",
+          detalhe:
+            "Cursos técnicos em tecnologia, saúde, administração e mais.",
+        },
+      ],
+      "8ano": [
+        {
+          nome: "IFSP",
+          info: "Prova seletiva no próximo ano — hora de preparar",
+          custo: "Gratuito",
+          detalhe: "Estude Matemática e Ciências com foco. Alta concorrência.",
+        },
+        {
+          nome: "ETEC",
+          info: "Vestibulinho — inscrições abertas em outubro/novembro",
+          custo: "Gratuito",
+          detalhe: "Escolha o curso técnico ideal para o futuro do seu filho.",
+        },
+      ],
+      "9ano": [
+        {
+          nome: "IFSP",
+          info: "Agora é a hora — prova seletiva este ano",
+          custo: "Gratuito",
+          detalhe: "Uma das melhores opções de ensino público do Brasil.",
+        },
+        {
+          nome: "ETEC",
+          info: "Vestibulinho — inscreva agora",
+          custo: "Gratuito",
+          detalhe:
+            "Formação técnica + médio em uma única instituição gratuita.",
+        },
+      ],
     },
-  ],
-  "7ano": [
-    {
-      nome: "ISMART",
-      info: "Inscrição no 7º ano — escola, transporte e alimentação pagos",
-      custo: "Bolsa Integral",
-      icone: "🌟",
+  },
+  {
+    id: "olimpiadas",
+    icone: "🥇",
+    titulo: "Olimpíadas científicas",
+    cor: "#7C3AED",
+    escolas: {
+      "6ano": [
+        {
+          nome: "OBMEP",
+          info: "Olimpíada Brasileira de Matemática — aplicada em agosto",
+          custo: "Gratuito",
+          detalhe:
+            "Medalhas abrem portas para bolsas, viagens e reconhecimento nacional.",
+        },
+        {
+          nome: "OBA",
+          info: "Olimpíada Brasileira de Astronomia — aplicada em abril",
+          custo: "Gratuito",
+          detalhe:
+            "Participar já destaca o aluno. Medalha de ouro = bolsa ISMART automática.",
+        },
+        {
+          nome: "OBPC",
+          info: "Olimpíada de Português — inscrições pela escola",
+          custo: "Gratuito",
+          detalhe: "Reconhecimento nacional em produção de texto.",
+        },
+      ],
+      "7ano": [
+        {
+          nome: "OBMEP",
+          info: "Nível 1 — alunos do 6º e 7º ano",
+          custo: "Gratuito",
+          detalhe:
+            "Medalha de ouro garante bolsa de iniciação científica pelo CNPq.",
+        },
+        {
+          nome: "OBF",
+          info: "Olimpíada Brasileira de Física",
+          custo: "Gratuito",
+          detalhe: "Começa no 7º ano. Preparação para física do Ensino Médio.",
+        },
+        {
+          nome: "ONC",
+          info: "Olimpíada Nacional de Ciências",
+          custo: "Gratuito",
+          detalhe:
+            "Biologia, Química e Física integradas. Nível acessível para iniciar.",
+        },
+      ],
+      "8ano": [
+        {
+          nome: "OBMEP",
+          info: "Nível 2 — alunos do 8º e 9º ano",
+          custo: "Gratuito",
+          detalhe:
+            "Alta dificuldade. Medalha = destaque para qualquer processo seletivo.",
+        },
+        {
+          nome: "OBF",
+          info: "Fase regional disponível no 8º ano",
+          custo: "Gratuito",
+          detalhe: "Preparação que vale para vestibular e ENEM.",
+        },
+        {
+          nome: "OBIJ",
+          info: "Olimpíada Brasileira de Informática Juvenil",
+          custo: "Gratuito",
+          detalhe: "Lógica e programação. Porta para carreiras de tecnologia.",
+        },
+      ],
+      "9ano": [
+        {
+          nome: "OBMEP",
+          info: "Nível 2 — última chance nesta categoria",
+          custo: "Gratuito",
+          detalhe: "Medalha abre portas para IFSP, bolsas e universidades.",
+        },
+        {
+          nome: "OBIJ",
+          info: "Olimpíada de Informática Juvenil",
+          custo: "Gratuito",
+          detalhe:
+            "Base para entrar em programas de tecnologia no Ensino Médio.",
+        },
+        {
+          nome: "OBA",
+          info: "Olimpíada de Astronomia — nível avançado",
+          custo: "Gratuito",
+          detalhe:
+            "Resultado influencia bolsas ISMART e programas de iniciação científica.",
+        },
+      ],
     },
-    {
-      nome: "ETEC (Vestibulinho)",
-      info: "Entrada no 9º ano — prepare com 2 anos de antecedência",
-      custo: "Gratuito",
-      icone: "⚙️",
+  },
+  {
+    id: "fundacoes",
+    icone: "🤝",
+    titulo: "Fundações e programas sociais",
+    cor: "#C0392B",
+    escolas: {
+      "6ano": [
+        {
+          nome: "Fundação Bradesco",
+          info: "Escolas gratuitas em todo o Brasil",
+          custo: "Gratuito",
+          detalhe:
+            "Ensino de qualidade com foco em tecnologia e inovação. Verificar unidade mais próxima.",
+        },
+        {
+          nome: "Instituto Ayrton Senna",
+          info: "Programas em parceria com escolas públicas",
+          custo: "Gratuito",
+          detalhe:
+            "Desenvolvimento de habilidades socioemocionais e acadêmicas.",
+        },
+        {
+          nome: "Programa Comunidade Escola (SP)",
+          info: "Atividades no contraturno em escolas municipais",
+          custo: "Gratuito",
+          detalhe: "Reforço escolar, esporte e cultura no contraturno.",
+        },
+      ],
+      "7ano": [
+        {
+          nome: "Fundação Estudar",
+          info: "Bolsas para talentos de baixa renda",
+          custo: "Bolsa Integral",
+          detalhe:
+            "Financia estudos no Brasil e no exterior para alunos excepcionais.",
+        },
+        {
+          nome: "Instituto Unibanco",
+          info: "Jovem de Futuro — parceria com escolas públicas",
+          custo: "Gratuito",
+          detalhe:
+            "Programa de aceleração da aprendizagem em escolas estaduais.",
+        },
+        {
+          nome: "Gerdau Próxima",
+          info: "Reforço e mentoria em SP",
+          custo: "Gratuito",
+          detalhe:
+            "Foco em Matemática e Leitura para alunos de escolas públicas.",
+        },
+      ],
+      "8ano": [
+        {
+          nome: "Fundação Estudar",
+          info: "Programa de bolsas — inscrições anuais",
+          custo: "Bolsa Integral",
+          detalhe: "Um dos programas mais completos de bolsa do Brasil.",
+        },
+        {
+          nome: "Itaú Social",
+          info: "Programas de reforço e leitura",
+          custo: "Gratuito",
+          detalhe:
+            "Parcerias com escolas públicas para acelerar a aprendizagem.",
+        },
+        {
+          nome: "Centro Paula Souza",
+          info: "Cursos técnicos gratuitos",
+          custo: "Gratuito",
+          detalhe:
+            "Habilitações técnicas gratuitas para preparar o mercado de trabalho.",
+        },
+      ],
+      "9ano": [
+        {
+          nome: "Fundação Estudar",
+          info: "Última chance de bolsa para o Ensino Médio",
+          custo: "Bolsa Integral",
+          detalhe:
+            "Invista agora. Essa bolsa pode mudar o futuro do seu filho.",
+        },
+        {
+          nome: "Programa Jovem Aprendiz",
+          info: "Qualificação + renda a partir dos 14 anos",
+          custo: "Gratuito",
+          detalhe: "Formação profissional com contrato de trabalho e salário.",
+        },
+        {
+          nome: "SENAI / SENAC",
+          info: "Cursos técnicos gratuitos ou subsidiados",
+          custo: "Gratuito",
+          detalhe:
+            "Alta empregabilidade. Cursos em tecnologia, gastronomia, design e mais.",
+        },
+      ],
     },
-    {
-      nome: "IFSP",
-      info: "Entrada no 9º ano — Ensino Médio Integrado ao Técnico",
-      custo: "Gratuito",
-      icone: "🔬",
-    },
-  ],
-  "8ano": [
-    {
-      nome: "ETEC (Vestibulinho)",
-      info: "Entrada no próximo ano — melhor ensino técnico gratuito de SP",
-      custo: "Gratuito",
-      icone: "⚙️",
-    },
-    {
-      nome: "IFSP",
-      info: "Entrada no próximo ano — nível de ensino superior",
-      custo: "Gratuito",
-      icone: "🔬",
-    },
-    {
-      nome: "ISMART",
-      info: "Última chance de inscrição no 9º ano — comece agora",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-  ],
-  "9ano": [
-    {
-      nome: "ETEC (Vestibulinho)",
-      info: "Agora é a hora — porta do melhor técnico gratuito de SP",
-      custo: "Gratuito",
-      icone: "⚙️",
-    },
-    {
-      nome: "IFSP",
-      info: "Agora é a hora — Ensino Médio Integrado ao Técnico",
-      custo: "Gratuito",
-      icone: "🔬",
-    },
-    {
-      nome: "Liceu de Artes e Ofícios",
-      info: "Ensino médio técnico via prova — gratuito para baixa renda",
-      custo: "Gratuito",
-      icone: "🎨",
-    },
-    {
-      nome: "ISMART",
-      info: "Última chance — processo seletivo rigoroso e transformador",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-  ],
-};
-
-const ESCOLAS_BOLSAS = {
-  "6ano": [
-    {
-      nome: "Bandeirantes",
-      info: "Exame de admissão no 6º ano — seleciona alto rendimento",
-      custo: "Mensalidade",
-      icone: "🏛️",
-    },
-    {
-      nome: "ISMART",
-      info: "Paga escola de elite + transporte + alimentação até o Médio",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-    {
-      nome: "Fundação Estudar",
-      info: "Bolsas para alunos talentosos de baixa renda",
-      custo: "Bolsa Integral",
-      icone: "📚",
-    },
-  ],
-  "7ano": [
-    {
-      nome: "ISMART",
-      info: "Inscrição no 7º ano — bolsa integral completa em escola de elite",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-    {
-      nome: "Etapa / Objetivo",
-      info: "Concurso de Bolsas — quanto melhor a nota, maior o desconto",
-      custo: "Até 100%",
-      icone: "🎓",
-    },
-    {
-      nome: "Santo Américo / Porto Seguro",
-      info: "Fundações próprias para alunos talentosos de baixa renda",
-      custo: "Bolsa Integral",
-      icone: "🤝",
-    },
-  ],
-  "8ano": [
-    {
-      nome: "Etapa / Objetivo",
-      info: "Concurso de Bolsas aberto — desconto por desempenho",
-      custo: "Até 100%",
-      icone: "🎓",
-    },
-    {
-      nome: "Santo Américo / Porto Seguro",
-      info: "Fundações próprias — bolsas para alunos de baixa renda",
-      custo: "Bolsa Integral",
-      icone: "🤝",
-    },
-    {
-      nome: "ISMART",
-      info: "Prepare para o 9º ano — última chance de bolsa integral",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-  ],
-  "9ano": [
-    {
-      nome: "ISMART",
-      info: "Última chance — bolsa integral em Móbile, Santa Cruz ou Bandeirantes",
-      custo: "Bolsa Integral",
-      icone: "🌟",
-    },
-    {
-      nome: "Etapa / Objetivo",
-      info: "Concurso de Bolsas — até 100% de desconto por alto desempenho",
-      custo: "Até 100%",
-      icone: "🎓",
-    },
-    {
-      nome: "Fundação Estudar",
-      info: "Bolsas para alunos talentosos de baixa renda",
-      custo: "Bolsa Integral",
-      icone: "📚",
-    },
-    {
-      nome: "Santo Américo / Porto Seguro",
-      info: "Fundações próprias — bolsas integrais para alunos de destaque",
-      custo: "Bolsa Integral",
-      icone: "🤝",
-    },
-  ],
-};
+  },
+];
 
 async function gerarHash(texto) {
   const encoder = new TextEncoder();
@@ -297,9 +536,202 @@ function formatarHora(timestamp) {
   return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
+// COMPONENTE: Card de categoria de escolas (expansível)
+// ══════════════════════════════════════════════════════════════
+function CardCategoriaEscolas({ categoria, serie, c, e }) {
+  const [expandido, setExpandido] = useState(false);
+  const escolas = categoria.escolas[serie] || categoria.escolas["6ano"] || [];
+
+  return (
+    <div
+      style={{
+        background: c.card,
+        border: `1.5px solid ${categoria.cor}33`,
+        borderRadius: 16,
+        overflow: "hidden",
+        transition: "all 0.3s",
+      }}
+    >
+      {/* Cabeçalho clicável */}
+      <button
+        onClick={() => setExpandido(!expandido)}
+        style={{
+          width: "100%",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          padding: "14px 16px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div
+            style={{
+              width: 36,
+              height: 36,
+              borderRadius: "50%",
+              background: `${categoria.cor}22`,
+              border: `2px solid ${categoria.cor}44`,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: "1.1rem",
+              flexShrink: 0,
+            }}
+          >
+            {categoria.icone}
+          </div>
+          <div>
+            <p
+              style={{
+                fontSize: "0.85rem",
+                fontWeight: 800,
+                color: categoria.cor,
+                margin: 0,
+              }}
+            >
+              {categoria.titulo}
+            </p>
+            <p style={{ fontSize: "0.7rem", color: c.textoSub, margin: 0 }}>
+              {escolas.length} opções para o {serie?.replace("ano", "º ano")}
+            </p>
+          </div>
+        </div>
+        <div
+          style={{
+            width: 28,
+            height: 28,
+            borderRadius: "50%",
+            background: `${categoria.cor}15`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "0.8rem",
+            flexShrink: 0,
+            transition: "transform 0.3s",
+            transform: expandido ? "rotate(180deg)" : "rotate(0deg)",
+          }}
+        >
+          ▼
+        </div>
+      </button>
+
+      {/* Conteúdo expansível */}
+      {expandido && (
+        <div
+          style={{
+            padding: "0 16px 16px",
+            display: "flex",
+            flexDirection: "column",
+            gap: 10,
+            animation: "fadeIn 0.2s ease",
+          }}
+        >
+          {escolas.map((escola, i) => (
+            <div
+              key={i}
+              style={{
+                background: c.card2,
+                borderRadius: 12,
+                padding: "12px 14px",
+                border: `1.5px solid ${categoria.cor}22`,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "flex-start",
+                  justifyContent: "space-between",
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.88rem",
+                    fontWeight: 800,
+                    color: c.texto,
+                    margin: 0,
+                    lineHeight: 1.3,
+                  }}
+                >
+                  {escola.nome}
+                </p>
+                <span
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 800,
+                    padding: "3px 8px",
+                    borderRadius: 6,
+                    flexShrink: 0,
+                    whiteSpace: "nowrap",
+                    color:
+                      escola.custo === "Gratuito"
+                        ? "#00D4AA"
+                        : escola.custo === "Bolsa Integral"
+                          ? "#F59E0B"
+                          : escola.custo === "Até 100%"
+                            ? "#00D4AA"
+                            : c.textoSub,
+                    background:
+                      escola.custo === "Gratuito"
+                        ? "#00D4AA15"
+                        : escola.custo === "Bolsa Integral"
+                          ? "#F59E0B15"
+                          : escola.custo === "Até 100%"
+                            ? "#00D4AA15"
+                            : c.borda,
+                  }}
+                >
+                  {escola.custo}
+                </span>
+              </div>
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  color: categoria.cor,
+                  fontWeight: 700,
+                  margin: "0 0 4px",
+                }}
+              >
+                {escola.info}
+              </p>
+              <p
+                style={{
+                  fontSize: "0.72rem",
+                  color: c.textoSub,
+                  margin: 0,
+                  lineHeight: 1.4,
+                }}
+              >
+                {escola.detalhe}
+              </p>
+            </div>
+          ))}
+          <p
+            style={{
+              fontSize: "0.7rem",
+              color: c.textoSub,
+              margin: "4px 0 0",
+              textAlign: "center",
+              fontStyle: "italic",
+            }}
+          >
+            Cada missão concluída hoje é um passo real para essas portas.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ══════════════════════════════════════════════════════════════
 // COMPONENTE PRINCIPAL
-// ══════════════════════════════════════════════════════
+// ══════════════════════════════════════════════════════════════
 export default function PaisPage({ userPai, timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
@@ -310,6 +742,12 @@ export default function PaisPage({ userPai, timer }) {
   const [missoesPorDisc, setMissoesPorDisc] = useState({});
   const [missoesHoje, setMissoesHoje] = useState(0);
   const [sessoesQuiz, setSessoesQuiz] = useState([]);
+  const [progresso, setProgresso] = useState(null);
+
+  // Mensagem motivacional
+  const [mensagemIA, setMensagemIA] = useState("");
+  const [carregandoMsg, setCarregandoMsg] = useState(false);
+  const [nivelDesempenho, setNivelDesempenho] = useState("sem_dados");
 
   const [aceitouECA, setAceitouECA] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
@@ -335,9 +773,6 @@ export default function PaisPage({ userPai, timer }) {
   const [mensagem, setMensagem] = useState(null);
   const [fraseLoading, setFraseLoading] = useState(0);
   const [premio, setPremio] = useState("");
-  const [insightIdx] = useState(() =>
-    Math.floor(Math.random() * INSIGHTS.length),
-  );
 
   const limiteAtingido = missoesHoje >= MAX_MISSOES_DIA;
 
@@ -350,6 +785,40 @@ export default function PaisPage({ userPai, timer }) {
     borda: e ? "#1A3347" : "#EEF5FF",
     accent: "#00D4AA",
     azul: "#3B82F6",
+  };
+
+  // ── Gera mensagem motivacional via IA ──
+  const gerarMensagemIA = async (crianca, sessoes, prog) => {
+    setCarregandoMsg(true);
+    try {
+      const ultimaSessao = sessoes?.[0];
+      const percentual = ultimaSessao?.percentual ?? null;
+
+      let nivel = "sem_dados";
+      if (percentual !== null) {
+        if (percentual >= 70) nivel = "otimo";
+        else if (percentual >= 40) nivel = "bom";
+        else nivel = "ruim";
+      }
+      setNivelDesempenho(nivel);
+
+      const fn = httpsCallable(functions, "gerarMensagemMotivacional");
+      const res = await fn({
+        nomeFilho: crianca.nome,
+        serie: SERIES.find((s) => s.id === crianca.serie)?.label || "6º ano",
+        totalMissoes: prog?.missoesFeitas || 0,
+        ultimoPercentual: percentual,
+        diasAtivos: prog?.diasAtivos?.length || 0,
+      });
+      if (res.data?.ok) setMensagemIA(res.data.mensagem);
+    } catch (err) {
+      console.warn("Mensagem IA indisponível:", err);
+      setMensagemIA(
+        "Acompanhe o desenvolvimento do seu filho e converse com ele sobre o que aprendeu hoje.",
+      );
+    } finally {
+      setCarregandoMsg(false);
+    }
   };
 
   useEffect(() => {
@@ -375,15 +844,33 @@ export default function PaisPage({ userPai, timer }) {
         }
         setFilho(crianca);
         setConfig((prev) => ({ ...prev, serie: crianca.serie || "6ano" }));
-        const [missoes, qtdHoje, sessoes] = await Promise.all([
+
+        const [missoes, qtdHoje] = await Promise.all([
           getTodasMissoes(crianca.id),
           contarMissoesHoje(crianca.id),
-          getSessoesQuiz(crianca.id),
         ]);
         setMissoesPorDisc(missoes);
         setMissoesHoje(qtdHoje);
-        setSessoesQuiz(sessoes);
+
+        let sessoes = [];
+        let prog = null;
+        try {
+          sessoes = await getSessoesQuiz(crianca.id);
+          setSessoesQuiz(sessoes);
+        } catch (err) {
+          console.warn("Sessões quiz:", err);
+        }
+
+        try {
+          prog = await getProgresso(crianca.id);
+          setProgresso(prog);
+        } catch (err) {
+          console.warn("Progresso:", err);
+        }
+
         setEtapa("painel");
+        // Gera mensagem motivacional após carregar tudo
+        gerarMensagemIA(crianca, sessoes, prog);
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
         setEtapa("eca");
@@ -432,7 +919,6 @@ export default function PaisPage({ userPai, timer }) {
       });
       setEtapa("cadastro");
     } catch (err) {
-      console.error("Erro ao salvar ECA:", err);
       setErroECA("Erro ao salvar. Tente novamente.");
     } finally {
       setSalvandoECA(false);
@@ -460,7 +946,6 @@ export default function PaisPage({ userPai, timer }) {
       setConfig((prev) => ({ ...prev, serie: serieFilho }));
       setEtapa("codigo");
     } catch (err) {
-      console.error("Erro ao cadastrar filho:", err);
       setErroFilho("Erro ao salvar. Tente novamente.");
     } finally {
       setSalvandoFilho(false);
@@ -497,7 +982,6 @@ export default function PaisPage({ userPai, timer }) {
         topicos,
       });
     } catch (err) {
-      console.error(err);
       setMensagem({
         tipo: "erro",
         titulo: "Erro ao gerar missão.",
@@ -527,36 +1011,31 @@ export default function PaisPage({ userPai, timer }) {
     setLinkCopiado(true);
     setTimeout(() => setLinkCopiado(false), 2500);
   };
-
   const copiarCodigo = () => {
     navigator.clipboard.writeText(filho?.id || "");
     setCodigoCopiado(true);
     setTimeout(() => setCodigoCopiado(false), 2500);
   };
-
   const compartilharWhatsApp = () => {
     const link = `https://eduplay.olloapp.com.br/agente/${gerarSlug(filho?.nome, filho?.id)}`;
     const nome = filho?.nome?.split(" ")[0] || "Agente";
     const opcoes = [
-      `${nome}, sua missão de hoje está pronta.\n\nVocê tem dado o melhor de si — continue assim.\n\n${link}`,
-      `${nome}, o EduPlay preparou algo especial para você hoje.\n\nTopa o desafio?\n\n${link}`,
-      `${nome}, separei sua missão de hoje.\n\nEstou aqui torcendo por você.\n\n${link}`,
+      `${nome}, sua missão de hoje está pronta.\n\n${link}`,
+      `${nome}, o EduPlay preparou algo especial para você hoje.\n\n${link}`,
     ];
     window.open(
       `https://wa.me/?text=${encodeURIComponent(opcoes[Math.floor(Math.random() * opcoes.length)])}`,
       "_blank",
     );
   };
-
   const compartilharCodigoWhatsApp = () => {
     const nome = filho?.nome?.split(" ")[0] || "Agente";
     const link = `https://eduplay.olloapp.com.br/agente/${gerarSlug(filho?.nome, filho?.id)}`;
-    const msg = encodeURIComponent(
-      `${nome}, criei sua conta no EduPlay! 🎉\n\nSeu link exclusivo:\n${link}\n\nOu acesse o app e use o código: *${filho?.id}*\n\nSua jornada começa agora, Agente! 🚀`,
+    window.open(
+      `https://wa.me/?text=${encodeURIComponent(`${nome}, criei sua conta no EduPlay! 🎉\n\n${link}\n\nCódigo: *${filho?.id}*`)}`,
+      "_blank",
     );
-    window.open(`https://wa.me/?text=${msg}`, "_blank");
   };
-
   const handleLogout = async () => {
     await logout();
     navigate("/");
@@ -567,8 +1046,6 @@ export default function PaisPage({ userPai, timer }) {
     0,
   );
   const serieAtual = filho?.serie || config.serie;
-
-  // ── Última sessão de quiz concluída ──
   const ultimaSessao = sessoesQuiz?.[0] || null;
   const discUltima = ultimaSessao
     ? DISCIPLINAS.find((d) => d.id === ultimaSessao.disciplina)
@@ -577,11 +1054,19 @@ export default function PaisPage({ userPai, timer }) {
     ? PERGUNTAS_PAI[ultimaSessao.disciplina] || []
     : [];
 
-  // ══════════════════════════════════════════
-  // RENDERIZAÇÃO POR ETAPA
-  // ══════════════════════════════════════════
+  // Cor da mensagem por nível
+  const corNivel = {
+    sem_dados: c.azul,
+    otimo: "#00D4AA",
+    bom: "#F59E0B",
+    ruim: "#EF4444",
+  }[nivelDesempenho];
+  const emojiNivel = { sem_dados: "📋", otimo: "🌟", bom: "📈", ruim: "💪" }[
+    nivelDesempenho
+  ];
 
-  if (etapa === "verificando") {
+  // ══════════════════════════════════════════
+  if (etapa === "verificando")
     return (
       <div
         style={{
@@ -608,9 +1093,8 @@ export default function PaisPage({ userPai, timer }) {
         <style>{`@keyframes girar { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
       </div>
     );
-  }
 
-  if (etapa === "eca") {
+  if (etapa === "eca")
     return (
       <div
         style={{
@@ -696,58 +1180,6 @@ export default function PaisPage({ userPai, timer }) {
               border: `2px solid ${c.borda}`,
             }}
           >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: 12,
-                padding: "12px 16px",
-                background: c.card2,
-                borderRadius: 14,
-                marginBottom: 20,
-                border: `1.5px solid ${c.borda}`,
-              }}
-            >
-              {userPai?.photoURL ? (
-                <img
-                  src={userPai.photoURL}
-                  style={{ width: 40, height: 40, borderRadius: "50%" }}
-                  alt=""
-                />
-              ) : (
-                <div
-                  style={{
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    background: `${c.azul}22`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.2rem",
-                  }}
-                >
-                  👤
-                </div>
-              )}
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.9rem",
-                    fontWeight: 700,
-                    color: c.texto,
-                    margin: 0,
-                  }}
-                >
-                  {userPai?.displayName || "Responsável"}
-                </p>
-                <p
-                  style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0 }}
-                >
-                  {userPai?.email}
-                </p>
-              </div>
-            </div>
             <div
               style={{
                 display: "flex",
@@ -903,7 +1335,6 @@ export default function PaisPage({ userPai, timer }) {
                     ? "not-allowed"
                     : "pointer",
                 fontFamily: "'Nunito', sans-serif",
-                transition: "all 0.2s",
               }}
             >
               {salvandoECA ? "Salvando..." : "Confirmar e Continuar →"}
@@ -947,27 +1378,24 @@ export default function PaisPage({ userPai, timer }) {
               {[
                 [
                   "Proteção de menores",
-                  "Crianças e adolescentes não criam contas próprias. O responsável legal é o titular.",
+                  "Crianças e adolescentes não criam contas próprias.",
                 ],
-                [
-                  "Dados mínimos",
-                  "Coletamos apenas nome e série do aluno. Nenhum dado sensível é armazenado.",
-                ],
+                ["Dados mínimos", "Coletamos apenas nome e série do aluno."],
                 [
                   "Consentimento registrado",
-                  "Seu aceite é registrado de forma imutável com data, hora e identificador criptografado.",
+                  "Seu aceite é registrado de forma imutável.",
                 ],
                 [
                   "Direito ao esquecimento",
-                  "Você pode solicitar a exclusão total dos dados do seu filho a qualquer momento.",
+                  "Você pode solicitar exclusão dos dados a qualquer momento.",
                 ],
                 [
                   "Sem publicidade",
-                  "O EduPlay não exibe anúncios nem compartilha dados com terceiros.",
+                  "O EduPlay não exibe anúncios nem compartilha dados.",
                 ],
-              ].map(([titulo, texto]) => (
+              ].map(([t, txt]) => (
                 <div
-                  key={titulo}
+                  key={t}
                   style={{
                     marginBottom: 14,
                     padding: "12px 16px",
@@ -984,17 +1412,12 @@ export default function PaisPage({ userPai, timer }) {
                       margin: "0 0 4px",
                     }}
                   >
-                    {titulo}
+                    {t}
                   </p>
                   <p
-                    style={{
-                      fontSize: "0.8rem",
-                      color: c.textoSub,
-                      margin: 0,
-                      lineHeight: 1.5,
-                    }}
+                    style={{ fontSize: "0.8rem", color: c.textoSub, margin: 0 }}
                   >
-                    {texto}
+                    {txt}
                   </p>
                 </div>
               ))}
@@ -1008,10 +1431,8 @@ export default function PaisPage({ userPai, timer }) {
                   background: c.accent,
                   color: "#fff",
                   fontWeight: 800,
-                  fontSize: "0.95rem",
                   cursor: "pointer",
                   fontFamily: "'Nunito', sans-serif",
-                  marginTop: 8,
                 }}
               >
                 Entendido ✓
@@ -1022,9 +1443,8 @@ export default function PaisPage({ userPai, timer }) {
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`}</style>
       </div>
     );
-  }
 
-  if (etapa === "cadastro") {
+  if (etapa === "cadastro")
     return (
       <div
         style={{
@@ -1159,7 +1579,6 @@ export default function PaisPage({ userPai, timer }) {
                         fontSize: "0.9rem",
                         cursor: "pointer",
                         fontFamily: "'Nunito', sans-serif",
-                        transition: "all 0.2s",
                       }}
                     >
                       {s.label}
@@ -1198,31 +1617,16 @@ export default function PaisPage({ userPai, timer }) {
                   fontSize: "1rem",
                   cursor: salvandoFilho ? "not-allowed" : "pointer",
                   fontFamily: "'Nunito', sans-serif",
-                  transition: "all 0.2s",
                 }}
               >
                 {salvandoFilho ? "Salvando..." : "Criar perfil do filho →"}
               </button>
             </div>
           </div>
-          <p
-            style={{
-              fontSize: "0.72rem",
-              color: c.textoSub,
-              textAlign: "center",
-              marginTop: 16,
-              lineHeight: 1.5,
-            }}
-          >
-            🔒 Dados mínimos coletados. Seu filho não cria conta própria.
-            <br />
-            Em conformidade com o ECA Digital (Lei 14.155/2021).
-          </p>
         </div>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap'); @keyframes fadeIn { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }`}</style>
       </div>
     );
-  }
 
   if (etapa === "codigo") {
     const nomeFirst = filho?.nome?.split(" ")[0] || "Agente";
@@ -1260,16 +1664,6 @@ export default function PaisPage({ userPai, timer }) {
             >
               {nomeFirst} está pronto!
             </h1>
-            <p
-              style={{
-                fontSize: "0.85rem",
-                color: c.textoSub,
-                margin: 0,
-                lineHeight: 1.5,
-              }}
-            >
-              Envie o link ou código para seu filho acessar as missões.
-            </p>
           </div>
           <div
             style={{
@@ -1290,7 +1684,7 @@ export default function PaisPage({ userPai, timer }) {
                 margin: "0 0 8px",
               }}
             >
-              🔗 Link exclusivo do agente
+              🔗 Link exclusivo
             </p>
             <div
               style={{
@@ -1307,18 +1701,6 @@ export default function PaisPage({ userPai, timer }) {
             >
               {linkCompleto}
             </div>
-            <p
-              style={{
-                fontSize: "0.72rem",
-                fontWeight: 800,
-                color: c.textoSub,
-                textTransform: "uppercase",
-                letterSpacing: 1,
-                margin: "0 0 8px",
-              }}
-            >
-              🔑 Ou use o código manual
-            </p>
             <div
               style={{
                 background: `${c.accent}12`,
@@ -1355,10 +1737,6 @@ export default function PaisPage({ userPai, timer }) {
                   fontSize: "0.95rem",
                   cursor: "pointer",
                   fontFamily: "'Nunito', sans-serif",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
                 }}
               >
                 📲 Enviar para {nomeFirst} pelo WhatsApp
@@ -1379,7 +1757,7 @@ export default function PaisPage({ userPai, timer }) {
                     fontFamily: "'Nunito', sans-serif",
                   }}
                 >
-                  {linkCopiado ? "✅ Link copiado!" : "📋 Copiar link"}
+                  {linkCopiado ? "✅ Copiado!" : "📋 Copiar link"}
                 </button>
                 <button
                   onClick={copiarCodigo}
@@ -1396,33 +1774,10 @@ export default function PaisPage({ userPai, timer }) {
                     fontFamily: "'Nunito', sans-serif",
                   }}
                 >
-                  {codigoCopiado ? "✅ Código copiado!" : "🔑 Copiar código"}
+                  {codigoCopiado ? "✅ Copiado!" : "🔑 Copiar código"}
                 </button>
               </div>
             </div>
-          </div>
-          <div
-            style={{
-              background: e ? "#0D1820" : "#F0FFF8",
-              borderRadius: 16,
-              padding: "14px 18px",
-              marginBottom: 16,
-              border: `1.5px solid ${c.accent}22`,
-            }}
-          >
-            <p
-              style={{
-                fontSize: "0.82rem",
-                color: c.texto,
-                margin: 0,
-                lineHeight: 1.6,
-                fontStyle: "italic",
-                textAlign: "center",
-              }}
-            >
-              "A maior vantagem que você pode dar ao seu filho não é dinheiro —
-              é o hábito de aprender. Você acabou de plantar essa semente."
-            </p>
           </div>
           <button
             onClick={() => setEtapa("painel")}
@@ -1437,7 +1792,6 @@ export default function PaisPage({ userPai, timer }) {
               fontSize: "1rem",
               cursor: "pointer",
               fontFamily: "'Nunito', sans-serif",
-              boxShadow: "0 6px 20px rgba(0,212,170,0.3)",
             }}
           >
             Ir para o painel →
@@ -1458,7 +1812,6 @@ export default function PaisPage({ userPai, timer }) {
         background: c.bg,
         fontFamily: "'Nunito', sans-serif",
         paddingBottom: 100,
-        transition: "background 0.3s",
       }}
     >
       <header
@@ -1500,11 +1853,10 @@ export default function PaisPage({ userPai, timer }) {
             Painel do Responsável
           </span>
         </div>
-        <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 6 }}>
           {userPai?.email === "thiago.rpba@gmail.com" && (
             <button
               onClick={() => navigate("/admin")}
-              title="Painel Admin"
               style={{
                 width: 34,
                 height: 34,
@@ -1575,7 +1927,6 @@ export default function PaisPage({ userPai, timer }) {
                 flexDirection: "column",
                 alignItems: "center",
                 gap: 4,
-                transition: "all 0.2s",
               }}
             >
               <span style={{ fontSize: "1.2rem" }}>{aba.icone}</span>
@@ -1584,7 +1935,7 @@ export default function PaisPage({ userPai, timer }) {
           ))}
         </div>
 
-        {/* ABA VISÃO GERAL */}
+        {/* ══ ABA VISÃO GERAL ══ */}
         {secao === "visao" && (
           <div
             style={{
@@ -1663,35 +2014,36 @@ export default function PaisPage({ userPai, timer }) {
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  gap: 10,
+                  gridTemplateColumns: "repeat(3, 1fr)",
+                  gap: 8,
                 }}
               >
                 {[
-                  {
-                    label: "Missões geradas",
-                    valor: totalMissoes,
-                    icone: "🎯",
-                  },
+                  { label: "Missões", valor: totalMissoes, icone: "🎯" },
                   { label: "Hoje", valor: missoesHoje, icone: "📅" },
+                  {
+                    label: "Dias ativos",
+                    valor: progresso?.diasAtivos?.length || 0,
+                    icone: "🔥",
+                  },
                 ].map((m) => (
                   <div
                     key={m.label}
                     style={{
                       background: c.card,
                       borderRadius: 14,
-                      padding: "12px 10px",
+                      padding: "10px 8px",
                       textAlign: "center",
                       border: `1.5px solid ${c.borda}`,
                     }}
                   >
-                    <div style={{ fontSize: "1.3rem", marginBottom: 4 }}>
+                    <div style={{ fontSize: "1.1rem", marginBottom: 3 }}>
                       {m.icone}
                     </div>
                     <div
                       style={{
                         fontFamily: "'Fredoka', sans-serif",
-                        fontSize: "1.4rem",
+                        fontSize: "1.3rem",
                         color: c.accent,
                         fontWeight: 800,
                         lineHeight: 1,
@@ -1701,7 +2053,7 @@ export default function PaisPage({ userPai, timer }) {
                     </div>
                     <div
                       style={{
-                        fontSize: "0.68rem",
+                        fontSize: "0.62rem",
                         color: c.textoSub,
                         fontWeight: 700,
                         textTransform: "uppercase",
@@ -1715,7 +2067,92 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
 
-            {/* ══ CARD RELATÓRIO — O QUE O FILHO ESTUDOU ══ */}
+            {/* ══ MENSAGEM MOTIVACIONAL DA IA ══ */}
+            <div
+              style={{
+                background: carregandoMsg
+                  ? c.card
+                  : `linear-gradient(135deg, ${corNivel}12, ${corNivel}06)`,
+                border: `2px solid ${corNivel}33`,
+                borderRadius: 18,
+                padding: "16px 18px",
+                minHeight: 80,
+                display: "flex",
+                alignItems: "center",
+                gap: 12,
+                transition: "all 0.5s",
+              }}
+            >
+              {carregandoMsg ? (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    width: "100%",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1.6rem",
+                      animation: "pulsar 1.5s ease-in-out infinite",
+                    }}
+                  >
+                    🧠
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "0.82rem",
+                      color: c.textoSub,
+                      margin: 0,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    Analisando o desenvolvimento de {filho?.nome?.split(" ")[0]}
+                    ...
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div style={{ fontSize: "1.8rem", flexShrink: 0 }}>
+                    {emojiNivel}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <p
+                      style={{
+                        fontSize: "0.7rem",
+                        fontWeight: 800,
+                        color: corNivel,
+                        margin: "0 0 4px",
+                        textTransform: "uppercase",
+                        letterSpacing: 1,
+                      }}
+                    >
+                      {nivelDesempenho === "otimo"
+                        ? "Ótimo desempenho"
+                        : nivelDesempenho === "bom"
+                          ? "Em desenvolvimento"
+                          : nivelDesempenho === "ruim"
+                            ? "Precisa de atenção"
+                            : "Acompanhamento pedagógico"}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "0.85rem",
+                        color: c.texto,
+                        margin: 0,
+                        lineHeight: 1.6,
+                      }}
+                    >
+                      {mensagemIA ||
+                        "Acompanhe o desenvolvimento do seu filho e converse com ele sobre o que aprendeu hoje."}
+                    </p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* ══ CARD ÚLTIMA ATIVIDADE ══ */}
             {ultimaSessao ? (
               <div
                 style={{
@@ -1725,7 +2162,6 @@ export default function PaisPage({ userPai, timer }) {
                   overflow: "hidden",
                 }}
               >
-                {/* Cabeçalho verde */}
                 <div
                   style={{
                     background: `linear-gradient(135deg, ${discUltima?.cor || c.accent}22, ${discUltima?.cor || c.accent}08)`,
@@ -1782,8 +2218,6 @@ export default function PaisPage({ userPai, timer }) {
                     </span>
                   </div>
                 </div>
-
-                {/* Aproveitamento */}
                 <div
                   style={{
                     padding: "14px 18px",
@@ -1846,22 +2280,7 @@ export default function PaisPage({ userPai, timer }) {
                       }}
                     />
                   </div>
-                  <p
-                    style={{
-                      fontSize: "0.72rem",
-                      color: c.textoSub,
-                      margin: "6px 0 0",
-                    }}
-                  >
-                    {ultimaSessao.percentual >= 70
-                      ? "✅ Ótimo desempenho! Seu filho entendeu bem o conteúdo."
-                      : ultimaSessao.percentual >= 40
-                        ? "📚 Desempenho regular. Vale reforçar o conteúdo."
-                        : "💪 Precisa de atenção. Converse sobre o tema com ele."}
-                  </p>
                 </div>
-
-                {/* Perguntas para testar */}
                 <div style={{ padding: "14px 18px" }}>
                   <p
                     style={{
@@ -1873,8 +2292,7 @@ export default function PaisPage({ userPai, timer }) {
                       letterSpacing: 1,
                     }}
                   >
-                    💬 Pergunte ao {filho?.nome?.split(" ")[0] || "seu filho"}{" "}
-                    hoje:
+                    💬 Pergunte ao {filho?.nome?.split(" ")[0]} hoje:
                   </p>
                   <div
                     style={{ display: "flex", flexDirection: "column", gap: 8 }}
@@ -1916,18 +2334,6 @@ export default function PaisPage({ userPai, timer }) {
                       </div>
                     ))}
                   </div>
-                  <p
-                    style={{
-                      fontSize: "0.7rem",
-                      color: c.textoSub,
-                      margin: "10px 0 0",
-                      fontStyle: "italic",
-                      textAlign: "center",
-                    }}
-                  >
-                    Conversar sobre o conteúdo na hora do jantar fixa 2x mais do
-                    que só estudar.
-                  </p>
                 </div>
               </div>
             ) : (
@@ -1959,18 +2365,17 @@ export default function PaisPage({ userPai, timer }) {
                     lineHeight: 1.5,
                   }}
                 >
-                  Quando {filho?.nome?.split(" ")[0] || "seu filho"} concluir
-                  uma missão, você verá aqui o que ele estudou e seu
-                  aproveitamento.
+                  Quando {filho?.nome?.split(" ")[0]} concluir uma missão, você
+                  verá aqui o que ele estudou.
                 </p>
               </div>
             )}
 
-            {/* Insight */}
+            {/* ══ SONHAR COM O FUTURO — Cards expansíveis ══ */}
             <div
               style={{
                 background: c.card,
-                border: `1.5px solid #6B5B9530`,
+                border: `1.5px solid ${c.borda}`,
                 borderRadius: 16,
                 padding: "16px",
               }}
@@ -1980,62 +2385,6 @@ export default function PaisPage({ userPai, timer }) {
                   display: "flex",
                   alignItems: "center",
                   gap: 8,
-                  marginBottom: 10,
-                }}
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #6B5B95, #9B82D6)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.1rem",
-                  }}
-                >
-                  🧠
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.8rem",
-                    fontWeight: 800,
-                    color: "#6B5B95",
-                    margin: 0,
-                    textTransform: "uppercase",
-                  }}
-                >
-                  Insight Pedagógico
-                </p>
-              </div>
-              <p
-                style={{
-                  fontSize: "0.88rem",
-                  color: c.texto,
-                  margin: 0,
-                  lineHeight: 1.6,
-                  fontStyle: "italic",
-                }}
-              >
-                "{INSIGHTS[insightIdx]}"
-              </p>
-            </div>
-
-            {/* Escolas públicas */}
-            <div
-              style={{
-                background: c.card,
-                border: `2px solid #3B82F633`,
-                borderRadius: 20,
-                padding: "18px 20px",
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
                   marginBottom: 14,
                 }}
               >
@@ -2044,251 +2393,58 @@ export default function PaisPage({ userPai, timer }) {
                     width: 36,
                     height: 36,
                     borderRadius: "50%",
-                    background: "linear-gradient(135deg, #1D4ED8, #3B82F6)",
+                    background: "linear-gradient(135deg, #00D4AA, #0099FF)",
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
                     fontSize: "1.1rem",
-                    flexShrink: 0,
                   }}
                 >
-                  🏫
+                  🚀
                 </div>
                 <div>
                   <p
                     style={{
-                      fontSize: "0.8rem",
+                      fontSize: "0.85rem",
                       fontWeight: 800,
-                      color: c.azul,
+                      color: c.accent,
                       margin: 0,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
                     }}
                   >
-                    Portas abertas —{" "}
-                    {SERIES.find((s) => s.id === serieAtual)?.label}
+                    Sonhe com o futuro de {filho?.nome?.split(" ")[0]}
                   </p>
                   <p
                     style={{ fontSize: "0.7rem", color: c.textoSub, margin: 0 }}
                   >
-                    Escolas públicas e técnicas de excelência em SP
+                    Toque para ver as oportunidades disponíveis agora
                   </p>
                 </div>
               </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(ESCOLAS_PUBLICAS[serieAtual] || []).map((escola, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 12px",
-                      background: c.card2,
-                      borderRadius: 12,
-                      border: `1.5px solid ${c.borda}`,
-                    }}
-                  >
-                    <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>
-                      {escola.icone}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontSize: "0.85rem",
-                          fontWeight: 800,
-                          color: c.texto,
-                          margin: 0,
-                        }}
-                      >
-                        {escola.nome}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "0.72rem",
-                          color: c.textoSub,
-                          margin: 0,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {escola.info}
-                      </p>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.65rem",
-                        fontWeight: 800,
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        flexShrink: 0,
-                        textAlign: "center",
-                        lineHeight: 1.3,
-                        whiteSpace: "nowrap",
-                        color:
-                          escola.custo === "Gratuito"
-                            ? "#00D4AA"
-                            : escola.custo === "Bolsa Integral"
-                              ? "#F59E0B"
-                              : c.textoSub,
-                        background:
-                          escola.custo === "Gratuito"
-                            ? "#00D4AA15"
-                            : escola.custo === "Bolsa Integral"
-                              ? "#F59E0B15"
-                              : c.borda,
-                      }}
-                    >
-                      {escola.custo}
-                    </span>
-                  </div>
-                ))}
-              </div>
-              <p
-                style={{
-                  fontSize: "0.7rem",
-                  color: c.textoSub,
-                  margin: "12px 0 0",
-                  textAlign: "center",
-                  fontStyle: "italic",
-                }}
-              >
-                Cada missão concluída hoje é um passo real para essas portas.
-              </p>
-            </div>
-
-            {/* Escolas bolsa */}
-            <div
-              style={{
-                background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
-                border: `2px solid #F59E0B33`,
-                borderRadius: 20,
-                padding: "18px 20px",
-              }}
-            >
               <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  marginBottom: 14,
-                }}
+                style={{ display: "flex", flexDirection: "column", gap: 10 }}
               >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #D97706, #F59E0B)",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.1rem",
-                    flexShrink: 0,
-                  }}
-                >
-                  🏆
-                </div>
-                <div>
-                  <p
-                    style={{
-                      fontSize: "0.8rem",
-                      fontWeight: 800,
-                      color: e ? "#F59E0B" : "#B45309",
-                      margin: 0,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                    }}
-                  >
-                    Colégios de prestígio com bolsa
-                  </p>
-                  <p
-                    style={{ fontSize: "0.7rem", color: c.textoSub, margin: 0 }}
-                  >
-                    Oportunidades reais para alunos dedicados
-                  </p>
-                </div>
-              </div>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(ESCOLAS_BOLSAS[serieAtual] || []).map((escola, i) => (
-                  <div
-                    key={i}
-                    style={{
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 12,
-                      padding: "10px 12px",
-                      background: e
-                        ? "rgba(0,0,0,0.2)"
-                        : "rgba(255,255,255,0.7)",
-                      borderRadius: 12,
-                      border: `1.5px solid ${e ? "#F59E0B22" : "#F59E0B33"}`,
-                    }}
-                  >
-                    <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>
-                      {escola.icone}
-                    </span>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p
-                        style={{
-                          fontSize: "0.85rem",
-                          fontWeight: 800,
-                          color: c.texto,
-                          margin: 0,
-                        }}
-                      >
-                        {escola.nome}
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "0.72rem",
-                          color: c.textoSub,
-                          margin: 0,
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {escola.info}
-                      </p>
-                    </div>
-                    <span
-                      style={{
-                        fontSize: "0.65rem",
-                        fontWeight: 800,
-                        padding: "3px 8px",
-                        borderRadius: 6,
-                        flexShrink: 0,
-                        textAlign: "center",
-                        lineHeight: 1.3,
-                        whiteSpace: "nowrap",
-                        color:
-                          escola.custo === "Bolsa Integral"
-                            ? "#F59E0B"
-                            : escola.custo === "Até 100%"
-                              ? "#00D4AA"
-                              : c.textoSub,
-                        background:
-                          escola.custo === "Bolsa Integral"
-                            ? "#F59E0B15"
-                            : escola.custo === "Até 100%"
-                              ? "#00D4AA15"
-                              : c.borda,
-                      }}
-                    >
-                      {escola.custo}
-                    </span>
-                  </div>
+                {CATEGORIAS_ESCOLAS.map((cat) => (
+                  <CardCategoriaEscolas
+                    key={cat.id}
+                    categoria={cat}
+                    serie={serieAtual}
+                    c={c}
+                    e={e}
+                  />
                 ))}
               </div>
               <p
                 style={{
                   fontSize: "0.7rem",
                   color: c.textoSub,
-                  margin: "12px 0 0",
+                  margin: "14px 0 0",
                   textAlign: "center",
                   fontStyle: "italic",
+                  lineHeight: 1.5,
                 }}
               >
-                Talento + consistência abre essas portas. O EduPlay cuida da
-                consistência.
+                Cada missão concluída hoje é um passo real para essas portas. O
+                EduPlay cuida da consistência.
               </p>
             </div>
 
@@ -2358,7 +2514,7 @@ export default function PaisPage({ userPai, timer }) {
               })}
             </div>
 
-            {/* Link do filho */}
+            {/* Link */}
             <div
               style={{
                 background: c.card,
@@ -2408,7 +2564,6 @@ export default function PaisPage({ userPai, timer }) {
                     fontSize: "0.82rem",
                     cursor: "pointer",
                     fontFamily: "'Nunito', sans-serif",
-                    transition: "all 0.2s",
                   }}
                 >
                   {linkCopiado ? "✅ Copiado!" : "📋 Copiar"}
@@ -2435,7 +2590,7 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
-        {/* ABA MISSÕES */}
+        {/* ══ ABA MISSÕES ══ */}
         {secao === "missoes" && (
           <div
             style={{
@@ -2488,7 +2643,6 @@ export default function PaisPage({ userPai, timer }) {
                       fontSize: "0.78rem",
                       cursor: "pointer",
                       fontFamily: "'Nunito', sans-serif",
-                      transition: "all 0.2s",
                     }}
                   >
                     {s.label}
@@ -2531,7 +2685,6 @@ export default function PaisPage({ userPai, timer }) {
                       fontSize: "0.78rem",
                       cursor: "pointer",
                       fontFamily: "'Nunito', sans-serif",
-                      transition: "all 0.2s",
                     }}
                   >
                     {b.label}
@@ -2539,7 +2692,6 @@ export default function PaisPage({ userPai, timer }) {
                 ))}
               </div>
             </div>
-
             <div
               style={{
                 background: limiteAtingido ? "#F59E0B12" : `${c.accent}10`,
@@ -2591,13 +2743,11 @@ export default function PaisPage({ userPai, timer }) {
                             : c.accent
                           : "transparent",
                       border: `2px solid ${i < missoesHoje ? (limiteAtingido ? "#F59E0B" : c.accent) : c.borda}`,
-                      transition: "all 0.3s",
                     }}
                   />
                 ))}
               </div>
             </div>
-
             {gerando && (
               <div
                 style={{
@@ -2623,19 +2773,12 @@ export default function PaisPage({ userPai, timer }) {
                     fontWeight: 700,
                     color: c.accent,
                     margin: "0 0 6px",
-                    minHeight: "2.8em",
                   }}
                 >
                   {FRASES_LOADING[fraseLoading]}
                 </p>
-                <p
-                  style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}
-                >
-                  Isso pode levar alguns segundos...
-                </p>
               </div>
             )}
-
             {mensagem && !gerando && (
               <div
                 style={{
@@ -2666,33 +2809,8 @@ export default function PaisPage({ userPai, timer }) {
                       : "❌ Erro ao gerar missão."}
                   </p>
                 </div>
-                {mensagem.tipo === "sucesso" && mensagem.topicos.length > 0 && (
-                  <div style={{ background: c.card, padding: "14px 18px" }}>
-                    {mensagem.topicos.map((t, i) => (
-                      <div
-                        key={i}
-                        style={{ display: "flex", gap: 8, marginBottom: 6 }}
-                      >
-                        <span style={{ color: c.accent, fontSize: "0.8rem" }}>
-                          ▸
-                        </span>
-                        <p
-                          style={{
-                            fontSize: "0.82rem",
-                            color: c.texto,
-                            margin: 0,
-                            lineHeight: 1.4,
-                          }}
-                        >
-                          {t}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )}
-
             {!gerando && !limiteAtingido && (
               <div
                 style={{ display: "flex", flexDirection: "column", gap: 10 }}
@@ -2768,7 +2886,7 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
-        {/* ABA CONFIG */}
+        {/* ══ ABA CONFIG ══ */}
         {secao === "config" && (
           <div
             style={{
@@ -2833,7 +2951,6 @@ export default function PaisPage({ userPai, timer }) {
                 O app avisará seu filho antes do tempo esgotar.
               </p>
             </div>
-
             <div
               style={{
                 background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
@@ -2893,7 +3010,6 @@ export default function PaisPage({ userPai, timer }) {
                 }}
               />
             </div>
-
             <div
               style={{
                 background: c.card,
@@ -2992,6 +3108,7 @@ export default function PaisPage({ userPai, timer }) {
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes fadeIn  { from{opacity:0;transform:translateY(5px)} to{opacity:1;transform:translateY(0)} }
         @keyframes girarIA { 0%{transform:rotateY(0deg)} 100%{transform:rotateY(360deg)} }
+        @keyframes pulsar  { 0%,100%{transform:scale(1);opacity:0.7} 50%{transform:scale(1.2);opacity:1} }
       `}</style>
     </div>
   );

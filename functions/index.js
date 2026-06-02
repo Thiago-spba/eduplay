@@ -372,3 +372,34 @@ exports.perguntarAssistente = onCall(
     return { resposta: msg.content[0].text }
   }
 )
+// ═══════════════════════════════════════════════════════════════════════
+// gerarMensagemMotivacional — Mensagem pedagógica personalizada para o pai
+// ═══════════════════════════════════════════════════════════════════════
+exports.gerarMensagemMotivacional = onCall(
+  { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+    const { nomeFilho, serie, totalMissoes, ultimoPercentual, diasAtivos } = request.data
+    if (!nomeFilho) throw new HttpsError('invalid-argument', 'Nome do filho obrigatório.')
+    let nivelDesempenho = 'sem_dados'
+    if (ultimoPercentual !== null && ultimoPercentual !== undefined) {
+      if (ultimoPercentual >= 70) nivelDesempenho = 'otimo'
+      else if (ultimoPercentual >= 40) nivelDesempenho = 'bom'
+      else nivelDesempenho = 'ruim'
+    }
+    const contexto = {
+      sem_dados: nomeFilho + ' ainda nao completou nenhuma atividade.',
+      otimo:     nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — otimo desempenho.',
+      bom:       nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — desempenho regular, em evolucao.',
+      ruim:      nomeFilho + ' acertou ' + ultimoPercentual + '% na ultima atividade — esta com dificuldades.',
+    }[nivelDesempenho]
+    const prompt = 'Voce e um psicologo educacional especialista em motivacao parental.\n\nEscreva UMA mensagem curta (maximo 3 frases) para o RESPONSAVEL de ' + nomeFilho + ', aluno do ' + (serie || '6 ano') + '.\n\nCONTEXTO ATUAL:\n- ' + contexto + '\n- Total de missoes concluidas: ' + (totalMissoes || 0) + '\n- Dias ativos no app: ' + (diasAtivos || 0) + '\n\nREGRAS:\n- Fale DIRETAMENTE com o responsavel (use voce, seu filho)\n- Seja HONESTO: se ruim, diga que precisa de atencao\n- Termine com UMA acao concreta que o responsavel pode fazer HOJE\n- Tom: caloroso, direto, sem exageros\n- NAO use emojis no texto\n- NAO comece com Ola ou saudacoes\n\nResponda APENAS com o texto da mensagem, sem aspas, sem formatacao.'
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 200,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    return { ok: true, mensagem: msg.content[0].text.trim() }
+  }
+)
