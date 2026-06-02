@@ -1862,25 +1862,6 @@ export default function PaisPage({ userPai, timer }) {
           </span>
         </div>
         <div style={{ display: "flex", gap: 6 }}>
-          {userPai?.email === "thiago.rpba@gmail.com" && (
-            <button
-              onClick={() => navigate("/admin")}
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                border: `2px solid ${c.borda}`,
-                background: e ? "#1A2B3C" : "#fff",
-                fontSize: "1rem",
-                cursor: "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              🛠️
-            </button>
-          )}
           <button
             onClick={alternarTema}
             style={{
