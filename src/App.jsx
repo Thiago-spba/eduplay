@@ -131,6 +131,11 @@ export default function App() {
     return <AdminPage userPai={paisUser} />;
   }
 
+  // ── 6.5. Responsável logado acessando "/" → manda direto pro painel ──
+  if (authChecked && paisUser && !playerName) {
+    return <Navigate to="/pais" replace />;
+  }
+
   // ── 7. Onboarding da criança ──
   if (!playerName) {
     if (!viaLanding) {

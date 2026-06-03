@@ -4,7 +4,7 @@ import { useTema } from "../context/ThemeContext";
 import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../services/firebase";
+import { functions, auth } from "../services/firebase";
 import {
   getResponsavel,
   getResponsavelPorEmail,
@@ -18,6 +18,8 @@ import {
   registrarConsentimentoECA,
   getSessoesQuiz,
   getProgresso,
+  desativarConta,
+  reativarConta,
 } from "../services/db";
 
 const MAX_MISSOES_DIA = 3;
@@ -78,9 +80,6 @@ const PERGUNTAS_PAI = {
   ],
 };
 
-// ══════════════════════════════════════════════════════════════
-// ESCOLAS — organizadas por categoria
-// ══════════════════════════════════════════════════════════════
 const CATEGORIAS_ESCOLAS = [
   {
     id: "militares",
@@ -536,13 +535,10 @@ function formatarHora(timestamp) {
   return data.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
 }
 
-// ══════════════════════════════════════════════════════════════
-// COMPONENTE: Card de categoria de escolas (expansível)
-// ══════════════════════════════════════════════════════════════
+// ── Card escolas expansível ──
 function CardCategoriaEscolas({ categoria, serie, c, e }) {
   const [expandido, setExpandido] = useState(false);
   const escolas = categoria.escolas[serie] || categoria.escolas["6ano"] || [];
-
   return (
     <div
       style={{
@@ -553,7 +549,6 @@ function CardCategoriaEscolas({ categoria, serie, c, e }) {
         transition: "all 0.3s",
       }}
     >
-      {/* Cabeçalho clicável */}
       <button
         onClick={() => setExpandido(!expandido)}
         style={{
@@ -619,8 +614,6 @@ function CardCategoriaEscolas({ categoria, serie, c, e }) {
           ▼
         </div>
       </button>
-
-      {/* Conteúdo expansível */}
       {expandido && (
         <div
           style={{
@@ -729,9 +722,440 @@ function CardCategoriaEscolas({ categoria, serie, c, e }) {
   );
 }
 
-// ══════════════════════════════════════════════════════════════
-// COMPONENTE PRINCIPAL
-// ══════════════════════════════════════════════════════════════
+// ── Card Assinatura ──
+function CardAssinatura({ c, e, filho, functions, userPai }) {
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [emailAlternativo, setEmailAlternativo] = useState("");
+  const [usarEmailAlternativo, setUsarEmailAlternativo] = useState(false);
+
+  const emailFinal =
+    usarEmailAlternativo && emailAlternativo.trim()
+      ? emailAlternativo.trim()
+      : userPai?.email || auth.currentUser?.email || "";
+  const assinar = async () => {
+    if (!filho?.id) return;
+    if (!emailFinal) {
+      setErro("Informe um email para continuar.");
+      return;
+    }
+    setCarregando(true);
+    setErro("");
+    try {
+      const criarAssinatura = httpsCallable(functions, "criarAssinatura");
+      const res = await criarAssinatura({
+        codigoAcesso: filho.id,
+        emailResponsavel: emailFinal,
+        nomeResponsavel: userPai?.displayName || "Responsável",
+      });
+      if (res.data?.checkoutUrl) {
+        window.open(res.data.checkoutUrl, "_blank");
+      } else {
+        setErro("Não foi possível gerar o link. Tente novamente.");
+      }
+    } catch (err) {
+      console.error("Erro ao criar assinatura:", err);
+      setErro("Erro ao conectar com o Mercado Pago. Tente novamente.");
+    } finally {
+      setCarregando(false);
+    }
+  };
+
+  return (
+    <div
+      style={{
+        background: e
+          ? "linear-gradient(135deg, #0D1F2D, #0A2E1F)"
+          : "linear-gradient(135deg, #E8FFF5, #F0FFF8)",
+        border: `2px solid ${e ? "rgba(0,196,122,0.3)" : "rgba(15,110,86,0.2)"}`,
+        borderRadius: 16,
+        padding: "20px 18px",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginBottom: 16,
+        }}
+      >
+        <div
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: "50%",
+            background: e ? "rgba(0,196,122,0.15)" : "rgba(15,110,86,0.12)",
+            border: `2px solid ${e ? "rgba(0,196,122,0.4)" : "rgba(15,110,86,0.25)"}`,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            fontSize: "1.2rem",
+          }}
+        >
+          🚀
+        </div>
+        <div>
+          <p
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: 800,
+              color: e ? "#00e0b3" : "#0F6E56",
+              margin: 0,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+            }}
+          >
+            Plano Mensal
+          </p>
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>
+            Acesso ilimitado para {filho?.nome?.split(" ")[0] || "seu filho"}
+          </p>
+        </div>
+        <div style={{ marginLeft: "auto", textAlign: "right" }}>
+          <span
+            style={{
+              fontSize: "1.6rem",
+              fontWeight: 900,
+              color: e ? "#00e0b3" : "#0F6E56",
+              lineHeight: 1,
+            }}
+          >
+            R$20
+          </span>
+          <p style={{ fontSize: "0.7rem", color: c.textoSub, margin: 0 }}>
+            /mês
+          </p>
+        </div>
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 7,
+          marginBottom: 16,
+        }}
+      >
+        {[
+          "🎯 Missões pelo Currículo Paulista e BNCC",
+          "🏫 Preparação para Etec, Fatec e colégios federais",
+          "📊 Relatório mensal de progresso",
+          "💡 Cancele quando quiser • Sem fidelidade",
+        ].map((b, i) => (
+          <p
+            key={i}
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: 600,
+              color: c.textoSub,
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
+            {b}
+          </p>
+        ))}
+      </div>
+      <div style={{ marginBottom: 14 }}>
+        <p
+          style={{
+            fontSize: "0.75rem",
+            fontWeight: 700,
+            color: c.textoSub,
+            margin: "0 0 6px",
+            textTransform: "uppercase",
+            letterSpacing: 1,
+          }}
+        >
+          Email para o Mercado Pago
+        </p>
+        <div
+          style={{
+            background: e ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
+            borderRadius: 10,
+            padding: "10px 14px",
+            border: `1.5px solid ${e ? "#2D3D50" : "#E2E8F0"}`,
+            fontSize: "0.85rem",
+            color: c.textoSub,
+            marginBottom: 8,
+          }}
+        >
+          {userPai?.email || "—"}
+        </div>
+        <button
+          onClick={() => setUsarEmailAlternativo(!usarEmailAlternativo)}
+          style={{
+            background: "none",
+            border: "none",
+            color: e ? "#00e0b3" : "#0F6E56",
+            fontSize: "0.78rem",
+            fontWeight: 700,
+            cursor: "pointer",
+            padding: 0,
+            fontFamily: "'Nunito', sans-serif",
+          }}
+        >
+          {usarEmailAlternativo ? "▲ Usar meu email" : "▼ Usar outro email"}
+        </button>
+        {usarEmailAlternativo && (
+          <input
+            type="email"
+            placeholder="outro@email.com"
+            value={emailAlternativo}
+            onChange={(ev) => setEmailAlternativo(ev.target.value)}
+            style={{
+              width: "100%",
+              marginTop: 8,
+              padding: "10px 14px",
+              borderRadius: 10,
+              border: `1.5px solid ${e ? "#2D3D50" : "#E2E8F0"}`,
+              background: e ? "rgba(255,255,255,0.06)" : "#fff",
+              color: c.texto,
+              fontSize: "0.85rem",
+              fontFamily: "'Nunito', sans-serif",
+              boxSizing: "border-box",
+              outline: "none",
+            }}
+          />
+        )}
+      </div>
+      {erro && (
+        <div
+          style={{
+            background: "#EF444415",
+            border: "1.5px solid #EF444430",
+            borderRadius: 10,
+            padding: "10px 14px",
+            marginBottom: 12,
+            fontSize: "0.8rem",
+            color: "#EF4444",
+            fontWeight: 700,
+          }}
+        >
+          ⚠️ {erro}
+        </div>
+      )}
+      <button
+        onClick={assinar}
+        disabled={carregando}
+        style={{
+          width: "100%",
+          padding: "14px",
+          borderRadius: 30,
+          border: "none",
+          fontSize: "0.95rem",
+          fontWeight: 900,
+          cursor: carregando ? "not-allowed" : "pointer",
+          background: carregando ? c.borda : e ? "#00c47a" : "#0F6E56",
+          color: "#fff",
+          boxShadow: carregando ? "none" : "0 4px 20px rgba(0,196,122,0.3)",
+          fontFamily: "'Nunito', sans-serif",
+        }}
+      >
+        {carregando ? "Aguarde..." : "🚀 Assinar agora — R$20/mês"}
+      </button>
+      <p
+        style={{
+          fontSize: "0.7rem",
+          color: c.textoSub,
+          textAlign: "center",
+          marginTop: 10,
+          marginBottom: 0,
+        }}
+      >
+        🔒 Pagamento seguro via Mercado Pago
+      </p>
+    </div>
+  );
+}
+
+// ── Modal Excluir Conta ──
+function ModalExcluirConta({ c, e, onConfirmar, onCancelar, carregando }) {
+  const [emailMarketing, setEmailMarketing] = useState(true);
+  const [confirmado, setConfirmado] = useState(false);
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.75)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 300,
+        padding: "20px",
+      }}
+    >
+      <div
+        style={{
+          background: c.card,
+          borderRadius: 24,
+          padding: "28px 24px",
+          maxWidth: 420,
+          width: "100%",
+          border: `2px solid #EF444430`,
+          animation: "fadeIn 0.2s ease",
+        }}
+      >
+        {/* Ícone e título */}
+        <div style={{ textAlign: "center", marginBottom: 20 }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>⚠️</div>
+          <h2
+            style={{
+              fontFamily: "'Fredoka', sans-serif",
+              fontSize: "1.4rem",
+              color: "#EF4444",
+              margin: "0 0 8px",
+            }}
+          >
+            Desativar conta
+          </h2>
+          <p
+            style={{
+              fontSize: "0.85rem",
+              color: c.textoSub,
+              margin: 0,
+              lineHeight: 1.6,
+            }}
+          >
+            Seu acesso e o do seu filho serão pausados. Todos os dados, missões
+            e progresso ficam salvos. Se quiser voltar, é só fazer login
+            novamente.
+          </p>
+        </div>
+
+        {/* Preferência de e-mail marketing */}
+        <div
+          style={{
+            background: e ? "rgba(255,255,255,0.04)" : "#F8FBFF",
+            border: `1.5px solid ${c.borda}`,
+            borderRadius: 14,
+            padding: "14px 16px",
+            marginBottom: 16,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={emailMarketing}
+              onChange={(ev) => setEmailMarketing(ev.target.checked)}
+              style={{
+                width: 20,
+                height: 20,
+                marginTop: 2,
+                accentColor: "#00D4AA",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.84rem",
+                color: c.texto,
+                lineHeight: 1.5,
+              }}
+            >
+              Quero receber dicas para o desenvolvimento do meu filho e ofertas
+              exclusivas do EduPlay por e-mail
+            </span>
+          </label>
+        </div>
+
+        {/* Confirmação */}
+        <div
+          style={{
+            background: "#EF444410",
+            border: "1.5px solid #EF444430",
+            borderRadius: 14,
+            padding: "14px 16px",
+            marginBottom: 20,
+          }}
+        >
+          <label
+            style={{
+              display: "flex",
+              alignItems: "flex-start",
+              gap: 12,
+              cursor: "pointer",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={confirmado}
+              onChange={(ev) => setConfirmado(ev.target.checked)}
+              style={{
+                width: 20,
+                height: 20,
+                marginTop: 2,
+                accentColor: "#EF4444",
+                flexShrink: 0,
+              }}
+            />
+            <span
+              style={{
+                fontSize: "0.84rem",
+                color: "#EF4444",
+                fontWeight: 700,
+                lineHeight: 1.5,
+              }}
+            >
+              Entendo que meu acesso e o do meu filho serão pausados
+            </span>
+          </label>
+        </div>
+
+        {/* Botões */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <button
+            onClick={() => onConfirmar(emailMarketing)}
+            disabled={!confirmado || carregando}
+            style={{
+              width: "100%",
+              padding: "13px",
+              borderRadius: 14,
+              border: "none",
+              background: !confirmado || carregando ? c.borda : "#EF4444",
+              color: !confirmado || carregando ? c.textoSub : "#fff",
+              fontWeight: 900,
+              fontSize: "0.95rem",
+              cursor: !confirmado || carregando ? "not-allowed" : "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {carregando ? "Desativando..." : "Confirmar desativação"}
+          </button>
+          <button
+            onClick={onCancelar}
+            disabled={carregando}
+            style={{
+              width: "100%",
+              padding: "13px",
+              borderRadius: 14,
+              border: `1.5px solid ${c.borda}`,
+              background: "transparent",
+              color: c.textoSub,
+              fontWeight: 700,
+              fontSize: "0.9rem",
+              cursor: carregando ? "not-allowed" : "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Componente principal ──
 export default function PaisPage({ userPai, timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
@@ -743,26 +1167,20 @@ export default function PaisPage({ userPai, timer }) {
   const [missoesHoje, setMissoesHoje] = useState(0);
   const [sessoesQuiz, setSessoesQuiz] = useState([]);
   const [progresso, setProgresso] = useState(null);
-
-  // Mensagem motivacional
   const [mensagemIA, setMensagemIA] = useState("");
   const [carregandoMsg, setCarregandoMsg] = useState(false);
   const [nivelDesempenho, setNivelDesempenho] = useState("sem_dados");
-
   const [aceitouECA, setAceitouECA] = useState(false);
   const [aceitouTermos, setAceitouTermos] = useState(false);
   const [mostrarECA, setMostrarECA] = useState(false);
   const [salvandoECA, setSalvandoECA] = useState(false);
   const [erroECA, setErroECA] = useState("");
-
   const [nomeFilho, setNomeFilho] = useState("");
   const [serieFilho, setSerieFilho] = useState("6ano");
   const [salvandoFilho, setSalvandoFilho] = useState(false);
   const [erroFilho, setErroFilho] = useState("");
-
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
-
   const [secao, setSecao] = useState("visao");
   const [config, setConfig] = useState({
     serie: "6ano",
@@ -773,6 +1191,11 @@ export default function PaisPage({ userPai, timer }) {
   const [mensagem, setMensagem] = useState(null);
   const [fraseLoading, setFraseLoading] = useState(0);
   const [premio, setPremio] = useState("");
+  const [perguntasIA, setPerguntasIA] = useState([]);
+
+  // ── Estados para excluir conta ──
+  const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
+  const [desativando, setDesativando] = useState(false);
 
   const limiteAtingido = missoesHoje >= MAX_MISSOES_DIA;
 
@@ -787,16 +1210,11 @@ export default function PaisPage({ userPai, timer }) {
     azul: "#3B82F6",
   };
 
-  // ── Perguntas geradas pela IA ──
-  const [perguntasIA, setPerguntasIA] = useState([]);
-
-  // ── Gera mensagem motivacional via IA ──
   const gerarMensagemIA = async (crianca, sessoes, prog) => {
     setCarregandoMsg(true);
     try {
       const ultimaSessao = sessoes?.[0];
       const percentual = ultimaSessao?.percentual ?? null;
-
       let nivel = "sem_dados";
       if (percentual !== null) {
         if (percentual >= 70) nivel = "otimo";
@@ -804,7 +1222,6 @@ export default function PaisPage({ userPai, timer }) {
         else nivel = "ruim";
       }
       setNivelDesempenho(nivel);
-
       const fn = httpsCallable(functions, "gerarMensagemMotivacional");
       const res = await fn({
         nomeFilho: crianca.nome,
@@ -845,6 +1262,14 @@ export default function PaisPage({ userPai, timer }) {
           setEtapa("eca");
           return;
         }
+
+        // ── Reativação automática se conta estava inativa ──
+        if (resp.status === "inativo") {
+          const criancaInativa = await getCriancaPorPai(userPai.uid);
+          await reativarConta(userPai.uid, criancaInativa?.id || null);
+          resp = await getResponsavel(userPai.uid);
+        }
+
         const crianca = await getCriancaPorPai(userPai.uid);
         if (!crianca) {
           setEtapa("cadastro");
@@ -852,14 +1277,12 @@ export default function PaisPage({ userPai, timer }) {
         }
         setFilho(crianca);
         setConfig((prev) => ({ ...prev, serie: crianca.serie || "6ano" }));
-
         const [missoes, qtdHoje] = await Promise.all([
           getTodasMissoes(crianca.id),
           contarMissoesHoje(crianca.id),
         ]);
         setMissoesPorDisc(missoes);
         setMissoesHoje(qtdHoje);
-
         let sessoes = [];
         let prog = null;
         try {
@@ -868,16 +1291,13 @@ export default function PaisPage({ userPai, timer }) {
         } catch (err) {
           console.warn("Sessões quiz:", err);
         }
-
         try {
           prog = await getProgresso(crianca.id);
           setProgresso(prog);
         } catch (err) {
           console.warn("Progresso:", err);
         }
-
         setEtapa("painel");
-        // Gera mensagem motivacional após carregar tudo
         gerarMensagemIA(crianca, sessoes, prog);
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
@@ -917,6 +1337,7 @@ export default function PaisPage({ userPai, timer }) {
         aceitouTermos: true,
         aceitouECA: true,
         plano: "trial",
+        status: "ativo",
       });
       await registrarConsentimentoECA(userPai.uid, {
         userId: userPai.uid,
@@ -948,6 +1369,7 @@ export default function PaisPage({ userPai, timer }) {
         avatar: "🧑‍🚀",
         serie: serieFilho,
         consentimentoECA: true,
+        status: "ativo",
       };
       await criarCrianca(codigo, dados);
       setFilho({ id: codigo, ...dados });
@@ -957,6 +1379,20 @@ export default function PaisPage({ userPai, timer }) {
       setErroFilho("Erro ao salvar. Tente novamente.");
     } finally {
       setSalvandoFilho(false);
+    }
+  };
+
+  // ── Handler desativar conta ──
+  const handleDesativarConta = async (emailMarketing) => {
+    setDesativando(true);
+    try {
+      await desativarConta(userPai.uid, filho?.id || null, emailMarketing);
+      await logout();
+      navigate("/");
+    } catch (err) {
+      console.error("Erro ao desativar conta:", err);
+      setDesativando(false);
+      setMostrarModalExcluir(false);
     }
   };
 
@@ -1061,8 +1497,6 @@ export default function PaisPage({ userPai, timer }) {
   const perguntasPai = ultimaSessao
     ? PERGUNTAS_PAI[ultimaSessao.disciplina] || []
     : [];
-
-  // Cor da mensagem por nível
   const corNivel = {
     sem_dados: c.azul,
     otimo: "#00D4AA",
@@ -1073,7 +1507,6 @@ export default function PaisPage({ userPai, timer }) {
     nivelDesempenho
   ];
 
-  // ══════════════════════════════════════════
   if (etapa === "verificando")
     return (
       <div
@@ -1810,9 +2243,6 @@ export default function PaisPage({ userPai, timer }) {
     );
   }
 
-  // ══════════════════════════════════════════
-  // PAINEL PRINCIPAL
-  // ══════════════════════════════════════════
   return (
     <div
       style={{
@@ -1822,6 +2252,17 @@ export default function PaisPage({ userPai, timer }) {
         paddingBottom: 100,
       }}
     >
+      {/* Modal excluir conta */}
+      {mostrarModalExcluir && (
+        <ModalExcluirConta
+          c={c}
+          e={e}
+          onConfirmar={handleDesativarConta}
+          onCancelar={() => setMostrarModalExcluir(false)}
+          carregando={desativando}
+        />
+      )}
+
       <header
         style={{
           display: "flex",
@@ -1861,25 +2302,23 @@ export default function PaisPage({ userPai, timer }) {
             Painel do Responsável
           </span>
         </div>
-        <div style={{ display: "flex", gap: 6 }}>
-          <button
-            onClick={alternarTema}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 10,
-              border: `2px solid ${c.borda}`,
-              background: e ? "#1A2B3C" : "#fff",
-              fontSize: "1rem",
-              cursor: "pointer",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {e ? "☀️" : "🌙"}
-          </button>
-        </div>
+        <button
+          onClick={alternarTema}
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 10,
+            border: `2px solid ${c.borda}`,
+            background: e ? "#1A2B3C" : "#fff",
+            fontSize: "1rem",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          {e ? "☀️" : "🌙"}
+        </button>
       </header>
 
       <main
@@ -1892,7 +2331,6 @@ export default function PaisPage({ userPai, timer }) {
           gap: 16,
         }}
       >
-        {/* ABAS */}
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "visao", label: "Visão Geral", icone: "📊" },
@@ -1924,7 +2362,6 @@ export default function PaisPage({ userPai, timer }) {
           ))}
         </div>
 
-        {/* ══ ABA VISÃO GERAL ══ */}
         {secao === "visao" && (
           <div
             style={{
@@ -1934,7 +2371,6 @@ export default function PaisPage({ userPai, timer }) {
               animation: "fadeIn 0.3s ease",
             }}
           >
-            {/* Card filho */}
             <div
               style={{
                 background: `linear-gradient(135deg, ${e ? "#0D2137" : "#E8F7FF"}, ${e ? "#1A3A52" : "#F0FFF8"})`,
@@ -2056,7 +2492,6 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
 
-            {/* ══ MENSAGEM MOTIVACIONAL DA IA ══ */}
             <div
               style={{
                 background: carregandoMsg
@@ -2141,7 +2576,6 @@ export default function PaisPage({ userPai, timer }) {
               )}
             </div>
 
-            {/* ══ CARD ÚLTIMA ATIVIDADE ══ */}
             {ultimaSessao ? (
               <div
                 style={{
@@ -2362,7 +2796,6 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             )}
 
-            {/* ══ SONHAR COM O FUTURO — Cards expansíveis ══ */}
             <div
               style={{
                 background: c.card,
@@ -2439,7 +2872,6 @@ export default function PaisPage({ userPai, timer }) {
               </p>
             </div>
 
-            {/* Progresso disciplinas */}
             <div
               style={{
                 background: c.card,
@@ -2505,7 +2937,6 @@ export default function PaisPage({ userPai, timer }) {
               })}
             </div>
 
-            {/* Link */}
             <div
               style={{
                 background: c.card,
@@ -2581,7 +3012,6 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
-        {/* ══ ABA MISSÕES ══ */}
         {secao === "missoes" && (
           <div
             style={{
@@ -2877,7 +3307,6 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
-        {/* ══ ABA CONFIG ══ */}
         {secao === "config" && (
           <div
             style={{
@@ -3001,6 +3430,15 @@ export default function PaisPage({ userPai, timer }) {
                 }}
               />
             </div>
+
+            <CardAssinatura
+              c={c}
+              e={e}
+              filho={filho}
+              functions={functions}
+              userPai={userPai}
+            />
+
             <div
               style={{
                 background: c.card,
@@ -3079,16 +3517,36 @@ export default function PaisPage({ userPai, timer }) {
                   width: "100%",
                   padding: "10px",
                   borderRadius: 12,
-                  border: `1.5px solid #EF444440`,
+                  border: "1.5px solid #EF444440",
                   background: "#EF444410",
                   color: "#EF4444",
                   fontWeight: 800,
                   fontSize: "0.85rem",
                   cursor: "pointer",
                   fontFamily: "'Nunito', sans-serif",
+                  marginBottom: 10,
                 }}
               >
                 Sair da conta
+              </button>
+
+              {/* ── Botão desativar conta ── */}
+              <button
+                onClick={() => setMostrarModalExcluir(true)}
+                style={{
+                  width: "100%",
+                  padding: "10px",
+                  borderRadius: 12,
+                  border: `1.5px solid ${c.borda}`,
+                  background: "transparent",
+                  color: c.textoSub,
+                  fontWeight: 700,
+                  fontSize: "0.82rem",
+                  cursor: "pointer",
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                Desativar conta
               </button>
             </div>
           </div>

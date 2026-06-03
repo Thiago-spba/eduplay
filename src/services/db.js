@@ -80,6 +80,44 @@ export async function salvarResponsavel(uid, dados) {
   }, { merge: true });
 }
 
+/**
+ * Desativa conta do responsável e da criança vinculada.
+ * Preserva todos os dados — apenas marca status: "inativo".
+ * Salva também a preferência de e-mail marketing.
+ */
+export async function desativarConta(uid, codigoAcesso, emailMarketing) {
+  await updateDoc(doc(db, "responsaveis", uid), {
+    status: "inativo",
+    emailMarketing: emailMarketing,
+    desativadoEm: serverTimestamp(),
+    atualizadoEm: serverTimestamp(),
+  });
+  if (codigoAcesso) {
+    await updateDoc(doc(db, "criancas", codigoAcesso), {
+      status: "inativo",
+      atualizadoEm: serverTimestamp(),
+    });
+  }
+}
+
+/**
+ * Reativa conta do responsável e da criança vinculada.
+ * Chamado automaticamente quando o responsável faz login novamente.
+ */
+export async function reativarConta(uid, codigoAcesso) {
+  await updateDoc(doc(db, "responsaveis", uid), {
+    status: "ativo",
+    reativadoEm: serverTimestamp(),
+    atualizadoEm: serverTimestamp(),
+  });
+  if (codigoAcesso) {
+    await updateDoc(doc(db, "criancas", codigoAcesso), {
+      status: "ativo",
+      atualizadoEm: serverTimestamp(),
+    });
+  }
+}
+
 // ─────────────────────────────────────────────────────────────
 // CRIANÇA
 // ─────────────────────────────────────────────────────────────
@@ -306,6 +344,7 @@ export async function registrarConsentimentoECA(uid, dados) {
     { ...dados, criadoEm: serverTimestamp() }
   );
 }
+
 // ─────────────────────────────────────────────────────────────
 // TRIAL
 // ─────────────────────────────────────────────────────────────
