@@ -742,12 +742,10 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
     setCarregando(true);
     setErro("");
     try {
-      const criarAssinatura = httpsCallable(functions, "criarAssinatura");
-      const res = await criarAssinatura({
-        id: filho.id,
-        emailResponsavel: emailFinal,
-        nomeResponsavel: userPai?.displayName || "Responsável",
-      });
+const res = await criarAssinatura({
+  codigoAcesso: filho.id, // ← correto        emailResponsavel: emailFinal,
+  nomeResponsavel: userPai?.displayName || "Responsável",
+});
       if (res.data?.checkoutUrl) {
         window.open(res.data.checkoutUrl, "_blank");
       } else {
