@@ -742,8 +742,10 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
     setCarregando(true);
     setErro("");
     try {
-const criarAssinatura = httpsCallable(functions, "criarAssinatura");`n      const res = await criarAssinatura({
-  codigoAcesso: filho.id, // ← correto        emailResponsavel: emailFinal,
+const criarAssinatura = httpsCallable(functions, "criarAssinatura");
+const res = await criarAssinatura({
+  codigoAcesso: filho.id,
+  emailResponsavel: emailFinal,
   nomeResponsavel: userPai?.displayName || "Responsável",
 });
       if (res.data?.checkoutUrl) {
@@ -917,6 +919,80 @@ const criarAssinatura = httpsCallable(functions, "criarAssinatura");`n      cons
           />
         )}
       </div>
+      {/* Seletor de método de pagamento */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[
+          { id: "credito", label: "💳 Cartão de crédito" },
+          { id: "pix", label: "⚡ PIX" },
+        ].map((m) => (
+          <button
+            key={m.id}
+            onClick={() => { setMetodoPag(m.id); setPixData(null); setErro(""); }}
+            style={{
+              flex: 1,
+              padding: "10px 6px",
+              borderRadius: 12,
+              border: `2px solid ${metodoPag === m.id ? (e ? "#00e0b3" : "#0F6E56") : c.borda}`,
+              background: metodoPag === m.id ? (e ? "rgba(0,224,179,0.1)" : "rgba(15,110,86,0.08)") : "transparent",
+              color: metodoPag === m.id ? (e ? "#00e0b3" : "#0F6E56") : c.textoSub,
+              fontWeight: 800,
+              fontSize: "0.8rem",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Modal PIX */}
+      {pixData && (
+        <div style={{
+          background: e ? "rgba(0,212,170,0.08)" : "rgba(0,212,170,0.06)",
+          border: "2px solid #00D4AA44",
+          borderRadius: 16,
+          padding: "16px",
+          marginBottom: 14,
+          textAlign: "center",
+        }}>
+          <p style={{ fontSize: "0.8rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>
+            ⚡ PIX gerado — pague agora
+          </p>
+          {pixData.qrCodeBase64 && (
+            <img
+              src={`data:image/png;base64,${pixData.qrCodeBase64}`}
+              alt="QR Code PIX"
+              style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 10 }}
+            />
+          )}
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 10px" }}>
+            Válido por 30 minutos. Após o pagamento, o acesso é liberado automaticamente.
+          </p>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(pixData.qrCode);
+              setPixCopiado(true);
+              setTimeout(() => setPixCopiado(false), 3000);
+            }}
+            style={{
+              width: "100%",
+              padding: "11px",
+              borderRadius: 12,
+              border: "2px solid #00D4AA44",
+              background: pixCopiado ? "#00D4AA22" : "transparent",
+              color: "#00D4AA",
+              fontWeight: 800,
+              fontSize: "0.85rem",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {pixCopiado ? "✅ Código copiado!" : "📋 Copiar código PIX"}
+          </button>
+        </div>
+      )}
+
       {erro && (
         <div
           style={{
@@ -935,7 +1011,7 @@ const criarAssinatura = httpsCallable(functions, "criarAssinatura");`n      cons
       )}
       <button
         onClick={assinar}
-        disabled={carregando}
+        disabled={carregando || !!pixData}
         style={{
           width: "100%",
           padding: "14px",
@@ -950,7 +1026,7 @@ const criarAssinatura = httpsCallable(functions, "criarAssinatura");`n      cons
           fontFamily: "'Nunito', sans-serif",
         }}
       >
-        {carregando ? "Aguarde..." : "🚀 Assinar agora — R$20/mês"}
+        {carregando ? "Aguarde..." : metodoPag === "pix" ? "⚡ Gerar QR Code PIX — R$20" : "🚀 Assinar agora — R$20/mês"}
       </button>
       <p
         style={{
