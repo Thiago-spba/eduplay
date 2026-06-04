@@ -742,7 +742,7 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
     setCarregando(true);
     setErro("");
     try {
-const res = await criarAssinatura({
+const criarAssinatura = httpsCallable(functions, "criarAssinatura");`n      const res = await criarAssinatura({
   codigoAcesso: filho.id, // ← correto        emailResponsavel: emailFinal,
   nomeResponsavel: userPai?.displayName || "Responsável",
 });
