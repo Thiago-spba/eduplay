@@ -728,6 +728,9 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
   const [erro, setErro] = useState("");
   const [emailAlternativo, setEmailAlternativo] = useState("");
   const [usarEmailAlternativo, setUsarEmailAlternativo] = useState(false);
+  const [metodoPag, setMetodoPag] = useState("credito");
+  const [pixData, setPixData] = useState(null);
+  const [pixCopiado, setPixCopiado] = useState(false);
 
   const emailFinal =
     usarEmailAlternativo && emailAlternativo.trim()
