@@ -16,7 +16,7 @@ import {
   getTodasMissoes,
   contarMissoesHoje,
   registrarConsentimentoECA,
-  getSessoesQuiz,
+  getMissoesConcluidas,
   getProgresso,
   desativarConta,
   reativarConta,
@@ -744,7 +744,7 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
     try {
       const criarAssinatura = httpsCallable(functions, "criarAssinatura");
       const res = await criarAssinatura({
-        codigoAcesso: filho.id,
+        id: filho.id,
         emailResponsavel: emailFinal,
         nomeResponsavel: userPai?.displayName || "Responsável",
       });
@@ -1164,31 +1164,84 @@ const DISC_INFO = {
   ciencias: { label: "Ciências", icone: "🔬", cor: "#2E8B57" },
   portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
 };
-
-function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
+function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
   const [sessoes, setSessoes] = useState([]);
   const [progresso, setProgresso] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [periodo, setPeriodo] = useState("30dias"); // "7dias", "30dias", "todo"
+
+  // Função para filtrar por período
+  const filtrarPorPeriodo = (sessoesList) => {
+    if (periodo === "todo") return sessoesList;
+
+    const agora = new Date();
+    const dias = periodo === "7dias" ? 7 : 30;
+    const dataLimite = new Date(agora.setDate(agora.getDate() - dias));
+
+    return sessoesList.filter((sessao) => {
+      const dataSessao = sessao.criadoEm?.toDate
+        ? sessao.criadoEm.toDate()
+        : new Date(sessao.criadoEm);
+      return dataSessao >= dataLimite;
+    });
+  };
 
   useEffect(() => {
-    if (!filho?.codigoAcesso) return;
-    Promise.all([
-      getSessoesQuiz(filho.codigoAcesso),
-      getProgresso(filho.codigoAcesso),
-    ])
+    if (!filho?.id) return;
+
+    Promise.all([getMissoesConcluidas(filho.id), getProgresso(filho.id)])
       .then(([s, p]) => {
-        setSessoes(s);
+        setSessoes(s || []);
         setProgresso(p);
         setCarregando(false);
       })
-      .catch(() => setCarregando(false));
-  }, [filho?.codigoAcesso]);
+      .catch((err) => {
+        console.error("Erro:", err);
+        setCarregando(false);
+      });
+  }, [filho?.id, getMissoesConcluidas, getProgresso]);
+
+  const sessoesFiltradas = filtrarPorPeriodo(sessoes);
+
+  // Recalcular estatísticas com base no filtro
+  const totalMissoes = sessoesFiltradas.length;
+  const media =
+    totalMissoes > 0
+      ? Math.round(
+          sessoesFiltradas.reduce((a, s) => a + (s.percentual || 0), 0) /
+            totalMissoes,
+        )
+      : 0;
+
+  // Agrupa por disciplina para o resumo
+  const porDisc = sessoesFiltradas.reduce((acc, s) => {
+    if (!acc[s.disciplina]) acc[s.disciplina] = [];
+    acc[s.disciplina].push(s);
+    return acc;
+  }, {});
+
+  if (carregando) {
+    return (
+      <div
+        style={{ textAlign: "center", padding: "40px 0", color: c.textoSub }}
+      >
+        <div style={{ fontSize: "2rem", marginBottom: 12 }}>📋</div>
+        <p style={{ margin: 0, fontWeight: 700 }}>Carregando relatório...</p>
+      </div>
+    );
+  }
 
   const exportarPDF = () => {
     const nomeFilho = filho?.nome || "Agente";
     const dataHoje = new Date().toLocaleDateString("pt-BR");
+    const periodoTexto =
+      periodo === "7dias"
+        ? "Últimos 7 dias"
+        : periodo === "30dias"
+          ? "Últimos 30 dias"
+          : "Todo histórico";
 
-    const linhas = sessoes
+    const linhas = sessoesFiltradas
       .map((s, i) => {
         const disc = DISC_INFO[s.disciplina] || {
           label: s.disciplina,
@@ -1211,93 +1264,60 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
       })
       .join("");
 
-    const totalMissoes = sessoes.length;
-    const media =
-      totalMissoes > 0
-        ? Math.round(
-            sessoes.reduce((a, s) => a + (s.percentual || 0), 0) / totalMissoes,
-          )
-        : 0;
-
-    const html = `<!DOCTYPE html>
-<html lang="pt-BR">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Relatório EduPlay — ${nomeFilho}</title>
-  <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 32px; color: #1A2B3C; }
-    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; padding-bottom:16px; border-bottom:3px solid #4F46E5; }
-    .logo { font-size:1.5rem; font-weight:900; color:#4F46E5; }
-    .logo span { color:#1A2B3C; }
-    .subtitulo { font-size:0.85rem; color:#666; margin-top:4px; }
-    .stats { display:flex; gap:16px; margin-bottom:24px; }
-    .stat { background:#F5F3FF; border-radius:12px; padding:14px 20px; flex:1; text-align:center; border:1px solid #E0D9FF; }
-    .stat-num { font-size:1.8rem; font-weight:900; color:#4F46E5; }
-    .stat-label { font-size:0.78rem; color:#666; margin-top:2px; }
-    table { width:100%; border-collapse:collapse; font-size:0.88rem; }
-    thead tr { background:#4F46E5; color:#fff; }
-    thead td { padding:10px; font-weight:700; }
-    .footer { margin-top:28px; font-size:0.75rem; color:#999; text-align:center; border-top:1px solid #eee; padding-top:12px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div>
-      <div class="logo">EduPlay <span>Instituto do Saber</span></div>
-      <div class="subtitulo">Relatório de Desempenho — gerado em ${dataHoje}</div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:1.1rem;font-weight:800">${nomeFilho}</div>
-      <div style="font-size:0.8rem;color:#666">${filho?.serie ? filho.serie.replace("ano", "º ano") : ""}</div>
-    </div>
-  </div>
-  <div class="stats">
-    <div class="stat"><div class="stat-num">${totalMissoes}</div><div class="stat-label">Missões concluídas</div></div>
-    <div class="stat"><div class="stat-num">${media}%</div><div class="stat-label">Média de acertos</div></div>
-    <div class="stat"><div class="stat-num">${progresso?.diasSeguidos || 0}</div><div class="stat-label">Dias seguidos</div></div>
-    <div class="stat"><div class="stat-num">${progresso?.diasAtivos?.length || 0}</div><div class="stat-label">Dias ativos</div></div>
-  </div>
-  <table>
-    <thead><tr>
-      <td>Data</td><td>Disciplina</td><td>Missão</td><td>Tópicos</td><td style="text-align:center">Resultado</td>
-    </tr></thead>
-    <tbody>${linhas || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Nenhuma missão concluída ainda</td></tr>'}</tbody>
-  </table>
-  <div class="footer">EduPlay — Instituto do Saber &nbsp;|&nbsp; Relatório gerado automaticamente &nbsp;|&nbsp; ${dataHoje}</div>
-</body>
-</html>`;
+    const html = `
+    <!DOCTYPE html>
+    <html lang="pt-BR">
+    <head>
+      <meta charset="UTF-8"/>
+      <title>Relatório EduPlay — ${nomeFilho}</title>
+      <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 32px; color: #1A2B3C; }
+        .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; padding-bottom:16px; border-bottom:3px solid #4F46E5; }
+        .logo { font-size:1.5rem; font-weight:900; color:#4F46E5; }
+        .logo span { color:#1A2B3C; }
+        .subtitulo { font-size:0.85rem; color:#666; margin-top:4px; }
+        .periodo { display:inline-block; background:#E0E7FF; padding:4px 12px; border-radius:20px; font-size:0.75rem; }
+        .stats { display:flex; gap:16px; margin-bottom:24px; }
+        .stat { background:#F5F3FF; border-radius:12px; padding:14px 20px; flex:1; text-align:center; border:1px solid #E0D9FF; }
+        .stat-num { font-size:1.8rem; font-weight:900; color:#4F46E5; }
+        .stat-label { font-size:0.78rem; color:#666; margin-top:2px; }
+        table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+        thead tr { background:#4F46E5; color:#fff; }
+        thead td { padding:10px; font-weight:700; }
+        .footer { margin-top:28px; font-size:0.7rem; color:#999; text-align:center; border-top:1px solid #eee; padding-top:12px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <div>
+          <div class="logo">EduPlay <span>Instituto do Saber</span></div>
+          <div class="subtitulo">Relatório de Desempenho — gerado em ${dataHoje}</div>
+        </div>
+        <div style="text-align:right">
+          <div style="font-size:1.1rem;font-weight:800">${nomeFilho}</div>
+          <div style="font-size:0.8rem;color:#666">${filho?.serie ? filho.serie.replace("ano", "º ano") : ""}</div>
+          <div class="periodo">${periodoTexto}</div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="stat-num">${totalMissoes}</div><div class="stat-label">Missões concluídas</div></div>
+        <div class="stat"><div class="stat-num">${media}%</div><div class="stat-label">Média de acertos</div></div>
+        <div class="stat"><div class="stat-num">${progresso?.diasSeguidos || 0}</div><div class="stat-label">Dias seguidos</div></div>
+        <div class="stat"><div class="stat-num">${progresso?.diasAtivos?.length || 0}</div><div class="stat-label">Dias ativos</div></div>
+      </div>
+      <table>
+        <thead><tr><td>Data</td><td>Disciplina</td><td>Missão</td><td>Tópicos</td><td style="text-align:center">Resultado</td></tr></thead>
+        <tbody>${linhas || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Nenhuma missão no período selecionado</td></tr>'}</tbody>
+      </table>
+      <div class="footer">EduPlay — Instituto do Saber | Relatório gerado automaticamente | ${dataHoje}</div>
+    </body>
+    </html>`;
 
     const janela = window.open("", "_blank");
     janela.document.write(html);
     janela.document.close();
     setTimeout(() => janela.print(), 600);
   };
-
-  if (carregando) {
-    return (
-      <div
-        style={{ textAlign: "center", padding: "40px 0", color: c.textoSub }}
-      >
-        <div style={{ fontSize: "2rem", marginBottom: 12 }}>📋</div>
-        <p style={{ margin: 0, fontWeight: 700 }}>Carregando relatório...</p>
-      </div>
-    );
-  }
-
-  const totalMissoes = sessoes.length;
-  const media =
-    totalMissoes > 0
-      ? Math.round(
-          sessoes.reduce((a, s) => a + (s.percentual || 0), 0) / totalMissoes,
-        )
-      : 0;
-
-  // Agrupa por disciplina para o resumo
-  const porDisc = sessoes.reduce((acc, s) => {
-    if (!acc[s.disciplina]) acc[s.disciplina] = [];
-    acc[s.disciplina].push(s);
-    return acc;
-  }, {});
 
   return (
     <div
@@ -1308,7 +1328,45 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
         animation: "fadeIn 0.3s ease",
       }}
     >
-      {/* Cards de resumo */}
+      {/* Seletor de período */}
+      <div
+        style={{
+          display: "flex",
+          gap: 8,
+          background: c.card,
+          borderRadius: 16,
+          padding: "8px",
+          border: `1.5px solid ${c.borda}`,
+        }}
+      >
+        {[
+          { id: "7dias", label: "📅 Últimos 7 dias", dias: 7 },
+          { id: "30dias", label: "📆 Últimos 30 dias", dias: 30 },
+          { id: "todo", label: "📚 Todo histórico", dias: "todo" },
+        ].map((opcao) => (
+          <button
+            key={opcao.id}
+            onClick={() => setPeriodo(opcao.id)}
+            style={{
+              flex: 1,
+              padding: "8px 6px",
+              borderRadius: 12,
+              border: `2px solid ${periodo === opcao.id ? c.accent : c.borda}`,
+              background:
+                periodo === opcao.id ? `${c.accent}15` : "transparent",
+              color: periodo === opcao.id ? c.accent : c.textoSub,
+              fontWeight: 700,
+              fontSize: "0.72rem",
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            {opcao.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Cards de resumo (já filtrados) */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
         {[
           { label: "Missões feitas", valor: totalMissoes, icone: "🏆" },
@@ -1360,7 +1418,7 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
         ))}
       </div>
 
-      {/* Resumo por disciplina */}
+      {/* Resumo por disciplina (filtrado) */}
       {Object.keys(porDisc).length > 0 && (
         <div
           style={{
@@ -1380,7 +1438,13 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
               margin: "0 0 12px",
             }}
           >
-            Por disciplina
+            Por disciplina (
+            {periodo === "7dias"
+              ? "últimos 7 dias"
+              : periodo === "30dias"
+                ? "últimos 30 dias"
+                : "todo histórico"}
+            )
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {Object.entries(porDisc).map(([disc, lista]) => {
@@ -1461,7 +1525,7 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
         </div>
       )}
 
-      {/* Tabela de histórico */}
+      {/* Tabela de histórico (filtrada) */}
       <div
         style={{
           background: c.card,
@@ -1486,10 +1550,12 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
               margin: 0,
             }}
           >
-            Histórico de missões
+            Histórico de missões{" "}
+            {periodo !== "todo" &&
+              `(${periodo === "7dias" ? "últimos 7 dias" : "últimos 30 dias"})`}
           </p>
         </div>
-        {sessoes.length === 0 ? (
+        {sessoesFiltradas.length === 0 ? (
           <div
             style={{
               padding: "32px 16px",
@@ -1499,12 +1565,12 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
           >
             <div style={{ fontSize: "2rem", marginBottom: 8 }}>📭</div>
             <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 700 }}>
-              Nenhuma missão concluída ainda
+              Nenhuma missão no período selecionado
             </p>
           </div>
         ) : (
           <div style={{ overflowX: "auto" }}>
-            {sessoes.map((s, i) => {
+            {sessoesFiltradas.map((s, i) => {
               const disc = DISC_INFO[s.disciplina] || {
                 label: s.disciplina,
                 icone: "📚",
@@ -1520,7 +1586,9 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
                   style={{
                     padding: "12px 16px",
                     borderBottom:
-                      i < sessoes.length - 1 ? `1px solid ${c.borda}` : "none",
+                      i < sessoesFiltradas.length - 1
+                        ? `1px solid ${c.borda}`
+                        : "none",
                     display: "flex",
                     flexDirection: "column",
                     gap: 6,
@@ -1592,22 +1660,22 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
       {/* Botão exportar PDF */}
       <button
         onClick={exportarPDF}
-        disabled={sessoes.length === 0}
+        disabled={sessoesFiltradas.length === 0}
         style={{
           width: "100%",
           padding: "14px",
           borderRadius: 14,
           border: "none",
           background:
-            sessoes.length === 0
+            sessoesFiltradas.length === 0
               ? e
                 ? "#1E3347"
                 : "#EEF2F7"
               : "linear-gradient(135deg, #4F46E5, #7C3AED)",
-          color: sessoes.length === 0 ? c.textoSub : "#fff",
+          color: sessoesFiltradas.length === 0 ? c.textoSub : "#fff",
           fontWeight: 800,
           fontSize: "0.95rem",
-          cursor: sessoes.length === 0 ? "not-allowed" : "pointer",
+          cursor: sessoesFiltradas.length === 0 ? "not-allowed" : "pointer",
           fontFamily: "'Nunito', sans-serif",
           display: "flex",
           alignItems: "center",
@@ -1615,7 +1683,7 @@ function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
           gap: 8,
         }}
       >
-        🖨️ Imprimir / Salvar como PDF
+        🖨️ Imprimir / Salvar como PDF ({totalMissoes} missões)
       </button>
     </div>
   );
@@ -1647,10 +1715,10 @@ export default function PaisPage({ userPai, timer }) {
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [secao, setSecao] = useState("visao");
-const [config, setConfig] = useState({
-  serie: localStorage.getItem("eduplay_config_serie") || "6ano",
-  bimestre: localStorage.getItem("eduplay_config_bimestre") || "1bimestre",
-  tempoEstudo: 45,
+  const [config, setConfig] = useState({
+    serie: localStorage.getItem("eduplay_config_serie") || "6ano",
+    bimestre: localStorage.getItem("eduplay_config_bimestre") || "1bimestre",
+    tempoEstudo: 45,
   });
   const [gerando, setGerando] = useState(null);
   const [mensagem, setMensagem] = useState(null);
@@ -1751,7 +1819,7 @@ const [config, setConfig] = useState({
         let sessoes = [];
         let prog = null;
         try {
-          sessoes = await getSessoesQuiz(crianca.id);
+          sessoes = await getMissoesConcluidas(crianca.id);
           setSessoesQuiz(sessoes);
         } catch (err) {
           console.warn("Sessões quiz:", err);
@@ -1867,7 +1935,7 @@ const [config, setConfig] = useState({
     setMensagem(null);
     try {
       const serie = filho.serie || config.serie;
-      const temaAtual = `Conteúdo do ${SERIES.find((s) => s.id === serie)?.label} - ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`;
+      const temaAtual = `Conteudo do ${SERIES.find((s) => s.id === serie)?.label} - ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`;
       const missao = await gerarMissaoIA({
         disciplina: disciplinaId,
         serie,
@@ -1893,7 +1961,7 @@ const [config, setConfig] = useState({
     } catch (err) {
       setMensagem({
         tipo: "erro",
-        titulo: "Erro ao gerar missão.",
+        titulo: "Erro ao gerar missao.",
         topicos: [],
       });
     } finally {
@@ -3784,7 +3852,7 @@ const [config, setConfig] = useState({
             c={c}
             e={e}
             filho={filho}
-            getSessoesQuiz={getSessoesQuiz}
+            getMissoesConcluidas={getMissoesConcluidas}
             getProgresso={getProgresso}
           />
         )}

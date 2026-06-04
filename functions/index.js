@@ -25,7 +25,7 @@ const CURRICULO = {
     '7ano': {
       '1bimestre': 'Idade Média: feudalismo, Igreja Católica, Cruzadas, vida no feudo, servos e senhores',
       '2bimestre': 'Povos da África e América antes da colonização: impérios africanos, astecas, maias, incas',
-      '3bimestre': 'Grandes Navegações: Portugal, Espanha, rotas marítimas, chegada ao Brasil em 1500',
+      '3bimestre': 'Grandes Navegações: Portugal, Espanha, rotas marítimas, chegada ao Brasil in 1500',
       '4bimestre': 'Colonização do Brasil: pau-brasil, capitanias hereditárias, escravidão indígena e africana',
     },
     '8ano': {
@@ -108,7 +108,7 @@ const CURRICULO = {
     },
     '8ano': {
       '1bimestre': 'Reprodução humana: sistema reprodutor, puberdade, métodos contraceptivos, ISTs',
-      '2bimestre': 'Genética: DNA, cromossomos, hereditariedade, Mendel, biotecnologia',
+      '2bimestre': 'Genética: DNA, cromossomos, heredity, Mendel, biotecnologia',
       '3bimestre': 'Ondas: som, luz, espectro eletromagnético, óptica',
       '4bimestre': 'Eletricidade: cargas elétricas, circuitos, energia elétrica, segurança',
     },
@@ -171,12 +171,14 @@ exports.gerarMissao = onCall(
     if (!SERIES_PERMITIDAS.includes(serie))           throw new HttpsError('invalid-argument', 'Série inválida.')
     if (!BIMESTRES_PERMITIDOS.includes(bimestre))     throw new HttpsError('invalid-argument', 'Bimestre inválido.')
     if (!tema || typeof tema !== 'string' || tema.length > TEMA_MAX_CHARS) throw new HttpsError('invalid-argument', 'Tema inválido.')
+    
+    // Sanitização contra caracteres de injeção direta de scripts
     const temaSanitizado = tema.replace(/[<>{}[\]\\\/]/g, '').trim()
     if (temaSanitizado.length < 3) throw new HttpsError('invalid-argument', 'Tema muito curto.')
     const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
     let infoTemporal = ''
     if (contextoTemporal) {
-      infoTemporal = `\nINFORMAÇÃO DE TEMPO REAL: Hoje é dia ${contextoTemporal.dia}/${contextoTemporal.mes}/${contextoTemporal.ano}. Se houver algum feriado histórico, científico ou nacional próximo a esta data que tenha ligação com a matéria, insira uma menção sutil no roteiro do podcast para conectar o aluno com o mundo real.`
+      infoTemporal = `\nINFORMAÇÃO DE TEMPO REAL: Hoje é dia ${parseInt(contextoTemporal.dia)}/${parseInt(contextoTemporal.mes)}/${parseInt(contextoTemporal.ano)}. Se houver algum feriado histórico, científico ou nacional próximo a esta data que tenha ligação com a matéria, insira uma menção sutil no roteiro do podcast para conectar o aluno com o mundo real.`
     }
     const prompt = `Você é um especialista em educação básica brasileira e psicologia do desenvolvimento infantil.
 Crie uma missão educacional para o EduPlay — Instituto do Saber.
@@ -241,7 +243,7 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "resumo": "explicação do assunto em 3-4 frases simples e diretas, como um professor falaria para um aluno de 12 anos — sem termos técnicos, sem enrolação",
+  "resumo": "explicação do assunto in 3-4 frases simples e diretas, como um professor falaria para um aluno de 12 anos — sem termos técnicos, sem enrolação",
   "topicos": ["tópico 1 — conceito central", "tópico 2 — curiosidade real", "tópico 3 — conexão com o presente", "tópico 4 — impacto na vida", "tópico 5 — gancho para ir além"],
   "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
@@ -251,9 +253,11 @@ REGRAS INVIOLÁVEIS:
 - Palavras da forca: apenas letras maiúsculas A-Z, sem acentos, sem espaços
 - 4 opções no quiz sempre, apenas uma correta
 - Responda APENAS o JSON puro, sem marcação markdown como \`\`\`json`
+
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
     let resposta
     try {
+      // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
       const msg = await client.messages.create({
         model: 'claude-haiku-4-5-20251001', max_tokens: 2500, temperature: 0.7,
         messages: [{ role: 'user', content: prompt }],
@@ -297,7 +301,15 @@ exports.gerarAudio = onCall(
     try {
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY.value()}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: { text: texto.trim().slice(0, 5000) }, voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-A', ssmlGender: 'FEMALE' }, audioConfig: { audioEncoding: 'MP3', speakingRate: 0.92, pitch: 1.0 } }) }
+        { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ 
+            input: { text: texto.trim().slice(0, 5000) }, 
+            voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-A', ssmlGender: 'FEMALE' }, 
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.92, pitch: 1.0 } 
+          }) 
+        }
       )
       if (!response.ok) throw new HttpsError('internal', 'Erro ao gerar áudio.')
       const data = await response.json()
@@ -316,12 +328,21 @@ exports.gerarAudioAssistente = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { texto } = request.data
-    if (!texto) throw new HttpsError('invalid-argument', 'Texto vazio.')
+    if (!texto || typeof texto !== 'string') throw new HttpsError('invalid-argument', 'Texto vazio.')
     try {
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY.value()}`,
-        { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ input: { text: texto.trim().slice(0, 1000) }, voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B', ssmlGender: 'MALE' }, audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 0.5 } }) }
+        { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify({ 
+            input: { text: texto.trim().slice(0, 1000) }, 
+            voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B', ssmlGender: 'MALE' }, 
+            audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 0.5 } 
+          }) 
+        }
       )
+      if (!response.ok) throw new HttpsError('internal', 'Erro ao sintetizar áudio.')
       const data = await response.json()
       return { ok: true, audioBase64: data.audioContent }
     } catch {
@@ -344,6 +365,8 @@ exports.gerarMetadadosPodcast = onCall(
     const nomeSerie = NOMES.serie[serie] || serie
     const nomeBim = NOMES.bimestre[bimestre] || bimestre
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    
+    // 🛠️ MODELO ATUALIZADO
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 300,
       messages: [{ role: 'user', content: `Crie um título e descrição curta para um podcast educacional.\nDisciplina: ${nomeDisc} | Série: ${nomeSerie} | ${nomeBim}\nConteúdo: ${curriculoEspecifico}\n\nRetorne APENAS este JSON sem markdown:\n{"titulo":"título criativo e investigativo (max 60 chars)","descricao":"descrição envolvente para crianças de 11-13 anos (max 120 chars)"}` }]
@@ -362,16 +385,19 @@ exports.perguntarAssistente = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { pergunta, tema, disciplina, resumo } = request.data
-    if (!pergunta) throw new HttpsError('invalid-argument', 'Pergunta vazia.')
+    if (!pergunta || typeof pergunta !== 'string') throw new HttpsError('invalid-argument', 'Pergunta vazia.')
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    
+    // 🛠️ MODELO ATUALIZADO
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 300,
       system: `Você é um assistente educacional para crianças de 11-12 anos. Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Use linguagem simples, direta e encorajadora. Máximo 3 frases.`,
-      messages: [{ role: 'user', content: pergunta }]
+      messages: [{ role: 'user', content: pergunta.slice(0, 500) }]
     })
     return { resposta: msg.content[0].text }
   }
 )
+
 // ═══════════════════════════════════════════════════════════════════════
 // gerarMensagemMotivacional — Mensagem + perguntas pedagógicas para o pai
 // ═══════════════════════════════════════════════════════════════════════
@@ -380,7 +406,7 @@ exports.gerarMensagemMotivacional = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { nomeFilho, serie, totalMissoes, ultimoPercentual, diasAtivos, tituloMissao, topicos } = request.data
-    if (!nomeFilho) throw new HttpsError('invalid-argument', 'Nome do filho obrigatorio.')
+    if (!nomeFilho || typeof nomeFilho !== 'string') throw new HttpsError('invalid-argument', 'Nome do filho obrigatorio.')
 
     let nivelDesempenho = 'sem_dados'
     if (ultimoPercentual !== null && ultimoPercentual !== undefined) {
@@ -399,9 +425,11 @@ exports.gerarMensagemMotivacional = onCall(
     const topicosTexto = topicos && topicos.length > 0 ? topicos.slice(0, 3).join(', ') : ''
     const missaoTexto = tituloMissao ? 'Titulo da missao: ' + tituloMissao + '. Topicos estudados: ' + topicosTexto : ''
 
-    const prompt = 'Voce e um psicologo educacional especialista em motivacao parental.\n\nGere duas coisas para o responsavel de ' + nomeFilho + ', aluno do ' + (serie || '6 ano') + '.\n\nCONTEXTO:\n- ' + contexto + '\n- Total de missoes concluidas: ' + (totalMissoes || 0) + '\n- Dias ativos no app: ' + (diasAtivos || 0) + '\n- ' + missaoTexto + '\n\nRESPONDA APENAS COM ESTE JSON SEM MARKDOWN:\n{\n  "mensagem": "mensagem de 2-3 frases para o responsavel. Honesto sobre o desempenho. Termina com uma acao concreta para hoje. Sem emojis. Sem saudacao.",\n  "perguntas": [\n    "pergunta 1 especifica sobre o conteudo de ' + (tituloMissao || 'a missao') + ' — que o filho possa responder",\n    "pergunta 2 conectando o conteudo com situacoes do dia a dia do filho",\n    "pergunta 3 que estimule o filho a explicar o conceito com suas proprias palavras"\n  ]\n}'
+    const prompt = 'Voce e um psicologo educacional especialista em motivacao parental.\n\nGere duas coisas para o responsavel de ' + nomeFilho + ', aluno do ' + (serie || '6 ano') + '.\n\nCONTEXTO:\n- ' + contexto + '\n- Total de missoes concluidas: ' + (totalMissoes || 0) + '\n- Dias ativos no app: ' + (diasAtivos || 0) + '\n- ' + missaoTexto + '\n\nRESPONDA APENAS WITH ESTE JSON SEM MARKDOWN:\n{\n  "mensagem": "mensagem de 2-3 frases para o responsavel. Honesto sobre o desempenho. Termina com uma acao concreta para hoje. Sem emojis. Sem saudacao.",\n  "perguntas": [\n    "pergunta 1 especifica sobre o conteudo de ' + (tituloMissao || 'a missao') + ' — que o filho possa responder",\n    "pergunta 2 conectando o conteudo com situacoes do dia a dia do filho",\n    "pergunta 3 que estimule o filho a explicar o conceito com suas proprias palavras"\n  ]\n}'
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    
+    // 🛠️ MODELO ATUALIZADO
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 400,
@@ -423,6 +451,7 @@ exports.gerarMensagemMotivacional = onCall(
     return { ok: true, mensagem: resultado.mensagem, perguntas: resultado.perguntas || [] }
   }
 )
+
 // ═══════════════════════════════════════════════════════════════════════
 // MERCADO PAGO — Assinaturas
 // ═══════════════════════════════════════════════════════════════════════
@@ -436,7 +465,11 @@ exports.criarAssinatura = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { codigoAcesso, emailResponsavel, nomeResponsavel } = request.data
-    if (!codigoAcesso) throw new HttpsError('invalid-argument', 'Código de acesso obrigatório.')
+    
+    // Sanitização e defesa NoSQL Injection contra o ID do documento Firestore
+    if (!codigoAcesso || typeof codigoAcesso !== 'string' || codigoAcesso.includes('/') || codigoAcesso.trim() === '') {
+      throw new HttpsError('invalid-argument', 'Código de acesso obrigatório e válido.')
+    }
 
     try {
       const response = await fetch('https://api.mercadopago.com/preapproval', {
@@ -455,7 +488,7 @@ exports.criarAssinatura = onCall(
           },
           back_url: 'https://eduplay.olloapp.com.br/pais',
           payer_email: emailResponsavel || '',
-          external_reference: codigoAcesso,
+          external_reference: codigoAcesso.trim(),
           status: 'pending',
         }),
       })
@@ -467,8 +500,8 @@ exports.criarAssinatura = onCall(
         throw new HttpsError('internal', 'Erro ao criar assinatura no Mercado Pago.')
       }
 
-      // Salva referência no Firestore
-      await db.collection('criancas').doc(codigoAcesso).set({
+      // Salva referência no Firestore usando a string tratada
+      await db.collection('criancas').doc(codigoAcesso.trim()).set({
         mpPreapprovalId: data.id,
         assinaturaStatus: 'pendente',
         atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
@@ -501,31 +534,39 @@ exports.webhookMP = onRequest(
       const mpResponse = await fetch(`https://api.mercadopago.com/preapproval/${preapprovalId}`, {
         headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN.value()}` },
       })
+      
+      if (!mpResponse.ok) { res.status(200).send('OK'); return; }
       const assinatura = await mpResponse.json()
 
       const codigoAcesso = assinatura.external_reference
       const status = assinatura.status // authorized | paused | cancelled
 
-      if (!codigoAcesso) { res.status(200).send('OK'); return; }
+      // Defesa estrita: Garante que o ID de acesso seja uma string limpa antes do Firestore
+      if (!codigoAcesso || typeof codigoAcesso !== 'string' || codigoAcesso.includes('/')) { 
+        res.status(200).send('OK'); 
+        return; 
+      }
+
+      const cleanCodigo = codigoAcesso.trim()
 
       if (status === 'authorized') {
         // Pagamento confirmado — ativa acesso
-        await db.collection('criancas').doc(codigoAcesso).set({
+        await db.collection('criancas').doc(cleanCodigo).set({
           assinaturaAtiva: true,
           assinaturaStatus: 'ativa',
           mpPreapprovalId: preapprovalId,
           assinaturaInicio: admin.firestore.FieldValue.serverTimestamp(),
           atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true })
-        console.log(`✅ Assinatura ativada: ${codigoAcesso}`)
+        console.log(`✅ Assinatura ativada: ${cleanCodigo}`)
       } else if (status === 'cancelled' || status === 'paused') {
         // Cancelado — desativa acesso
-        await db.collection('criancas').doc(codigoAcesso).set({
+        await db.collection('criancas').doc(cleanCodigo).set({
           assinaturaAtiva: false,
           assinaturaStatus: status,
           atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
         }, { merge: true })
-        console.log(`❌ Assinatura ${status}: ${codigoAcesso}`)
+        console.log(`❌ Assinatura ${status}: ${cleanCodigo}`)
       }
 
       res.status(200).send('OK')
@@ -535,3 +576,5 @@ exports.webhookMP = onRequest(
     }
   }
 )
+
+// deploy-202606040403

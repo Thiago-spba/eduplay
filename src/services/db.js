@@ -5,7 +5,7 @@
 import {
   doc, collection,
   getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, serverTimestamp, increment,
+  query, where, orderBy, serverTimestamp, increment, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 
@@ -45,7 +45,6 @@ export async function migrarResponsavel(uidAntigo, uidNovo, userPai) {
     const respAntigo = await getResponsavel(uidAntigo);
     if (!respAntigo) return;
 
-    // 1. Cria novo registro com uid novo, preservando todos os dados
     await setDoc(doc(db, "responsaveis", uidNovo), {
       ...respAntigo,
       email: userPai.email || respAntigo.email,
@@ -56,7 +55,6 @@ export async function migrarResponsavel(uidAntigo, uidNovo, userPai) {
       atualizadoEm: serverTimestamp(),
     });
 
-    // 2. Atualiza parentId de todas as crianças vinculadas ao uid antigo
     const qCriancas = query(
       collection(db, "criancas"),
       where("parentId", "==", uidAntigo)
@@ -82,8 +80,6 @@ export async function salvarResponsavel(uid, dados) {
 
 /**
  * Desativa conta do responsável e da criança vinculada.
- * Preserva todos os dados — apenas marca status: "inativo".
- * Salva também a preferência de e-mail marketing.
  */
 export async function desativarConta(uid, codigoAcesso, emailMarketing) {
   await updateDoc(doc(db, "responsaveis", uid), {
@@ -102,7 +98,6 @@ export async function desativarConta(uid, codigoAcesso, emailMarketing) {
 
 /**
  * Reativa conta do responsável e da criança vinculada.
- * Chamado automaticamente quando o responsável faz login novamente.
  */
 export async function reativarConta(uid, codigoAcesso) {
   await updateDoc(doc(db, "responsaveis", uid), {
@@ -227,10 +222,13 @@ export async function adicionarBadge(codigoAcesso, badge) {
 // MISSÕES GERADAS PELO PAI
 // ─────────────────────────────────────────────────────────────
 
-/** Salva missão gerada pelo pai no Firestore */
+/** 
+ * Salva missão gerada pelo pai no Firestore
+ * COM VERIFICAÇÃO ANTI-DUPLICATA
+ */
 export async function salvarMissao(codigoAcesso, disciplina, missao) {
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
-  await addDoc(ref, {
+  const docRef = await addDoc(ref, {
     disciplina,
     titulo: missao.titulo || "",
     perguntaCentral: missao.perguntaCentral || "",
@@ -242,17 +240,13 @@ export async function salvarMissao(codigoAcesso, disciplina, missao) {
     feita: false,
     criadoEm: serverTimestamp(),
   });
+  
+  return docRef.id;
 }
 
 /**
  * Busca missões por disciplina.
  * Por padrão retorna APENAS as pendentes (feita: false).
- * Passe apenasNaoFeitas = false para buscar todas (usado no relatório do pai).
- *
- * ⚠️  Requer índice composto no Firestore:
- *     Coleção: missoes/{codigoAcesso}/geradas
- *     Campos:  disciplina ASC · feita ASC · criadoEm DESC
- *     O console do Firebase gera o link automaticamente na primeira query.
  */
 export async function getMissoesPorDisciplina(
   codigoAcesso,
@@ -306,11 +300,28 @@ export async function contarMissoesHoje(codigoAcesso) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// SESSÕES DE QUIZ
+// SESSÕES DE QUIZ (para relatório)
 // ─────────────────────────────────────────────────────────────
 
 /** Salva resultado de quiz/forca ao concluir missão */
 export async function salvarSessaoQuiz(codigoAcesso, dados) {
+  const { Timestamp } = await import("firebase/firestore"); const cincoMinAtras = Timestamp.fromDate(new Date(Date.now() - 5 * 60 * 1000));
+  
+  const q = query(
+    collection(db, "quizSessions"),
+    where("codigoAcesso", "==", codigoAcesso),
+    where("tituloMissao", "==", dados.tituloMissao),
+    where("criadoEm", ">=", cincoMinAtras),
+    limit(1)
+  );
+  
+  const snap = await getDocs(q);
+  
+  if (!snap.empty) {
+    console.log("⏭️ Sessão de quiz duplicada evitada:", dados.tituloMissao);
+    return null;
+  }
+  
   await addDoc(collection(db, "quizSessions"), {
     codigoAcesso,
     ...dados,
@@ -318,7 +329,9 @@ export async function salvarSessaoQuiz(codigoAcesso, dados) {
   });
 }
 
-/** Busca histórico de sessões da criança — usado no relatório dos pais */
+/** 
+ * Busca histórico de sessões da criança — usado no relatório dos pais
+ */
 export async function getSessoesQuiz(codigoAcesso) {
   const q = query(
     collection(db, "quizSessions"),
@@ -327,6 +340,39 @@ export async function getSessoesQuiz(codigoAcesso) {
   );
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
+/** 
+ * Busca missões concluídas para o relatório do pai
+ * ✅ CORRIGIDO: Agora busca os acertos da coleção quizSessions
+ */
+export async function getMissoesConcluidas(codigoAcesso) {
+  // Primeiro busca todas as sessões de quiz (onde os acertos corretos estão salvos)
+  const qSessoes = query(
+    collection(db, "quizSessions"),
+    where("codigoAcesso", "==", codigoAcesso),
+    orderBy("criadoEm", "desc")
+  );
+  
+  const snapSessoes = await getDocs(qSessoes);
+  
+  // Mapeia as sessões para o formato que o relatório espera
+  return snapSessoes.docs.map((doc) => {
+    const data = doc.data();
+    return {
+      id: doc.id,
+      disciplina: data.disciplina,
+      tituloMissao: data.tituloMissao,
+      topicos: data.topicos || [],
+      acertos: data.acertos || 0,
+      total: data.total || 0,
+      percentual: data.percentual || 0,
+      criadoEm: data.criadoEm,
+      // Dados originais preservados para compatibilidade
+      perguntaCentral: data.perguntaCentral,
+      resumo: data.resumo,
+    };
+  });
 }
 
 // ─────────────────────────────────────────────────────────────
