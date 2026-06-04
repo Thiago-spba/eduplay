@@ -6,6 +6,24 @@ import { signInAnonymously } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { auth, db } from "../services/firebase";
 
+// ── Fingerprint de device ──
+async function gerarFingerprint() {
+  const nav = window.navigator;
+  const screen = window.screen;
+  const dados = [
+    nav.userAgent,
+    nav.language,
+    nav.hardwareConcurrency,
+    screen.width + 'x' + screen.height,
+    screen.colorDepth,
+    Intl.DateTimeFormat().resolvedOptions().timeZone,
+    nav.platform || '',
+  ].join('|');
+  const encoder = new TextEncoder();
+  const buffer = await crypto.subtle.digest('SHA-256', encoder.encode(dados));
+  return Array.from(new Uint8Array(buffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // ── Constantes ──
 const DISCIPLINAS = [
   { id: "historia", label: "História", icone: "📜", cor: "#C4A882" },
@@ -542,6 +560,24 @@ export default function DemoPage() {
         disciplina: disc.label,
         assunto: missaoGerada.titulo || disc.label,
       });
+
+      // Salva fingerprint no Firestore para bloquear reuso
+      try {
+        const fp = sessionStorage.getItem("demo_fp");
+        if (fp) {
+          const { setDoc, doc: fsDoc } = await import("firebase/firestore");
+          const { db: fsDb } = await import("./firebase" );
+          await setDoc(fsDoc(fsDb, "demos_fp", fp), {
+            usada: true,
+            disciplina: disc.label,
+            assunto: missaoGerada.titulo || disc.label,
+            criadoEm: new Date().toISOString(),
+          });
+        }
+      } catch (fpErr) {
+        console.warn("Fingerprint save error:", fpErr);
+      }
+
       setMissao(missaoGerada);
       setEtapa("missao");
     } catch (err) {
