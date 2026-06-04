@@ -1886,7 +1886,7 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
-        setConfig((prev) => ({ ...prev, serie: crianca.serie || "6ano" }));
+        setConfig((prev) => ({ ...prev, serie: localStorage.getItem("eduplay_config_serie") || crianca.serie || "6ano" }));
         const [missoes, qtdHoje] = await Promise.all([
           getTodasMissoes(crianca.id),
           contarMissoesHoje(crianca.id),
