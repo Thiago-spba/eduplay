@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
-import { signInAnonymously } from "firebase/auth";
+import { signInAnonymously, signOut } from "firebase/auth";
 import { auth } from "../services/firebase";
 import {
   getTodasMissoes,
@@ -139,13 +139,11 @@ export default function HomePage({ playerName }) {
   if (missoesFeitas >= 1 && diasSeguidos >= 1)
     badges.push({ icone: "💡", label: "Voltou para aprender" });
 
-  // ── Trocar usuário ──
+  // ── Trocar usuário (Correção de Importação) ──
   const trocarUsuario = async () => {
     localStorage.removeItem("eduplay_player_name");
     localStorage.removeItem("eduplay_codigo_acesso");
     try {
-      const { signOut } = await import("firebase/auth");
-      const { auth } = await import("../services/firebase");
       await signOut(auth);
     } catch {}
     window.location.replace("/");

@@ -1154,7 +1154,472 @@ function ModalExcluirConta({ c, e, onConfirmar, onCancelar, carregando }) {
     </div>
   );
 }
+// ═══════════════════════════════════════════════
+// RELATÓRIO — componente interno do PaisPage
+// ═══════════════════════════════════════════════
+const DISC_INFO = {
+  historia: { label: "História", icone: "📜", cor: "#C4A882" },
+  geografia: { label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
+  matematica: { label: "Matemática", icone: "📐", cor: "#6B5B95" },
+  ciencias: { label: "Ciências", icone: "🔬", cor: "#2E8B57" },
+  portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
+};
 
+function RelatorioTab({ c, e, filho, getSessoesQuiz, getProgresso }) {
+  const [sessoes, setSessoes] = useState([]);
+  const [progresso, setProgresso] = useState(null);
+  const [carregando, setCarregando] = useState(true);
+
+  useEffect(() => {
+    if (!filho?.codigoAcesso) return;
+    Promise.all([
+      getSessoesQuiz(filho.codigoAcesso),
+      getProgresso(filho.codigoAcesso),
+    ])
+      .then(([s, p]) => {
+        setSessoes(s);
+        setProgresso(p);
+        setCarregando(false);
+      })
+      .catch(() => setCarregando(false));
+  }, [filho?.codigoAcesso]);
+
+  const exportarPDF = () => {
+    const nomeFilho = filho?.nome || "Agente";
+    const dataHoje = new Date().toLocaleDateString("pt-BR");
+
+    const linhas = sessoes
+      .map((s, i) => {
+        const disc = DISC_INFO[s.disciplina] || {
+          label: s.disciplina,
+          icone: "📚",
+        };
+        const data = s.criadoEm?.toDate
+          ? s.criadoEm.toDate().toLocaleDateString("pt-BR")
+          : "—";
+        const nota =
+          s.total > 0 ? `${s.acertos}/${s.total} (${s.percentual}%)` : "—";
+        const topicos = Array.isArray(s.topicos) ? s.topicos.join(", ") : "—";
+        return `
+        <tr style="background:${i % 2 === 0 ? "#f9f9f9" : "#ffffff"}">
+          <td style="padding:8px 10px;border-bottom:1px solid #eee">${data}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee">${disc.icone} ${disc.label}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;font-weight:600">${s.tituloMissao || "—"}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;font-size:0.82em;color:#555">${topicos}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid #eee;text-align:center;font-weight:700;color:${s.percentual >= 70 ? "#2E8B57" : "#C0392B"}">${nota}</td>
+        </tr>`;
+      })
+      .join("");
+
+    const totalMissoes = sessoes.length;
+    const media =
+      totalMissoes > 0
+        ? Math.round(
+            sessoes.reduce((a, s) => a + (s.percentual || 0), 0) / totalMissoes,
+          )
+        : 0;
+
+    const html = `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <title>Relatório EduPlay — ${nomeFilho}</title>
+  <style>
+    body { font-family: 'Segoe UI', Arial, sans-serif; margin: 0; padding: 32px; color: #1A2B3C; }
+    .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:28px; padding-bottom:16px; border-bottom:3px solid #4F46E5; }
+    .logo { font-size:1.5rem; font-weight:900; color:#4F46E5; }
+    .logo span { color:#1A2B3C; }
+    .subtitulo { font-size:0.85rem; color:#666; margin-top:4px; }
+    .stats { display:flex; gap:16px; margin-bottom:24px; }
+    .stat { background:#F5F3FF; border-radius:12px; padding:14px 20px; flex:1; text-align:center; border:1px solid #E0D9FF; }
+    .stat-num { font-size:1.8rem; font-weight:900; color:#4F46E5; }
+    .stat-label { font-size:0.78rem; color:#666; margin-top:2px; }
+    table { width:100%; border-collapse:collapse; font-size:0.88rem; }
+    thead tr { background:#4F46E5; color:#fff; }
+    thead td { padding:10px; font-weight:700; }
+    .footer { margin-top:28px; font-size:0.75rem; color:#999; text-align:center; border-top:1px solid #eee; padding-top:12px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div>
+      <div class="logo">EduPlay <span>Instituto do Saber</span></div>
+      <div class="subtitulo">Relatório de Desempenho — gerado em ${dataHoje}</div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:1.1rem;font-weight:800">${nomeFilho}</div>
+      <div style="font-size:0.8rem;color:#666">${filho?.serie ? filho.serie.replace("ano", "º ano") : ""}</div>
+    </div>
+  </div>
+  <div class="stats">
+    <div class="stat"><div class="stat-num">${totalMissoes}</div><div class="stat-label">Missões concluídas</div></div>
+    <div class="stat"><div class="stat-num">${media}%</div><div class="stat-label">Média de acertos</div></div>
+    <div class="stat"><div class="stat-num">${progresso?.diasSeguidos || 0}</div><div class="stat-label">Dias seguidos</div></div>
+    <div class="stat"><div class="stat-num">${progresso?.diasAtivos?.length || 0}</div><div class="stat-label">Dias ativos</div></div>
+  </div>
+  <table>
+    <thead><tr>
+      <td>Data</td><td>Disciplina</td><td>Missão</td><td>Tópicos</td><td style="text-align:center">Resultado</td>
+    </tr></thead>
+    <tbody>${linhas || '<tr><td colspan="5" style="text-align:center;padding:20px;color:#999">Nenhuma missão concluída ainda</td></tr>'}</tbody>
+  </table>
+  <div class="footer">EduPlay — Instituto do Saber &nbsp;|&nbsp; Relatório gerado automaticamente &nbsp;|&nbsp; ${dataHoje}</div>
+</body>
+</html>`;
+
+    const janela = window.open("", "_blank");
+    janela.document.write(html);
+    janela.document.close();
+    setTimeout(() => janela.print(), 600);
+  };
+
+  if (carregando) {
+    return (
+      <div
+        style={{ textAlign: "center", padding: "40px 0", color: c.textoSub }}
+      >
+        <div style={{ fontSize: "2rem", marginBottom: 12 }}>📋</div>
+        <p style={{ margin: 0, fontWeight: 700 }}>Carregando relatório...</p>
+      </div>
+    );
+  }
+
+  const totalMissoes = sessoes.length;
+  const media =
+    totalMissoes > 0
+      ? Math.round(
+          sessoes.reduce((a, s) => a + (s.percentual || 0), 0) / totalMissoes,
+        )
+      : 0;
+
+  // Agrupa por disciplina para o resumo
+  const porDisc = sessoes.reduce((acc, s) => {
+    if (!acc[s.disciplina]) acc[s.disciplina] = [];
+    acc[s.disciplina].push(s);
+    return acc;
+  }, {});
+
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
+        animation: "fadeIn 0.3s ease",
+      }}
+    >
+      {/* Cards de resumo */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+        {[
+          { label: "Missões feitas", valor: totalMissoes, icone: "🏆" },
+          { label: "Média de acertos", valor: `${media}%`, icone: "🎯" },
+          {
+            label: "Dias seguidos",
+            valor: progresso?.diasSeguidos || 0,
+            icone: "🔥",
+          },
+          {
+            label: "Dias ativos",
+            valor: progresso?.diasAtivos?.length || 0,
+            icone: "📅",
+          },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            style={{
+              background: c.card,
+              border: `1.5px solid ${c.borda}`,
+              borderRadius: 14,
+              padding: "14px 12px",
+              textAlign: "center",
+            }}
+          >
+            <div style={{ fontSize: "1.5rem", marginBottom: 4 }}>
+              {stat.icone}
+            </div>
+            <div
+              style={{
+                fontSize: "1.4rem",
+                fontWeight: 900,
+                color: c.accent || "#4F46E5",
+              }}
+            >
+              {stat.valor}
+            </div>
+            <div
+              style={{
+                fontSize: "0.72rem",
+                color: c.textoSub,
+                fontWeight: 700,
+                marginTop: 2,
+              }}
+            >
+              {stat.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Resumo por disciplina */}
+      {Object.keys(porDisc).length > 0 && (
+        <div
+          style={{
+            background: c.card,
+            border: `1.5px solid ${c.borda}`,
+            borderRadius: 16,
+            padding: "16px 14px",
+          }}
+        >
+          <p
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 800,
+              color: c.textoSub,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              margin: "0 0 12px",
+            }}
+          >
+            Por disciplina
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {Object.entries(porDisc).map(([disc, lista]) => {
+              const info = DISC_INFO[disc] || {
+                label: disc,
+                icone: "📚",
+                cor: "#888",
+              };
+              const mediaDisc = Math.round(
+                lista.reduce((a, s) => a + (s.percentual || 0), 0) /
+                  lista.length,
+              );
+              return (
+                <div
+                  key={disc}
+                  style={{ display: "flex", alignItems: "center", gap: 10 }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1.2rem",
+                      width: 28,
+                      textAlign: "center",
+                    }}
+                  >
+                    {info.icone}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        marginBottom: 4,
+                      }}
+                    >
+                      <span
+                        style={{
+                          fontSize: "0.82rem",
+                          fontWeight: 700,
+                          color: c.texto,
+                        }}
+                      >
+                        {info.label}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: "0.78rem",
+                          fontWeight: 800,
+                          color: info.cor,
+                        }}
+                      >
+                        {mediaDisc}% · {lista.length}{" "}
+                        {lista.length === 1 ? "missão" : "missões"}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        height: 6,
+                        background: e ? "#1E3347" : "#EEF2F7",
+                        borderRadius: 99,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${mediaDisc}%`,
+                          background: info.cor,
+                          borderRadius: 99,
+                          transition: "width 0.8s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tabela de histórico */}
+      <div
+        style={{
+          background: c.card,
+          border: `1.5px solid ${c.borda}`,
+          borderRadius: 16,
+          overflow: "hidden",
+        }}
+      >
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: `1.5px solid ${c.borda}`,
+          }}
+        >
+          <p
+            style={{
+              fontSize: "0.75rem",
+              fontWeight: 800,
+              color: c.textoSub,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              margin: 0,
+            }}
+          >
+            Histórico de missões
+          </p>
+        </div>
+        {sessoes.length === 0 ? (
+          <div
+            style={{
+              padding: "32px 16px",
+              textAlign: "center",
+              color: c.textoSub,
+            }}
+          >
+            <div style={{ fontSize: "2rem", marginBottom: 8 }}>📭</div>
+            <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 700 }}>
+              Nenhuma missão concluída ainda
+            </p>
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            {sessoes.map((s, i) => {
+              const disc = DISC_INFO[s.disciplina] || {
+                label: s.disciplina,
+                icone: "📚",
+                cor: "#888",
+              };
+              const data = s.criadoEm?.toDate
+                ? s.criadoEm.toDate().toLocaleDateString("pt-BR")
+                : "—";
+              const aprovado = (s.percentual || 0) >= 70;
+              return (
+                <div
+                  key={s.id || i}
+                  style={{
+                    padding: "12px 16px",
+                    borderBottom:
+                      i < sessoes.length - 1 ? `1px solid ${c.borda}` : "none",
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                    }}
+                  >
+                    <div
+                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    >
+                      <span style={{ fontSize: "1.1rem" }}>{disc.icone}</span>
+                      <span
+                        style={{
+                          fontSize: "0.85rem",
+                          fontWeight: 700,
+                          color: c.texto,
+                        }}
+                      >
+                        {s.tituloMissao || disc.label}
+                      </span>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: "0.78rem",
+                        fontWeight: 800,
+                        color: aprovado ? "#2E8B57" : "#C0392B",
+                        background: aprovado ? "#2E8B5715" : "#C0392B15",
+                        padding: "3px 8px",
+                        borderRadius: 8,
+                      }}
+                    >
+                      {s.acertos}/{s.total} — {s.percentual}%
+                    </span>
+                  </div>
+                  {Array.isArray(s.topicos) && s.topicos.length > 0 && (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                      {s.topicos.map((t, ti) => (
+                        <span
+                          key={ti}
+                          style={{
+                            fontSize: "0.68rem",
+                            color: disc.cor,
+                            fontWeight: 700,
+                            background: `${disc.cor}15`,
+                            padding: "2px 7px",
+                            borderRadius: 6,
+                          }}
+                        >
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <div style={{ fontSize: "0.7rem", color: c.textoSub }}>
+                    {data}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Botão exportar PDF */}
+      <button
+        onClick={exportarPDF}
+        disabled={sessoes.length === 0}
+        style={{
+          width: "100%",
+          padding: "14px",
+          borderRadius: 14,
+          border: "none",
+          background:
+            sessoes.length === 0
+              ? e
+                ? "#1E3347"
+                : "#EEF2F7"
+              : "linear-gradient(135deg, #4F46E5, #7C3AED)",
+          color: sessoes.length === 0 ? c.textoSub : "#fff",
+          fontWeight: 800,
+          fontSize: "0.95rem",
+          cursor: sessoes.length === 0 ? "not-allowed" : "pointer",
+          fontFamily: "'Nunito', sans-serif",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
+        }}
+      >
+        🖨️ Imprimir / Salvar como PDF
+      </button>
+    </div>
+  );
+}
 // ── Componente principal ──
 export default function PaisPage({ userPai, timer }) {
   const navigate = useNavigate();
@@ -1182,10 +1647,10 @@ export default function PaisPage({ userPai, timer }) {
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [secao, setSecao] = useState("visao");
-  const [config, setConfig] = useState({
-    serie: "6ano",
-    bimestre: "1bimestre",
-    tempoEstudo: 45,
+const [config, setConfig] = useState({
+  serie: localStorage.getItem("eduplay_config_serie") || "6ano",
+  bimestre: localStorage.getItem("eduplay_config_bimestre") || "1bimestre",
+  tempoEstudo: 45,
   });
   const [gerando, setGerando] = useState(null);
   const [mensagem, setMensagem] = useState(null);
@@ -2335,6 +2800,7 @@ export default function PaisPage({ userPai, timer }) {
           {[
             { id: "visao", label: "Visão Geral", icone: "📊" },
             { id: "missoes", label: "Missões", icone: "🤖" },
+            { id: "relatorio", label: "Relatório", icone: "📋" },
             { id: "config", label: "Config", icone: "⚙️" },
           ].map((aba) => (
             <button
@@ -3052,7 +3518,10 @@ export default function PaisPage({ userPai, timer }) {
                 {SERIES.map((s) => (
                   <button
                     key={s.id}
-                    onClick={() => setConfig({ ...config, serie: s.id })}
+                    onClick={() => {
+                      setConfig({ ...config, serie: s.id });
+                      localStorage.setItem("eduplay_config_serie", s.id);
+                    }}
                     style={{
                       padding: "8px 4px",
                       borderRadius: 10,
@@ -3092,7 +3561,10 @@ export default function PaisPage({ userPai, timer }) {
                 {BIMESTRES.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => setConfig({ ...config, bimestre: b.id })}
+                    onClick={() => {
+                      setConfig({ ...config, bimestre: b.id });
+                      localStorage.setItem("eduplay_config_bimestre", b.id);
+                    }}
                     style={{
                       padding: "8px 4px",
                       borderRadius: 10,
@@ -3307,6 +3779,15 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
+        {secao === "relatorio" && (
+          <RelatorioTab
+            c={c}
+            e={e}
+            filho={filho}
+            getSessoesQuiz={getSessoesQuiz}
+            getProgresso={getProgresso}
+          />
+        )}
         {secao === "config" && (
           <div
             style={{

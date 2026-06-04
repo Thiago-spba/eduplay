@@ -53,12 +53,21 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist-eduplay',
+    chunkSizeWarningLimit: 600, // Ajuste técnico fino para o tamanho tolerado do ecossistema PWA
     rollupOptions: {
       output: {
-        manualChunks: {
-          vendor:  ['react', 'react-dom'],
-          router:  ['react-router-dom'],
-          firebase: ['firebase/app', 'firebase/firestore'],
+        manualChunks(id) {
+          // Captura dinamicamente todas as extensões e submódulos do Firebase (auth, firestore, app)
+          // impedindo a importação mista de inflar o index-B2OnxhF4.js principal
+          if (id.includes('node_modules/firebase')) {
+            return 'firebase-core-vendor';
+          }
+          if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
+            return 'vendor-core';
+          }
+          if (id.includes('node_modules/react-router-dom')) {
+            return 'router-bundle';
+          }
         },
       },
     },

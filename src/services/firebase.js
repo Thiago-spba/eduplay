@@ -1,6 +1,6 @@
-import { initializeApp } from "firebase/app";
+import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-import { getAuth } from "firebase/auth";
+import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
 
@@ -13,9 +13,15 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+// Padrão Singleton: Garante instância única de segurança, evitando colisões no empacotamento do Vite
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 
 export const db        = getFirestore(app);
 export const auth      = getAuth(app);
 export const functions = getFunctions(app, "us-central1");
 export const storage   = getStorage(app);
+
+// Configuração explícita de persistência mobile para estabilidade de sessão e adequação à LGPD/ECA
+setPersistence(auth, browserLocalPersistence).catch((error) => {
+  console.error("Instituto do Saber - Falha ao definir diretrizes de persistência da sessão:", error);
+});

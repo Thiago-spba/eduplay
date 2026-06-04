@@ -48,12 +48,12 @@ export async function migrarResponsavel(uidAntigo, uidNovo, userPai) {
     // 1. Cria novo registro com uid novo, preservando todos os dados
     await setDoc(doc(db, "responsaveis", uidNovo), {
       ...respAntigo,
-      email:            userPai.email || respAntigo.email,
-      nomeResponsavel:  userPai.displayName || respAntigo.nomeResponsavel,
-      photoURL:         userPai.photoURL || respAntigo.photoURL || "",
-      uidMigradoDe:     uidAntigo,
-      migradoEm:        serverTimestamp(),
-      atualizadoEm:     serverTimestamp(),
+      email: userPai.email || respAntigo.email,
+      nomeResponsavel: userPai.displayName || respAntigo.nomeResponsavel,
+      photoURL: userPai.photoURL || respAntigo.photoURL || "",
+      uidMigradoDe: uidAntigo,
+      migradoEm: serverTimestamp(),
+      atualizadoEm: serverTimestamp(),
     });
 
     // 2. Atualiza parentId de todas as crianças vinculadas ao uid antigo
@@ -144,7 +144,7 @@ export async function getCriancaPorPai(uidPai) {
 export async function criarCrianca(codigoAcesso, dados) {
   await setDoc(doc(db, "criancas", codigoAcesso), {
     ...dados,
-    criadoEm:     serverTimestamp(),
+    criadoEm: serverTimestamp(),
     atualizadoEm: serverTimestamp(),
   });
 }
@@ -162,12 +162,12 @@ export async function atualizarCrianca(codigoAcesso, dados) {
 // ─────────────────────────────────────────────────────────────
 
 const PROGRESSO_INICIAL = {
-  diasAtivos:       [],
-  diasSeguidos:     0,
-  missoesFeitas:    0,
+  diasAtivos: [],
+  diasSeguidos: 0,
+  missoesFeitas: 0,
   missoesCompletas: [],
-  badges:           [],
-  ultimoAcesso:     null,
+  badges: [],
+  ultimoAcesso: null,
 };
 
 /** Busca progresso da criança */
@@ -185,13 +185,13 @@ export async function registrarAcessoDiario(codigoAcesso) {
 
   if (prog.diasAtivos.includes(hoje)) return prog;
 
-  const ontem    = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-  const ultimoDia    = prog.diasAtivos.sort().at(-1);
+  const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const ultimoDia = prog.diasAtivos.sort().at(-1);
   const diasSeguidos = ultimoDia === ontem ? prog.diasSeguidos + 1 : 1;
-  const novosDias    = [...prog.diasAtivos, hoje].slice(-90);
+  const novosDias = [...prog.diasAtivos, hoje].slice(-90);
 
   const atualizado = {
-    diasAtivos:   novosDias,
+    diasAtivos: novosDias,
     diasSeguidos,
     ultimoAcesso: serverTimestamp(),
   };
@@ -207,8 +207,8 @@ export async function registrarMissaoConcluida(codigoAcesso, chaveMissao) {
 
   await setDoc(doc(db, "progresso", codigoAcesso), {
     missoesCompletas: [...prog.missoesCompletas, chaveMissao],
-    missoesFeitas:    increment(1),
-    atualizadoEm:     serverTimestamp(),
+    missoesFeitas: increment(1),
+    atualizadoEm: serverTimestamp(),
   }, { merge: true });
 }
 
@@ -218,7 +218,7 @@ export async function adicionarBadge(codigoAcesso, badge) {
   if (prog.badges.includes(badge)) return;
 
   await setDoc(doc(db, "progresso", codigoAcesso), {
-    badges:       [...prog.badges, badge],
+    badges: [...prog.badges, badge],
     atualizadoEm: serverTimestamp(),
   }, { merge: true });
 }
@@ -232,30 +232,46 @@ export async function salvarMissao(codigoAcesso, disciplina, missao) {
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
   await addDoc(ref, {
     disciplina,
-    titulo:          missao.titulo          || "",
-    perguntaCentral: missao.perguntaCentral  || "",
-    resumo:          missao.resumo           || "",
-    topicos:         missao.topicos          || [],
-    roteiroPodcast:  missao.roteiroPodcast   || "",
-    video:           missao.video            || {},
-    atividades:      missao.atividades       || {},
-    feita:           false,
-    criadoEm:        serverTimestamp(),
+    titulo: missao.titulo || "",
+    perguntaCentral: missao.perguntaCentral || "",
+    resumo: missao.resumo || "",
+    topicos: missao.topicos || [],
+    roteiroPodcast: missao.roteiroPodcast || "",
+    video: missao.video || {},
+    atividades: missao.atividades || {},
+    feita: false,
+    criadoEm: serverTimestamp(),
   });
 }
 
-/** Busca missões disponíveis por disciplina */
-export async function getMissoesPorDisciplina(codigoAcesso, disciplina) {
+/**
+ * Busca missões por disciplina.
+ * Por padrão retorna APENAS as pendentes (feita: false).
+ * Passe apenasNaoFeitas = false para buscar todas (usado no relatório do pai).
+ *
+ * ⚠️  Requer índice composto no Firestore:
+ *     Coleção: missoes/{codigoAcesso}/geradas
+ *     Campos:  disciplina ASC · feita ASC · criadoEm DESC
+ *     O console do Firebase gera o link automaticamente na primeira query.
+ */
+export async function getMissoesPorDisciplina(
+  codigoAcesso,
+  disciplina,
+  apenasNaoFeitas = true
+) {
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
-  const q   = query(ref, where("disciplina", "==", disciplina), orderBy("criadoEm", "desc"));
+  const conditions = [where("disciplina", "==", disciplina)];
+  if (apenasNaoFeitas) conditions.push(where("feita", "==", false));
+  conditions.push(orderBy("criadoEm", "desc"));
+  const q = query(ref, ...conditions);
   const snap = await getDocs(q);
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
 /** Busca todas as missões de uma criança agrupadas por disciplina */
 export async function getTodasMissoes(codigoAcesso) {
-  const ref  = collection(db, "missoes", codigoAcesso, "geradas");
-  const q    = query(ref, orderBy("criadoEm", "desc"));
+  const ref = collection(db, "missoes", codigoAcesso, "geradas");
+  const q = query(ref, orderBy("criadoEm", "desc"));
   const snap = await getDocs(q);
   const missoes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -270,7 +286,7 @@ export async function getTodasMissoes(codigoAcesso) {
 export async function marcarMissaoFeita(codigoAcesso, missaoId) {
   const ref = doc(db, "missoes", codigoAcesso, "geradas", missaoId);
   await updateDoc(ref, {
-    feita:   true,
+    feita: true,
     feitaEm: serverTimestamp(),
   });
 }
@@ -280,7 +296,7 @@ export async function contarMissoesHoje(codigoAcesso) {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const ref  = collection(db, "missoes", codigoAcesso, "geradas");
+  const ref = collection(db, "missoes", codigoAcesso, "geradas");
   const snap = await getDocs(ref);
 
   return snap.docs.filter((d) => {
@@ -293,7 +309,7 @@ export async function contarMissoesHoje(codigoAcesso) {
 // SESSÕES DE QUIZ
 // ─────────────────────────────────────────────────────────────
 
-/** Salva resultado de quiz */
+/** Salva resultado de quiz/forca ao concluir missão */
 export async function salvarSessaoQuiz(codigoAcesso, dados) {
   await addDoc(collection(db, "quizSessions"), {
     codigoAcesso,
@@ -302,7 +318,7 @@ export async function salvarSessaoQuiz(codigoAcesso, dados) {
   });
 }
 
-/** Busca histórico de quiz da criança */
+/** Busca histórico de sessões da criança — usado no relatório dos pais */
 export async function getSessoesQuiz(codigoAcesso) {
   const q = query(
     collection(db, "quizSessions"),
@@ -328,8 +344,8 @@ export async function verificarDemo(uid) {
 export async function registrarDemo(uid, dados) {
   await setDoc(doc(db, "demos", uid), {
     ...dados,
-    usada:     true,
-    criadoEm:  serverTimestamp(),
+    usada: true,
+    criadoEm: serverTimestamp(),
   });
 }
 
