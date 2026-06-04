@@ -566,7 +566,7 @@ export default function DemoPage() {
         const fp = sessionStorage.getItem("demo_fp");
         if (fp) {
           const { setDoc, doc: fsDoc } = await import("firebase/firestore");
-          const { db: fsDb } = await import("./firebase" );
+          const { db: fsDb } = await import("../services/firebase");
           await setDoc(fsDoc(fsDb, "demos_fp", fp), {
             usada: true,
             disciplina: disc.label,
