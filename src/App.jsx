@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import {
   Routes,
   Route,
@@ -12,25 +12,45 @@ import { useTimer } from "./hooks/useTimer";
 import { useParentLock } from "./hooks/useParentLock";
 import { onAuthChange } from "./services/auth";
 
+// ── Estáticos — carregam sempre no boot ──
 import CodigoPage from "./pages/CodigoPage";
-import HomePage from "./pages/HomePage";
-import SubjectPage from "./pages/SubjectPage";
 import LandingPage from "./pages/LandingPage";
 import LoginPage from "./pages/LoginPage";
-import AgentePage from "./pages/AgentePage";
-import PaisPage from "./pages/PaisPage";
-import AdminPage from "./pages/AdminPage";
-import TermosPage from "./pages/TermosPage";
-import PrivacidadePage from "./pages/PrivacidadePage";
-import ConquistasPage from "./pages/ConquistasPage";
-import MapaPage from "./pages/MapaPage";
-import DemoPage from "./pages/DemoPage";
-
 import LockScreen from "./components/LockScreen";
 import FooterEduPlay from "./components/FooterEduPlay";
 
+// ── Lazy — carregam só quando a rota é acessada ──
+const HomePage = lazy(() => import("./pages/HomePage"));
+const SubjectPage = lazy(() => import("./pages/SubjectPage"));
+const AgentePage = lazy(() => import("./pages/AgentePage"));
+const PaisPage = lazy(() => import("./pages/PaisPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const TermosPage = lazy(() => import("./pages/TermosPage"));
+const PrivacidadePage = lazy(() => import("./pages/PrivacidadePage"));
+const ConquistasPage = lazy(() => import("./pages/ConquistasPage"));
+const MapaPage = lazy(() => import("./pages/MapaPage"));
+const DemoPage = lazy(() => import("./pages/DemoPage"));
+
 const ADMIN_EMAIL = "thiago.rpba@gmail.com";
 const ROTAS_PUBLICAS = ["/termos", "/privacidade"];
+
+// ── Fallback visual durante carregamento lazy ──
+const PageLoader = (
+  <div
+    style={{
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      height: "100vh",
+      background: "#0F1923",
+      color: "#00D4AA",
+      fontSize: "1.2rem",
+      fontFamily: "sans-serif",
+    }}
+  >
+    Carregando...
+  </div>
+);
 
 export default function App() {
   const { playerName, saveName, clearName } = usePlayer();
@@ -62,21 +82,23 @@ export default function App() {
   // ── 1. Páginas legais ──
   if (isRotaPublica) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100dvh",
-        }}
-      >
-        <div style={{ flex: 1 }}>
-          <Routes>
-            <Route path="/termos" element={<TermosPage />} />
-            <Route path="/privacidade" element={<PrivacidadePage />} />
-          </Routes>
+      <Suspense fallback={PageLoader}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100dvh",
+          }}
+        >
+          <div style={{ flex: 1 }}>
+            <Routes>
+              <Route path="/termos" element={<TermosPage />} />
+              <Route path="/privacidade" element={<PrivacidadePage />} />
+            </Routes>
+          </div>
+          <FooterEduPlay />
         </div>
-        <FooterEduPlay />
-      </div>
+      </Suspense>
     );
   }
 
@@ -87,14 +109,22 @@ export default function App() {
   }
 
   // ── 3. Demo ──
-  if (isRotaDemo) return <DemoPage />;
+  if (isRotaDemo) {
+    return (
+      <Suspense fallback={PageLoader}>
+        <DemoPage />
+      </Suspense>
+    );
+  }
 
   // ── 4. Agente (criança pelo link) ──
   if (isRotaAgente) {
     return (
-      <Routes>
-        <Route path="/agente/:codigo" element={<AgentePage />} />
-      </Routes>
+      <Suspense fallback={PageLoader}>
+        <Routes>
+          <Route path="/agente/:codigo" element={<AgentePage />} />
+        </Routes>
+      </Suspense>
     );
   }
 
@@ -103,23 +133,25 @@ export default function App() {
     if (!authChecked) return null;
     if (!paisUser) return <Navigate to="/login" replace />;
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          minHeight: "100dvh",
-        }}
-      >
-        <div style={{ flex: 1, paddingBottom: 80 }}>
-          <Routes>
-            <Route
-              path="/pais"
-              element={<PaisPage userPai={paisUser} timer={timer} />}
-            />
-          </Routes>
+      <Suspense fallback={PageLoader}>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            minHeight: "100dvh",
+          }}
+        >
+          <div style={{ flex: 1, paddingBottom: 80 }}>
+            <Routes>
+              <Route
+                path="/pais"
+                element={<PaisPage userPai={paisUser} timer={timer} />}
+              />
+            </Routes>
+          </div>
+          <FooterEduPlay />
         </div>
-        <FooterEduPlay />
-      </div>
+      </Suspense>
     );
   }
 
@@ -128,7 +160,11 @@ export default function App() {
     if (!authChecked) return null;
     if (!paisUser) return <Navigate to="/login" replace />;
     if (paisUser.email !== ADMIN_EMAIL) return <Navigate to="/" replace />;
-    return <AdminPage userPai={paisUser} />;
+    return (
+      <Suspense fallback={PageLoader}>
+        <AdminPage userPai={paisUser} />
+      </Suspense>
+    );
   }
 
   // ── 6.5. Responsável logado acessando "/" → manda direto pro painel ──
@@ -157,15 +193,17 @@ export default function App() {
 
   // ── 9. App da criança ──
   return (
-    <Routes>
-      <Route
-        path="/"
-        element={<HomePage playerName={playerName} timer={timer} />}
-      />
-      <Route path="/conquistas" element={<ConquistasPage />} />
-      <Route path="/mapa" element={<MapaPage />} />
-      <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
+    <Suspense fallback={PageLoader}>
+      <Routes>
+        <Route
+          path="/"
+          element={<HomePage playerName={playerName} timer={timer} />}
+        />
+        <Route path="/conquistas" element={<ConquistasPage />} />
+        <Route path="/mapa" element={<MapaPage />} />
+        <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </Suspense>
   );
 }

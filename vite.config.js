@@ -53,14 +53,27 @@ export default defineConfig({
   ],
   build: {
     outDir: 'dist-eduplay',
-    chunkSizeWarningLimit: 600, // Ajuste técnico fino para o tamanho tolerado do ecossistema PWA
+    chunkSizeWarningLimit: 600,
     rollupOptions: {
       output: {
         manualChunks(id) {
-          // Captura dinamicamente todas as extensões e submódulos do Firebase (auth, firestore, app)
-          // impedindo a importação mista de inflar o index-B2OnxhF4.js principal
-          if (id.includes('node_modules/firebase')) {
-            return 'firebase-core-vendor';
+          if (id.includes('node_modules/firebase/app') || id.includes('node_modules/@firebase/app')) {
+            return 'firebase-app';
+          }
+          if (id.includes('node_modules/firebase/auth') || id.includes('node_modules/@firebase/auth')) {
+            return 'firebase-auth';
+          }
+          if (id.includes('node_modules/firebase/firestore') || id.includes('node_modules/@firebase/firestore')) {
+            return 'firebase-firestore';
+          }
+          if (id.includes('node_modules/firebase/functions') || id.includes('node_modules/@firebase/functions')) {
+            return 'firebase-functions';
+          }
+          if (id.includes('node_modules/firebase/storage') || id.includes('node_modules/@firebase/storage')) {
+            return 'firebase-storage';
+          }
+          if (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase')) {
+            return 'firebase-misc';
           }
           if (id.includes('node_modules/react') || id.includes('node_modules/react-dom')) {
             return 'vendor-core';

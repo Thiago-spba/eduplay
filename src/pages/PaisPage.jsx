@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import { logout } from "../services/auth";
@@ -1766,6 +1766,168 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
   );
 }
 // ── Componente principal ──
+
+// ═══════════════════════════════════════════════
+// ORIENTACAO FAMILIAR
+// ═══════════════════════════════════════════════
+const SUGESTOES_ORIENTACAO = [
+  "Como criar uma rotina de estudos em casa?",
+  "Meu filho nao quer fazer dever de casa. O que faco?",
+  "Como lidar com notas baixas sem criar conflito?",
+  "Como saber se meu filho tem dificuldade de aprendizagem?",
+  "Como equilibrar tempo de tela e estudos?",
+  "Como conversar com meu filho sobre a escola sem que ele feche?",
+];
+
+function OrientacaoTab({ c, e }) {
+  const [mensagens, setMensagens] = useState([]);
+  const [input, setInput] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const fimRef = useRef(null);
+
+  const rolarParaBaixo = () => {
+    setTimeout(() => fimRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+  };
+
+  const [restantes, setRestantes] = useState(10);
+  const [limiteEsgotado, setLimiteEsgotado] = useState(false);
+
+  const enviar = async (texto) => {
+    const pergunta = texto || input.trim();
+    if (!pergunta || carregando || limiteEsgotado) return;
+    setInput("");
+    const novas = [...mensagens, { role: "user", content: pergunta }];
+    setMensagens(novas);
+    setCarregando(true);
+    rolarParaBaixo();
+    try {
+      const fn = httpsCallable(functions, "orientacaoFamiliar");
+      const res = await fn({ messages: novas });
+      setMensagens([...novas, { role: "assistant", content: res.data.resposta }]);
+      setRestantes(res.data.restantes);
+      if (res.data.restantes <= 0) setLimiteEsgotado(true);
+    } catch (err) {
+      const code = err?.code || "";
+      if (code.includes("resource-exhausted") || err?.message?.includes("LIMITE_DIARIO")) {
+        setLimiteEsgotado(true);
+        setMensagens([...novas, { role: "assistant", content: "Voce atingiu o limite de 10 orientacoes por dia. Isso nos ajuda a manter o servico sempre disponivel para todas as familias. Volte amanha com novas duvidas — estamos aqui para ajudar! 💙" }]);
+      } else {
+        setMensagens([...novas, { role: "assistant", content: "Erro de conexao. Verifique sua internet e tente novamente." }]);
+      }
+    } finally {
+      setCarregando(false);
+      rolarParaBaixo();
+    }
+  };
+
+  const compartilharWhatsApp = () => {
+    if (mensagens.length < 2) return;
+    const partes = ["📚 *Orientação EduPlay*", "━━━━━━━━━━━━━━━━"];
+    mensagens.forEach((msg) => {
+      if (msg.role === "user") {
+        partes.push("");
+        partes.push("💬 *Você perguntou:*");
+        partes.push(msg.content);
+      } else {
+        partes.push("");
+        partes.push("💡 *Orientação:*");
+        partes.push(msg.content.slice(0, 800) + (msg.content.length > 800 ? "..." : ""));
+        partes.push("━━━━━━━━━━━━━━━━");
+      }
+    });
+    partes.push("");
+    partes.push("⚠️ Estas orientações não substituem avaliação profissional.");
+    partes.push("🪴 Salve ou compartilhe essa conversa — ela não fica guardada no app.");
+    partes.push("🔗 eduplay.olloapp.com.br");
+const txt = partes.join("\n");
+    window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
+  };
+
+  const temResposta = mensagens.length >= 2 && mensagens[mensagens.length - 1].role === "assistant";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14, animation: "fadeIn 0.3s ease" }}>
+      <div style={{ background: e ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.07)", border: "1.5px solid rgba(245,158,11,0.35)", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <span style={{ fontSize: "1.1rem", flexShrink: 0, marginTop: 1 }}>⚠️</span>
+        <p style={{ fontSize: "0.78rem", color: e ? "#F59E0B" : "#92610A", fontWeight: 700, margin: 0, lineHeight: 1.6 }}>
+          Este espaço oferece orientações gerais de apoio educacional. <strong>Não realiza diagnósticos</strong> e não substitui a avaliação de um profissional de saúde, psicólogo ou professor. Em caso de dúvidas sérias, converse com a escola ou um especialista.
+        </p>
+      </div>
+
+      {mensagens.length === 0 && (
+        <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "18px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <div style={{ width: 44, height: 44, borderRadius: "50%", background: e ? "rgba(0,212,170,0.12)" : "rgba(0,212,170,0.1)", border: "2px solid rgba(0,212,170,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem", flexShrink: 0 }}>💡</div>
+            <div>
+              <p style={{ fontSize: "0.9rem", fontWeight: 800, color: c.texto, margin: 0 }}>Assistente Educacional</p>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>Orientacoes para apoiar seu filho em casa</p>
+            </div>
+          </div>
+          <p style={{ fontSize: "0.82rem", color: c.textoSub, margin: "0 0 14px", lineHeight: 1.6 }}>
+            Tire duvidas sobre rotina de estudos, convivencia, motivacao e como participar do dia a dia escolar do seu filho.
+          </p>
+          <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 10px" }}>
+            Sugestoes de perguntas
+          </p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {SUGESTOES_ORIENTACAO.map((s, i) => (
+              <button key={i} onClick={() => enviar(s)} style={{ textAlign: "left", padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${c.borda}`, background: e ? "rgba(255,255,255,0.03)" : "#F8FBFF", color: c.texto, fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", fontFamily: "'Nunito', sans-serif", lineHeight: 1.4 }}>
+                💬 {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {mensagens.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {mensagens.map((msg, i) => (
+            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
+              <div style={{ maxWidth: "88%", padding: "12px 16px", borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: msg.role === "user" ? (e ? "#00D4AA22" : "#E8FFF9") : c.card, border: `1.5px solid ${msg.role === "user" ? "#00D4AA44" : c.borda}`, fontSize: "0.85rem", color: c.texto, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+                {msg.role === "assistant" && (
+                  <p style={{ fontSize: "0.68rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: 1 }}>💡 Assistente Educacional</p>
+                )}
+                {msg.content}
+              </div>
+            </div>
+          ))}
+          {carregando && (
+            <div style={{ display: "flex", justifyContent: "flex-start" }}>
+              <div style={{ padding: "12px 16px", borderRadius: "18px 18px 18px 4px", background: c.card, border: `1.5px solid ${c.borda}`, fontSize: "0.85rem", color: c.textoSub, fontStyle: "italic" }}>
+                ✍️ Elaborando orientacao...
+              </div>
+            </div>
+          )}
+          <div ref={fimRef} />
+        </div>
+      )}
+
+      <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-end" }}>
+        <textarea
+          value={input}
+          onChange={(ev) => setInput(ev.target.value)}
+          onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); enviar(); } }}
+          placeholder="Digite sua duvida aqui..."
+          rows={2}
+          style={{ flex: 1, resize: "none", border: "none", background: "transparent", color: c.texto, fontSize: "0.88rem", fontFamily: "'Nunito', sans-serif", outline: "none", lineHeight: 1.5 }}
+        />
+        <button onClick={() => enviar()} disabled={!input.trim() || carregando} style={{ width: 40, height: 40, borderRadius: 12, border: "none", background: !input.trim() || carregando ? c.borda : "#00D4AA", color: "#fff", fontSize: "1.1rem", cursor: !input.trim() || carregando ? "not-allowed" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          ➤
+        </button>
+      </div>
+
+      {temResposta && (
+        <button onClick={compartilharWhatsApp} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "none", background: "#25D366", color: "#fff", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+          📲 Compartilhar orientacao no WhatsApp
+        </button>
+      )}
+
+      <p style={{ fontSize: "0.7rem", color: c.textoSub, textAlign: "center", margin: "0 0 8px", lineHeight: 1.5 }}>
+        ⚠️ Este assistente nao realiza diagnosticos. Para situacoes delicadas, procure um profissional ou converse com o professor da sua crianca.
+      </p>
+    </div>
+  );
+}
 export default function PaisPage({ userPai, timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
@@ -2943,9 +3105,10 @@ export default function PaisPage({ userPai, timer }) {
       >
         <div style={{ display: "flex", gap: 6 }}>
           {[
-            { id: "visao", label: "Visão Geral", icone: "📊" },
+            { id: "visao", label: "Visão", icone: "📊" },
             { id: "missoes", label: "Missões", icone: "🤖" },
             { id: "relatorio", label: "Relatório", icone: "📋" },
+            { id: "orientacao", label: "Família", icone: "💡" },
             { id: "config", label: "Config", icone: "⚙️" },
           ].map((aba) => (
             <button
@@ -3933,6 +4096,10 @@ export default function PaisPage({ userPai, timer }) {
             getProgresso={getProgresso}
           />
         )}
+        {secao === "orientacao" && (
+          <OrientacaoTab c={c} e={e} />
+        )}
+
         {secao === "config" && (
           <div
             style={{

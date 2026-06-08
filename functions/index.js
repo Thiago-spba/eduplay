@@ -639,6 +639,75 @@ exports.webhookMP = onRequest(
   }
 )
 
+
+// ═══════════════════════════════════════════════════════════════════════
+// orientacaoFamiliar — Assistente pedagógico para responsáveis
+// ═══════════════════════════════════════════════════════════════════════
+exports.orientacaoFamiliar = onCall(
+  { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    const uid = request.auth.uid
+    const hoje = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const rateRef = db.collection('rateLimits').doc(`orientacao_${uid}_${hoje}`)
+    const rateSnap = await rateRef.get()
+    const totalHoje = rateSnap.exists ? (rateSnap.data().total || 0) : 0
+
+    if (totalHoje >= 10) {
+      throw new HttpsError('resource-exhausted', 'LIMITE_DIARIO')
+    }
+
+    const { messages } = request.data
+
+    // Validacao do input
+    if (!Array.isArray(messages) || messages.length === 0 || messages.length > 10) {
+      throw new HttpsError('invalid-argument', 'Formato de mensagens invalido.')
+    }
+    for (const msg of messages) {
+      if (!msg.role || !msg.content || typeof msg.content !== 'string') {
+        throw new HttpsError('invalid-argument', 'Mensagem com formato invalido.')
+      }
+      if (!['user', 'assistant'].includes(msg.role)) {
+        throw new HttpsError('invalid-argument', 'Role invalido.')
+      }
+      if (msg.content.length > 2000) {
+        throw new HttpsError('invalid-argument', 'Mensagem muito longa.')
+      }
+    }
+
+    // Sanitizacao — remove caracteres de controle
+    const messagesSanitizadas = messages.map(msg => ({
+      role: msg.role,
+      content: msg.content.replace(/[ --]/g, '').trim().slice(0, 2000),
+    }))
+
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1000,
+      system: 'Voce e um assistente educacional do EduPlay, com formacao em pedagogia e psicologia educacional. Seu papel e orientar responsaveis sobre como apoiar o desenvolvimento escolar e emocional de criancas e adolescentes do 6 ao 9 ano do Ensino Fundamental. Responda em portugues brasileiro de forma empatica e pratica. Use linguagem acessivel. De orientacoes concretas com exemplos do dia a dia. Nunca faca diagnosticos clinicos. Nunca substitua a avaliacao de um profissional. Se o assunto for grave oriente a buscar profissional especializado. Seja objetivo com respostas entre 3 e 6 paragrafos curtos. Finalize com uma dica pratica e acolhedora. IMPORTANTE: nao use markdown, asteriscos, hashtags, negrito, italico ou qualquer formatacao especial. Escreva apenas texto simples e corrido.',
+      messages: messagesSanitizadas,
+    })
+
+    // Incrementa contador de rate limit
+    await rateRef.set({
+      total: totalHoje + 1,
+      uid,
+      data: hoje,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true })
+
+    const restantes = 10 - (totalHoje + 1)
+
+    return {
+      ok: true,
+      resposta: msg.content[0].text,
+      restantes,
+    }
+  }
+)
+
 // deploy-202606040403
 
 // security-202606040516
