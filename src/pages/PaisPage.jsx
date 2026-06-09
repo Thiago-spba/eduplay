@@ -3298,10 +3298,7 @@ export default function PaisPage({ userPai, timer }) {
               const todasMissoes = Object.values(missoesPorDisc).flat();
               const pendentes = todasMissoes.filter((m) => !m.feita);
               const hoje = new Date().toLocaleDateString('pt-BR');
-              const feitasHoje = sessoesQuiz.filter((s) => {
-                const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
-                return d.toLocaleDateString('pt-BR') === hoje;
-              });
+              const feitasHoje = todasMissoes.filter((m) => m.feita);
               const sessoesOrdenadas = [...sessoesQuiz].sort((a, b) => {
                   const dataA = a.criadoEm?.toDate ? a.criadoEm.toDate().getTime() : new Date(a.criadoEm).getTime();
                   const dataB = b.criadoEm?.toDate ? b.criadoEm.toDate().getTime() : new Date(b.criadoEm).getTime();
