@@ -4311,20 +4311,56 @@ export default function PaisPage({ userPai, timer }) {
                   Contrato de Premiação
                 </p>
               </div>
+              
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <p style={{ fontSize: "0.85rem", fontWeight: 800, color: e ? "#A0B8C8" : "#8A6D3B", margin: 0 }}>
+                  HABILITAR PREMIAÇÃO
+                </p>
+                <input 
+                  type="checkbox" 
+                  checked={premio.length > 0} 
+                  onChange={(ev) => setPremio(ev.target.checked ? "Semanal| " : "")}
+                  style={{ width: "20px", height: "20px", cursor: "pointer", accentColor: "#00D4AA" }}
+                />
+              </div>
+
+              {premio.length > 0 && (
+                <div style={{ marginBottom: "14px" }}>
+                  <p style={{ fontSize: "0.75rem", color: e ? "#A0B8C8" : "#8A6D3B", margin: "0 0 8px" }}>Frequência da Meta:</p>
+                  <select
+                    value={premio.includes("|") ? premio.split("|")[0] : "Semanal"}
+                    onChange={(ev) => {
+                      const textoAtual = premio.includes("|") ? premio.split("|")[1] : premio;
+                      setPremio(ev.target.value + "|" + textoAtual);
+                    }}
+                    style={{ width: "100%", padding: "10px", borderRadius: "8px", border: e ? "1px solid #334155" : "1px solid #E2E8F0", background: e ? "#1E293B" : "#FFF", color: e ? "#F8FAFC" : "#1E293B", outline: "none" }}
+                  >
+                    <option value="Semanal">Semanal (Todo fim de semana)</option>
+                    <option value="Quinzenal">Quinzenal (A cada 15 dias)</option>
+                    <option value="Mensal">Mensal (No fim do mês)</option>
+                  </select>
+                </div>
+              )}
+
               <p
                 style={{
                   fontSize: "0.75rem",
                   color: e ? "#A0B8C8" : "#8A6D3B",
                   margin: "0 0 12px",
+                  display: premio.length > 0 ? "block" : "none"
                 }}
               >
-                O que seu filho ganhará ao concluir 5 missões?
+                Qual será o prêmio?
               </p>
               <textarea
-                value={premio}
-                onChange={(ev) => setPremio(ev.target.value)}
+                value={premio.includes("|") ? premio.split("|")[1]?.trimStart() : premio}
+                onChange={(ev) => {
+                  const freq = premio.includes("|") ? premio.split("|")[0] : "Semanal";
+                  setPremio(freq + "| " + ev.target.value);
+                }}
                 placeholder="Ex: Uma noite da pizza, um passeio especial..."
                 style={{
+                  display: premio.length > 0 ? "block" : "none",
                   width: "100%",
                   height: "70px",
                   padding: "12px",
