@@ -14,7 +14,7 @@ const gerarMissaoFn = httpsCallable(functions, "gerarMissao");
  * @param {boolean} [params.isDemo] - Se true, aplica verificação e bloqueio de demo única no servidor.
  * @returns {Promise<Object>} O dossiê completo da missão gerada.
  */
-export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo }) {
+export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo, titulosJaGerados }) {
   // 1. BLINDAGEM DE CUSTOS (Frontend Security)
   // Evita que o sistema faça chamadas vazias à nuvem e gere custos de API.
   if (!disciplina || !serie) {
@@ -39,7 +39,8 @@ export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo 
       bimestre,
       tema,
       contextoTemporal,
-      isDemo: isDemo === true, // Repassa para a Cloud Function controlar o bloqueio
+      isDemo: isDemo === true,
+      titulosJaGerados: titulosJaGerados || [],
     });
 
     // 4. VERIFICAÇÃO DE INTEGRIDADE

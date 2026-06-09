@@ -160,7 +160,7 @@ exports.gerarMissao = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 60 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso Negado: Agente não identificado.')
-    const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo } = request.data
+    const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo, titulosJaGerados } = request.data
     if (isDemo === true) {
       const uid = request.auth.uid
       const demoRef = db.collection('demos').doc(uid)
@@ -175,8 +175,11 @@ exports.gerarMissao = onCall(
     // Sanitização contra caracteres de injeção direta de scripts
     const temaSanitizado = tema.replace(/[<>{}[\]\\\/]/g, '').trim()
     if (temaSanitizado.length < 3) throw new HttpsError('invalid-argument', 'Tema muito curto.')
-    const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
-    let infoTemporal = ''
+const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
+const antiRepeticao = titulosJaGerados && titulosJaGerados.length > 0
+  ? `\n\nTÍTULOS JÁ GERADOS ANTERIORMENTE — NÃO REPITA ESTES ASSUNTOS:\n${titulosJaGerados.slice(0, 10).map(t => `- ${t}`).join('\n')}\nCrie um ângulo completamente diferente dentro do mesmo currículo.`
+  : ''
+      let infoTemporal = ''
     if (contextoTemporal) {
       infoTemporal = `\nINFORMAÇÃO DE TEMPO REAL: Hoje é dia ${parseInt(contextoTemporal.dia)}/${parseInt(contextoTemporal.mes)}/${parseInt(contextoTemporal.ano)}. Se houver algum feriado histórico, científico ou nacional próximo a esta data que tenha ligação com a matéria, insira uma menção sutil no roteiro do podcast para conectar o aluno com o mundo real.`
     }
@@ -195,7 +198,7 @@ DADOS DA MISSÃO:
 - Série: ${NOMES.serie[serie]}
 - Bimestre: ${NOMES.bimestre[bimestre]}
 - Tema específico: ${temaSanitizado}
-- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}${infoTemporal}
+- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}${infoTemporal}${antiRepeticao}
 
 PRINCÍPIOS PSICOLÓGICOS A APLICAR:
 1. Efeito Zeigarnik: termine com gancho — deixe o aluno querendo saber mais

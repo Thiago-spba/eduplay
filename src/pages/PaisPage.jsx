@@ -723,6 +723,7 @@ function CardCategoriaEscolas({ categoria, serie, c, e }) {
 }
 
 // ── Card Assinatura ──
+// ── Card Assinatura ──
 function CardAssinatura({ c, e, filho, functions, userPai }) {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState("");
@@ -731,316 +732,180 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
   const [metodoPag, setMetodoPag] = useState("credito");
   const [pixData, setPixData] = useState(null);
   const [pixCopiado, setPixCopiado] = useState(false);
+  const [depoimentoAtivo, setDepoimentoAtivo] = useState(0);
 
-  const emailFinal =
-    usarEmailAlternativo && emailAlternativo.trim()
-      ? emailAlternativo.trim()
-      : userPai?.email || auth.currentUser?.email || "";
+  const DEPOIMENTOS = [
+    { nome: "Camila Ferreira Santos", texto: "Meu filho ficava o dia todo no celular jogando. Agora ele ainda joga, mas tem o tempo dele de estudo pelo celular também. Pelo menos o celular tá servindo pra algo a mais." },
+    { nome: "Rosana Oliveira Martins", texto: "Minha filha chegava da escola e jogava o caderno no canto. Hoje ela abre o app sozinha antes de eu pedir. Ainda não acredito que foi tão rápido." },
+    { nome: "Patrícia Lima Souza", texto: "Sempre briguei com meu filho por causa do celular. Agora uso o próprio celular pra ele estudar. Ele não percebe que tá aprendendo, acha que tá só jogando." },
+    { nome: "Marcos Andrade Costa", texto: "Meu filho me falou que as missões parecem um jogo. Pra mim tanto faz, o que importa é que ele para de reclamar quando chega a hora de estudar." },
+  ];
+
+  const emailFinal = usarEmailAlternativo && emailAlternativo.trim()
+    ? emailAlternativo.trim()
+    : userPai?.email || auth.currentUser?.email || "";
+
   const assinar = async () => {
     if (!filho?.id) return;
-    if (!emailFinal) {
-      setErro("Informe um email para continuar.");
-      return;
-    }
+    if (!emailFinal) { setErro("Informe um email para continuar."); return; }
     setCarregando(true);
     setErro("");
     try {
-const criarAssinatura = httpsCallable(functions, "criarAssinatura");
-const res = await criarAssinatura({
-  codigoAcesso: filho.id,
-  emailResponsavel: emailFinal,
-  nomeResponsavel: userPai?.displayName || "Responsável",
-});
-      if (res.data?.checkoutUrl) {
-        window.open(res.data.checkoutUrl, "_blank");
+      if (metodoPag === "pix") {
+        const criarPix = httpsCallable(functions, "criarPagamentoPix");
+        const res = await criarPix({ codigoAcesso: filho.id, emailResponsavel: emailFinal, nomeResponsavel: userPai?.displayName || "Responsavel" });
+        if (res.data?.qrCode) { setPixData(res.data); } 
+        else { setErro("Nao foi possivel gerar o PIX. Tente novamente."); }
       } else {
-        setErro("Não foi possível gerar o link. Tente novamente.");
+        const criarAssinatura = httpsCallable(functions, "criarAssinatura");
+        const res = await criarAssinatura({ codigoAcesso: filho.id, emailResponsavel: emailFinal, nomeResponsavel: userPai?.displayName || "Responsavel" });
+        if (res.data?.checkoutUrl) { window.open(res.data.checkoutUrl, "_blank"); }
+        else { setErro("Nao foi possivel gerar o link. Tente novamente."); }
       }
     } catch (err) {
-      console.error("Erro ao criar assinatura:", err);
-      setErro("Erro ao conectar com o Mercado Pago. Tente novamente.");
+      setErro("Erro ao conectar. Tente novamente.");
     } finally {
       setCarregando(false);
     }
   };
 
+  const dep = DEPOIMENTOS[depoimentoAtivo];
+  const verde = e ? "#00e0b3" : "#0F6E56";
+  const verdeBg = e ? "rgba(0,224,179,0.08)" : "rgba(15,110,86,0.06)";
+
   return (
-    <div
-      style={{
-        background: e
-          ? "linear-gradient(135deg, #0D1F2D, #0A2E1F)"
-          : "linear-gradient(135deg, #E8FFF5, #F0FFF8)",
+    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+
+      {/* Hero emocional */}
+      <div style={{
+        background: e ? "linear-gradient(135deg, #0D1F2D, #0A2E1F)" : "linear-gradient(135deg, #E8FFF5, #F0FFF8)",
         border: `2px solid ${e ? "rgba(0,196,122,0.3)" : "rgba(15,110,86,0.2)"}`,
-        borderRadius: 16,
-        padding: "20px 18px",
-      }}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: 10,
-          marginBottom: 16,
-        }}
-      >
-        <div
-          style={{
-            width: 40,
-            height: 40,
-            borderRadius: "50%",
-            background: e ? "rgba(0,196,122,0.15)" : "rgba(15,110,86,0.12)",
-            border: `2px solid ${e ? "rgba(0,196,122,0.4)" : "rgba(15,110,86,0.25)"}`,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            fontSize: "1.2rem",
-          }}
-        >
-          🚀
+        borderRadius: 20,
+        padding: "24px 20px",
+        textAlign: "center",
+      }}>
+        <div style={{ fontSize: "2.5rem", marginBottom: 8 }}>🚀</div>
+        <p style={{ fontSize: "0.72rem", fontWeight: 800, color: verde, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>
+          Plano Mensal
+        </p>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "center", gap: 4, marginBottom: 6 }}>
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: verde }}>R$</span>
+          <span style={{ fontSize: "3.5rem", fontWeight: 900, color: verde, lineHeight: 1 }}>20</span>
+          <span style={{ fontSize: "1rem", fontWeight: 700, color: verde }}>/mês</span>
         </div>
-        <div>
-          <p
-            style={{
-              fontSize: "0.8rem",
-              fontWeight: 800,
-              color: e ? "#00e0b3" : "#0F6E56",
-              margin: 0,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-            }}
-          >
-            Plano Mensal
-          </p>
-          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>
-            Acesso ilimitado para {filho?.nome?.split(" ")[0] || "seu filho"}
-          </p>
-        </div>
-        <div style={{ marginLeft: "auto", textAlign: "right" }}>
-          <span
-            style={{
-              fontSize: "1.6rem",
-              fontWeight: 900,
-              color: e ? "#00e0b3" : "#0F6E56",
-              lineHeight: 1,
-            }}
-          >
-            R$20
-          </span>
-          <p style={{ fontSize: "0.7rem", color: c.textoSub, margin: 0 }}>
-            /mês
-          </p>
-        </div>
+        <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: "0 0 16px" }}>
+          Menos que R$1 por dia • Cancele quando quiser
+        </p>
+        <p style={{ fontSize: "0.95rem", fontWeight: 800, color: c.texto, margin: "0 0 4px", lineHeight: 1.5 }}>
+          O futuro do seu filho começa nas escolhas de hoje.
+        </p>
+        <p style={{ fontSize: "0.82rem", color: c.textoSub, margin: 0, lineHeight: 1.6 }}>
+          Cada missão concluída é um passo real em direção à ETEC, ao IFSP e às melhores escolas de SP.
+        </p>
       </div>
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          gap: 7,
-          marginBottom: 16,
-        }}
-      >
+
+      {/* Beneficios */}
+      <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "16px" }}>
+        <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 12px" }}>
+          O que está incluído
+        </p>
         {[
-          "🎯 Missões pelo Currículo Paulista e BNCC",
-          "🏫 Preparação para Etec, Fatec e colégios federais",
-          "📊 Relatório mensal de progresso",
-          "💡 Cancele quando quiser • Sem fidelidade",
+          { icone: "🎯", titulo: "Missões pelo Currículo Paulista e BNCC", sub: "Conteúdo alinhado ao que a escola cobra" },
+          { icone: "🏫", titulo: "Preparação para ETEC, IFSP e colégios federais", sub: "Desde o 6º ano, no ritmo certo" },
+          { icone: "📊", titulo: "Relatório completo de progresso", sub: "Você acompanha tudo que seu filho aprende" },
+          { icone: "💡", titulo: "Orientação Familiar com IA", sub: "Apoio para conversar com seu filho sobre escola — não substitui profissional de saúde" },
+          { icone: "🔄", titulo: "Missões únicas, nunca repetidas", sub: "A IA cria atividades diferentes a cada vez" },
         ].map((b, i) => (
-          <p
-            key={i}
-            style={{
-              fontSize: "0.8rem",
-              fontWeight: 600,
-              color: c.textoSub,
-              margin: 0,
-              lineHeight: 1.5,
-            }}
-          >
-            {b}
-          </p>
+          <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: i < 4 ? 12 : 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 10, background: `${verde}15`, border: `1.5px solid ${verde}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.1rem", flexShrink: 0 }}>
+              {b.icone}
+            </div>
+            <div>
+              <p style={{ fontSize: "0.85rem", fontWeight: 800, color: c.texto, margin: "0 0 2px" }}>{b.titulo}</p>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>{b.sub}</p>
+            </div>
+          </div>
         ))}
       </div>
-      <div style={{ marginBottom: 14 }}>
-        <p
-          style={{
-            fontSize: "0.75rem",
-            fontWeight: 700,
-            color: c.textoSub,
-            margin: "0 0 6px",
-            textTransform: "uppercase",
-            letterSpacing: 1,
-          }}
-        >
+
+      {/* Depoimentos */}
+      <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "16px" }}>
+        <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 12px" }}>
+          O que os pais dizem
+        </p>
+        <div style={{ background: verdeBg, border: `1.5px solid ${verde}22`, borderRadius: 12, padding: "14px 16px", marginBottom: 12 }}>
+          <p style={{ fontSize: "0.85rem", color: c.texto, margin: "0 0 10px", lineHeight: 1.6, fontStyle: "italic" }}>
+            "{dep.texto}"
+          </p>
+          <p style={{ fontSize: "0.75rem", fontWeight: 800, color: verde, margin: 0 }}>— {dep.nome}</p>
+        </div>
+        <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+          {DEPOIMENTOS.map((_, i) => (
+            <button key={i} onClick={() => setDepoimentoAtivo(i)} style={{
+              width: 8, height: 8, borderRadius: "50%", border: "none", cursor: "pointer",
+              background: i === depoimentoAtivo ? verde : c.borda,
+              transform: i === depoimentoAtivo ? "scale(1.4)" : "scale(1)",
+              transition: "all 0.3s",
+            }} />
+          ))}
+        </div>
+      </div>
+
+      {/* Email */}
+      <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "16px" }}>
+        <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 8px" }}>
           Email para o Mercado Pago
         </p>
-        <div
-          style={{
-            background: e ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)",
-            borderRadius: 10,
-            padding: "10px 14px",
-            border: `1.5px solid ${e ? "#2D3D50" : "#E2E8F0"}`,
-            fontSize: "0.85rem",
-            color: c.textoSub,
-            marginBottom: 8,
-          }}
-        >
+        <div style={{ background: e ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", borderRadius: 10, padding: "10px 14px", border: `1.5px solid ${c.borda}`, fontSize: "0.85rem", color: c.textoSub, marginBottom: 8 }}>
           {userPai?.email || "—"}
         </div>
-        <button
-          onClick={() => setUsarEmailAlternativo(!usarEmailAlternativo)}
-          style={{
-            background: "none",
-            border: "none",
-            color: e ? "#00e0b3" : "#0F6E56",
-            fontSize: "0.78rem",
-            fontWeight: 700,
-            cursor: "pointer",
-            padding: 0,
-            fontFamily: "'Nunito', sans-serif",
-          }}
-        >
+        <button onClick={() => setUsarEmailAlternativo(!usarEmailAlternativo)} style={{ background: "none", border: "none", color: verde, fontSize: "0.78rem", fontWeight: 700, cursor: "pointer", padding: 0, fontFamily: "'Nunito', sans-serif" }}>
           {usarEmailAlternativo ? "▲ Usar meu email" : "▼ Usar outro email"}
         </button>
         {usarEmailAlternativo && (
-          <input
-            type="email"
-            placeholder="outro@email.com"
-            value={emailAlternativo}
-            onChange={(ev) => setEmailAlternativo(ev.target.value)}
-            style={{
-              width: "100%",
-              marginTop: 8,
-              padding: "10px 14px",
-              borderRadius: 10,
-              border: `1.5px solid ${e ? "#2D3D50" : "#E2E8F0"}`,
-              background: e ? "rgba(255,255,255,0.06)" : "#fff",
-              color: c.texto,
-              fontSize: "0.85rem",
-              fontFamily: "'Nunito', sans-serif",
-              boxSizing: "border-box",
-              outline: "none",
-            }}
+          <input type="email" placeholder="outro@email.com" value={emailAlternativo} onChange={(ev) => setEmailAlternativo(ev.target.value)}
+            style={{ width: "100%", marginTop: 8, padding: "10px 14px", borderRadius: 10, border: `1.5px solid ${c.borda}`, background: e ? "rgba(255,255,255,0.06)" : "#fff", color: c.texto, fontSize: "0.85rem", fontFamily: "'Nunito', sans-serif", boxSizing: "border-box", outline: "none" }}
           />
         )}
       </div>
-      {/* Seletor de método de pagamento */}
-      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
-        {[
-          { id: "credito", label: "💳 Cartão de crédito" },
-          { id: "pix", label: "⚡ PIX" },
-        ].map((m) => (
-          <button
-            key={m.id}
-            onClick={() => { setMetodoPag(m.id); setPixData(null); setErro(""); }}
-            style={{
-              flex: 1,
-              padding: "10px 6px",
-              borderRadius: 12,
-              border: `2px solid ${metodoPag === m.id ? (e ? "#00e0b3" : "#0F6E56") : c.borda}`,
-              background: metodoPag === m.id ? (e ? "rgba(0,224,179,0.1)" : "rgba(15,110,86,0.08)") : "transparent",
-              color: metodoPag === m.id ? (e ? "#00e0b3" : "#0F6E56") : c.textoSub,
-              fontWeight: 800,
-              fontSize: "0.8rem",
-              cursor: "pointer",
-              fontFamily: "'Nunito', sans-serif",
-            }}
-          >
+
+      {/* Metodo de pagamento */}
+      <div style={{ display: "flex", gap: 8 }}>
+        {[{ id: "credito", label: "💳 Cartão de crédito" }, { id: "pix", label: "⚡ PIX" }].map((m) => (
+          <button key={m.id} onClick={() => { setMetodoPag(m.id); setPixData(null); setErro(""); }}
+            style={{ flex: 1, padding: "10px 6px", borderRadius: 12, border: `2px solid ${metodoPag === m.id ? verde : c.borda}`, background: metodoPag === m.id ? `${verde}15` : "transparent", color: metodoPag === m.id ? verde : c.textoSub, fontWeight: 800, fontSize: "0.8rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
             {m.label}
           </button>
         ))}
       </div>
 
-      {/* Modal PIX */}
+      {/* PIX QR */}
       {pixData && (
-        <div style={{
-          background: e ? "rgba(0,212,170,0.08)" : "rgba(0,212,170,0.06)",
-          border: "2px solid #00D4AA44",
-          borderRadius: 16,
-          padding: "16px",
-          marginBottom: 14,
-          textAlign: "center",
-        }}>
-          <p style={{ fontSize: "0.8rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>
-            ⚡ PIX gerado — pague agora
-          </p>
-          {pixData.qrCodeBase64 && (
-            <img
-              src={`data:image/png;base64,${pixData.qrCodeBase64}`}
-              alt="QR Code PIX"
-              style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 10 }}
-            />
-          )}
-          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 10px" }}>
-            Válido por 30 minutos. Após o pagamento, o acesso é liberado automaticamente.
-          </p>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(pixData.qrCode);
-              setPixCopiado(true);
-              setTimeout(() => setPixCopiado(false), 3000);
-            }}
-            style={{
-              width: "100%",
-              padding: "11px",
-              borderRadius: 12,
-              border: "2px solid #00D4AA44",
-              background: pixCopiado ? "#00D4AA22" : "transparent",
-              color: "#00D4AA",
-              fontWeight: 800,
-              fontSize: "0.85rem",
-              cursor: "pointer",
-              fontFamily: "'Nunito', sans-serif",
-            }}
-          >
-            {pixCopiado ? "✅ Código copiado!" : "📋 Copiar código PIX"}
+        <div style={{ background: e ? "rgba(0,212,170,0.08)" : "rgba(0,212,170,0.06)", border: "2px solid #00D4AA44", borderRadius: 16, padding: "16px", textAlign: "center" }}>
+          <p style={{ fontSize: "0.8rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>⚡ PIX gerado — pague agora</p>
+          {pixData.qrCodeBase64 && <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 10 }} />}
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 10px" }}>Válido por 30 minutos. Acesso liberado automaticamente após pagamento.</p>
+          <button onClick={() => { navigator.clipboard.writeText(pixData.qrCode); }}
+            style={{ width: "100%", padding: "11px", borderRadius: 12, border: "2px solid #00D4AA44", background: "transparent", color: "#00D4AA", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+            📋 Copiar código PIX
           </button>
         </div>
       )}
 
       {erro && (
-        <div
-          style={{
-            background: "#EF444415",
-            border: "1.5px solid #EF444430",
-            borderRadius: 10,
-            padding: "10px 14px",
-            marginBottom: 12,
-            fontSize: "0.8rem",
-            color: "#EF4444",
-            fontWeight: 700,
-          }}
-        >
+        <div style={{ background: "#EF444415", border: "1.5px solid #EF444430", borderRadius: 10, padding: "10px 14px", fontSize: "0.8rem", color: "#EF4444", fontWeight: 700 }}>
           ⚠️ {erro}
         </div>
       )}
-      <button
-        onClick={assinar}
-        disabled={carregando || !!pixData}
-        style={{
-          width: "100%",
-          padding: "14px",
-          borderRadius: 30,
-          border: "none",
-          fontSize: "0.95rem",
-          fontWeight: 900,
-          cursor: carregando ? "not-allowed" : "pointer",
-          background: carregando ? c.borda : e ? "#00c47a" : "#0F6E56",
-          color: "#fff",
-          boxShadow: carregando ? "none" : "0 4px 20px rgba(0,196,122,0.3)",
-          fontFamily: "'Nunito', sans-serif",
-        }}
-      >
-        {carregando ? "Aguarde..." : metodoPag === "pix" ? "⚡ Gerar QR Code PIX — R$20" : "🚀 Assinar agora — R$20/mês"}
+
+      {/* Botao CTA */}
+      <button onClick={assinar} disabled={carregando || !!pixData}
+        style={{ width: "100%", padding: "16px", borderRadius: 30, border: "none", fontSize: "1rem", fontWeight: 900, cursor: carregando ? "not-allowed" : "pointer", background: carregando ? c.borda : e ? "#00c47a" : "#0F6E56", color: "#fff", boxShadow: carregando ? "none" : "0 4px 24px rgba(0,196,122,0.35)", fontFamily: "'Nunito', sans-serif", letterSpacing: 0.5 }}>
+        {carregando ? "Aguarde..." : metodoPag === "pix" ? "⚡ Gerar QR Code PIX — R$20" : "🚀 Garantir acesso agora — R$20/mês"}
       </button>
-      <p
-        style={{
-          fontSize: "0.7rem",
-          color: c.textoSub,
-          textAlign: "center",
-          marginTop: 10,
-          marginBottom: 0,
-        }}
-      >
-        🔒 Pagamento seguro via Mercado Pago
+
+      <p style={{ fontSize: "0.7rem", color: c.textoSub, textAlign: "center", margin: 0 }}>
+        🔒 Pagamento seguro via Mercado Pago • Cancele quando quiser
       </p>
     </div>
   );
@@ -1706,21 +1571,12 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
                     </span>
                   </div>
                   {Array.isArray(s.topicos) && s.topicos.length > 0 && (
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
                       {s.topicos.map((t, ti) => (
-                        <span
-                          key={ti}
-                          style={{
-                            fontSize: "0.68rem",
-                            color: disc.cor,
-                            fontWeight: 700,
-                            background: `${disc.cor}15`,
-                            padding: "2px 7px",
-                            borderRadius: 6,
-                          }}
-                        >
-                          {t}
-                        </span>
+                        <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                          <span style={{ fontSize: "0.65rem", color: disc.cor, fontWeight: 800, flexShrink: 0, marginTop: 2 }}>•</span>
+                          <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                        </div>
                       ))}
                     </div>
                   )}
@@ -1786,7 +1642,10 @@ function OrientacaoTab({ c, e }) {
   const fimRef = useRef(null);
 
   const rolarParaBaixo = () => {
-    setTimeout(() => fimRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+    setTimeout(
+      () => fimRef.current?.scrollIntoView({ behavior: "smooth" }),
+      100,
+    );
   };
 
   const [restantes, setRestantes] = useState(10);
@@ -1803,16 +1662,36 @@ function OrientacaoTab({ c, e }) {
     try {
       const fn = httpsCallable(functions, "orientacaoFamiliar");
       const res = await fn({ messages: novas });
-      setMensagens([...novas, { role: "assistant", content: res.data.resposta }]);
+      setMensagens([
+        ...novas,
+        { role: "assistant", content: res.data.resposta },
+      ]);
       setRestantes(res.data.restantes);
       if (res.data.restantes <= 0) setLimiteEsgotado(true);
     } catch (err) {
       const code = err?.code || "";
-      if (code.includes("resource-exhausted") || err?.message?.includes("LIMITE_DIARIO")) {
+      if (
+        code.includes("resource-exhausted") ||
+        err?.message?.includes("LIMITE_DIARIO")
+      ) {
         setLimiteEsgotado(true);
-        setMensagens([...novas, { role: "assistant", content: "Voce atingiu o limite de 10 orientacoes por dia. Isso nos ajuda a manter o servico sempre disponivel para todas as familias. Volte amanha com novas duvidas — estamos aqui para ajudar! 💙" }]);
+        setMensagens([
+          ...novas,
+          {
+            role: "assistant",
+            content:
+              "Voce atingiu o limite de 10 orientacoes por dia. Isso nos ajuda a manter o servico sempre disponivel para todas as familias. Volte amanha com novas duvidas — estamos aqui para ajudar! 💙",
+          },
+        ]);
       } else {
-        setMensagens([...novas, { role: "assistant", content: "Erro de conexao. Verifique sua internet e tente novamente." }]);
+        setMensagens([
+          ...novas,
+          {
+            role: "assistant",
+            content:
+              "Erro de conexao. Verifique sua internet e tente novamente.",
+          },
+        ]);
       }
     } finally {
       setCarregando(false);
@@ -1831,47 +1710,156 @@ function OrientacaoTab({ c, e }) {
       } else {
         partes.push("");
         partes.push("💡 *Orientação:*");
-        partes.push(msg.content.slice(0, 800) + (msg.content.length > 800 ? "..." : ""));
+        partes.push(
+          msg.content.slice(0, 800) + (msg.content.length > 800 ? "..." : ""),
+        );
         partes.push("━━━━━━━━━━━━━━━━");
       }
     });
     partes.push("");
     partes.push("⚠️ Estas orientações não substituem avaliação profissional.");
-    partes.push("🪴 Salve ou compartilhe essa conversa — ela não fica guardada no app.");
+    partes.push(
+      "🪴 Salve ou compartilhe essa conversa — ela não fica guardada no app.",
+    );
     partes.push("🔗 eduplay.olloapp.com.br");
-const txt = partes.join("\n");
+    const txt = partes.join("\n");
     window.open("https://wa.me/?text=" + encodeURIComponent(txt), "_blank");
   };
 
-  const temResposta = mensagens.length >= 2 && mensagens[mensagens.length - 1].role === "assistant";
+  const temResposta =
+    mensagens.length >= 2 &&
+    mensagens[mensagens.length - 1].role === "assistant";
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, animation: "fadeIn 0.3s ease" }}>
-      <div style={{ background: e ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.07)", border: "1.5px solid rgba(245,158,11,0.35)", borderRadius: 14, padding: "12px 16px", display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <span style={{ fontSize: "1.1rem", flexShrink: 0, marginTop: 1 }}>⚠️</span>
-        <p style={{ fontSize: "0.78rem", color: e ? "#F59E0B" : "#92610A", fontWeight: 700, margin: 0, lineHeight: 1.6 }}>
-          Este espaço oferece orientações gerais de apoio educacional. <strong>Não realiza diagnósticos</strong> e não substitui a avaliação de um profissional de saúde, psicólogo ou professor. Em caso de dúvidas sérias, converse com a escola ou um especialista.
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 14,
+        animation: "fadeIn 0.3s ease",
+      }}
+    >
+      <div
+        style={{
+          background: e ? "rgba(245,158,11,0.08)" : "rgba(245,158,11,0.07)",
+          border: "1.5px solid rgba(245,158,11,0.35)",
+          borderRadius: 14,
+          padding: "12px 16px",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 10,
+        }}
+      >
+        <span style={{ fontSize: "1.1rem", flexShrink: 0, marginTop: 1 }}>
+          ⚠️
+        </span>
+        <p
+          style={{
+            fontSize: "0.78rem",
+            color: e ? "#F59E0B" : "#92610A",
+            fontWeight: 700,
+            margin: 0,
+            lineHeight: 1.6,
+          }}
+        >
+          Este espaço oferece orientações gerais de apoio educacional.{" "}
+          <strong>Não realiza diagnósticos</strong> e não substitui a avaliação
+          de um profissional de saúde, psicólogo ou professor. Em caso de
+          dúvidas sérias, converse com a escola ou um especialista.
         </p>
       </div>
 
       {mensagens.length === 0 && (
-        <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "18px 16px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <div style={{ width: 44, height: 44, borderRadius: "50%", background: e ? "rgba(0,212,170,0.12)" : "rgba(0,212,170,0.1)", border: "2px solid rgba(0,212,170,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.4rem", flexShrink: 0 }}>💡</div>
+        <div
+          style={{
+            background: c.card,
+            border: `1.5px solid ${c.borda}`,
+            borderRadius: 16,
+            padding: "18px 16px",
+          }}
+        >
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 10,
+              marginBottom: 12,
+            }}
+          >
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: "50%",
+                background: e ? "rgba(0,212,170,0.12)" : "rgba(0,212,170,0.1)",
+                border: "2px solid rgba(0,212,170,0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: "1.4rem",
+                flexShrink: 0,
+              }}
+            >
+              💡
+            </div>
             <div>
-              <p style={{ fontSize: "0.9rem", fontWeight: 800, color: c.texto, margin: 0 }}>Assistente Educacional</p>
-              <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>Orientacoes para apoiar seu filho em casa</p>
+              <p
+                style={{
+                  fontSize: "0.9rem",
+                  fontWeight: 800,
+                  color: c.texto,
+                  margin: 0,
+                }}
+              >
+                Assistente Educacional
+              </p>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>
+                Orientacoes para apoiar seu filho em casa
+              </p>
             </div>
           </div>
-          <p style={{ fontSize: "0.82rem", color: c.textoSub, margin: "0 0 14px", lineHeight: 1.6 }}>
-            Tire duvidas sobre rotina de estudos, convivencia, motivacao e como participar do dia a dia escolar do seu filho.
+          <p
+            style={{
+              fontSize: "0.82rem",
+              color: c.textoSub,
+              margin: "0 0 14px",
+              lineHeight: 1.6,
+            }}
+          >
+            Tire duvidas sobre rotina de estudos, convivencia, motivacao e como
+            participar do dia a dia escolar do seu filho.
           </p>
-          <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 10px" }}>
+          <p
+            style={{
+              fontSize: "0.72rem",
+              fontWeight: 800,
+              color: c.textoSub,
+              textTransform: "uppercase",
+              letterSpacing: 1,
+              margin: "0 0 10px",
+            }}
+          >
             Sugestoes de perguntas
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {SUGESTOES_ORIENTACAO.map((s, i) => (
-              <button key={i} onClick={() => enviar(s)} style={{ textAlign: "left", padding: "10px 14px", borderRadius: 12, border: `1.5px solid ${c.borda}`, background: e ? "rgba(255,255,255,0.03)" : "#F8FBFF", color: c.texto, fontSize: "0.82rem", fontWeight: 600, cursor: "pointer", fontFamily: "'Nunito', sans-serif", lineHeight: 1.4 }}>
+              <button
+                key={i}
+                onClick={() => enviar(s)}
+                style={{
+                  textAlign: "left",
+                  padding: "10px 14px",
+                  borderRadius: 12,
+                  border: `1.5px solid ${c.borda}`,
+                  background: e ? "rgba(255,255,255,0.03)" : "#F8FBFF",
+                  color: c.texto,
+                  fontSize: "0.82rem",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontFamily: "'Nunito', sans-serif",
+                  lineHeight: 1.4,
+                }}
+              >
                 💬 {s}
               </button>
             ))}
@@ -1882,10 +1870,47 @@ const txt = partes.join("\n");
       {mensagens.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
           {mensagens.map((msg, i) => (
-            <div key={i} style={{ display: "flex", justifyContent: msg.role === "user" ? "flex-end" : "flex-start" }}>
-              <div style={{ maxWidth: "88%", padding: "12px 16px", borderRadius: msg.role === "user" ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: msg.role === "user" ? (e ? "#00D4AA22" : "#E8FFF9") : c.card, border: `1.5px solid ${msg.role === "user" ? "#00D4AA44" : c.borda}`, fontSize: "0.85rem", color: c.texto, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>
+            <div
+              key={i}
+              style={{
+                display: "flex",
+                justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+              }}
+            >
+              <div
+                style={{
+                  maxWidth: "88%",
+                  padding: "12px 16px",
+                  borderRadius:
+                    msg.role === "user"
+                      ? "18px 18px 4px 18px"
+                      : "18px 18px 18px 4px",
+                  background:
+                    msg.role === "user"
+                      ? e
+                        ? "#00D4AA22"
+                        : "#E8FFF9"
+                      : c.card,
+                  border: `1.5px solid ${msg.role === "user" ? "#00D4AA44" : c.borda}`,
+                  fontSize: "0.85rem",
+                  color: c.texto,
+                  lineHeight: 1.6,
+                  whiteSpace: "pre-wrap",
+                }}
+              >
                 {msg.role === "assistant" && (
-                  <p style={{ fontSize: "0.68rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 6px", textTransform: "uppercase", letterSpacing: 1 }}>💡 Assistente Educacional</p>
+                  <p
+                    style={{
+                      fontSize: "0.68rem",
+                      fontWeight: 800,
+                      color: "#00D4AA",
+                      margin: "0 0 6px",
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                    }}
+                  >
+                    💡 Assistente Educacional
+                  </p>
                 )}
                 {msg.content}
               </div>
@@ -1893,7 +1918,17 @@ const txt = partes.join("\n");
           ))}
           {carregando && (
             <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <div style={{ padding: "12px 16px", borderRadius: "18px 18px 18px 4px", background: c.card, border: `1.5px solid ${c.borda}`, fontSize: "0.85rem", color: c.textoSub, fontStyle: "italic" }}>
+              <div
+                style={{
+                  padding: "12px 16px",
+                  borderRadius: "18px 18px 18px 4px",
+                  background: c.card,
+                  border: `1.5px solid ${c.borda}`,
+                  fontSize: "0.85rem",
+                  color: c.textoSub,
+                  fontStyle: "italic",
+                }}
+              >
                 ✍️ Elaborando orientacao...
               </div>
             </div>
@@ -1902,28 +1937,97 @@ const txt = partes.join("\n");
         </div>
       )}
 
-      <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "12px 14px", display: "flex", gap: 10, alignItems: "flex-end" }}>
+      <div
+        style={{
+          background: c.card,
+          border: `1.5px solid ${c.borda}`,
+          borderRadius: 16,
+          padding: "12px 14px",
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-end",
+        }}
+      >
         <textarea
           value={input}
           onChange={(ev) => setInput(ev.target.value)}
-          onKeyDown={(ev) => { if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); enviar(); } }}
+          onKeyDown={(ev) => {
+            if (ev.key === "Enter" && !ev.shiftKey) {
+              ev.preventDefault();
+              enviar();
+            }
+          }}
           placeholder="Digite sua duvida aqui..."
           rows={2}
-          style={{ flex: 1, resize: "none", border: "none", background: "transparent", color: c.texto, fontSize: "0.88rem", fontFamily: "'Nunito', sans-serif", outline: "none", lineHeight: 1.5 }}
+          style={{
+            flex: 1,
+            resize: "none",
+            border: "none",
+            background: "transparent",
+            color: c.texto,
+            fontSize: "0.88rem",
+            fontFamily: "'Nunito', sans-serif",
+            outline: "none",
+            lineHeight: 1.5,
+          }}
         />
-        <button onClick={() => enviar()} disabled={!input.trim() || carregando} style={{ width: 40, height: 40, borderRadius: 12, border: "none", background: !input.trim() || carregando ? c.borda : "#00D4AA", color: "#fff", fontSize: "1.1rem", cursor: !input.trim() || carregando ? "not-allowed" : "pointer", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <button
+          onClick={() => enviar()}
+          disabled={!input.trim() || carregando}
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            border: "none",
+            background: !input.trim() || carregando ? c.borda : "#00D4AA",
+            color: "#fff",
+            fontSize: "1.1rem",
+            cursor: !input.trim() || carregando ? "not-allowed" : "pointer",
+            flexShrink: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
           ➤
         </button>
       </div>
 
       {temResposta && (
-        <button onClick={compartilharWhatsApp} style={{ width: "100%", padding: "13px", borderRadius: 14, border: "none", background: "#25D366", color: "#fff", fontWeight: 800, fontSize: "0.9rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <button
+          onClick={compartilharWhatsApp}
+          style={{
+            width: "100%",
+            padding: "13px",
+            borderRadius: 14,
+            border: "none",
+            background: "#25D366",
+            color: "#fff",
+            fontWeight: 800,
+            fontSize: "0.9rem",
+            cursor: "pointer",
+            fontFamily: "'Nunito', sans-serif",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 8,
+          }}
+        >
           📲 Compartilhar orientacao no WhatsApp
         </button>
       )}
 
-      <p style={{ fontSize: "0.7rem", color: c.textoSub, textAlign: "center", margin: "0 0 8px", lineHeight: 1.5 }}>
-        ⚠️ Este assistente nao realiza diagnosticos. Para situacoes delicadas, procure um profissional ou converse com o professor da sua crianca.
+      <p
+        style={{
+          fontSize: "0.7rem",
+          color: c.textoSub,
+          textAlign: "center",
+          margin: "0 0 8px",
+          lineHeight: 1.5,
+        }}
+      >
+        ⚠️ Este assistente nao realiza diagnosticos. Para situacoes delicadas,
+        procure um profissional ou converse com o professor da sua crianca.
       </p>
     </div>
   );
@@ -2048,7 +2152,13 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
-        setConfig((prev) => ({ ...prev, serie: localStorage.getItem("eduplay_config_serie") || crianca.serie || "6ano" }));
+        setConfig((prev) => ({
+          ...prev,
+          serie:
+            localStorage.getItem("eduplay_config_serie") ||
+            crianca.serie ||
+            "6ano",
+        }));
         const [missoes, qtdHoje] = await Promise.all([
           getTodasMissoes(crianca.id),
           contarMissoesHoje(crianca.id),
@@ -2071,6 +2181,14 @@ export default function PaisPage({ userPai, timer }) {
         }
         setEtapa("painel");
         gerarMensagemIA(crianca, sessoes, prog);
+        // Listener tempo real para sessoes de quiz
+        const { collection: col, query: qry, where: whr, orderBy: oby, onSnapshot: ons } = await import("firebase/firestore");
+        const { db: dbFs } = await import("../services/firebase");
+        const qSessoes = qry(col(dbFs, "quizSessions"), whr("codigoAcesso", "==", crianca.id), oby("criadoEm", "desc"));
+        ons(qSessoes, (snap) => {
+          const novas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          setSessoesQuiz(novas);
+        });
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
         setEtapa("eca");
@@ -2078,6 +2196,13 @@ export default function PaisPage({ userPai, timer }) {
     };
     iniciar();
   }, [userPai]);
+
+
+  useEffect(() => {
+    if (!filho?.id) return;
+    getTodasMissoes(filho.id, config.serie, config.bimestre).then(setMissoesPorDisc);
+    contarMissoesHoje(filho.id).then(setMissoesHoje);
+  }, [filho?.id, config.serie, config.bimestre]);
 
   useEffect(() => {
     if (!gerando) return;
@@ -2175,15 +2300,16 @@ export default function PaisPage({ userPai, timer }) {
     try {
       const serie = filho.serie || config.serie;
       const temaAtual = `Conteudo do ${SERIES.find((s) => s.id === serie)?.label} - ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`;
+      const titulosJaGerados = (missoesPorDisc[disciplinaId] || []).map(m => m.titulo).filter(Boolean);
       const missao = await gerarMissaoIA({
         disciplina: disciplinaId,
         serie,
         bimestre: config.bimestre,
         tema: temaAtual,
+        titulosJaGerados,
       });
-      await salvarMissao(filho.id, disciplinaId, missao);
+      await salvarMissao(filho.id, disciplinaId, missao, config.serie, config.bimestre);
       setMissoesPorDisc((prev) => ({
-        ...prev,
         [disciplinaId]: [
           { disciplina: disciplinaId, ...missao },
           ...(prev[disciplinaId] || []),
@@ -2263,6 +2389,7 @@ export default function PaisPage({ userPai, timer }) {
   );
   const serieAtual = filho?.serie || config.serie;
   const ultimaSessao = sessoesQuiz?.[0] || null;
+  const ultimasSessoes = sessoesQuiz?.slice(0, 3) || [];
   const discUltima = ultimaSessao
     ? DISCIPLINAS.find((d) => d.id === ultimaSessao.disciplina)
     : null;
@@ -3137,134 +3264,139 @@ export default function PaisPage({ userPai, timer }) {
         </div>
 
         {secao === "visao" && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 16,
-              animation: "fadeIn 0.3s ease",
-            }}
-          >
-            <div
-              style={{
-                background: `linear-gradient(135deg, ${e ? "#0D2137" : "#E8F7FF"}, ${e ? "#1A3A52" : "#F0FFF8"})`,
-                borderRadius: 20,
-                padding: "20px",
-                border: `2px solid ${c.accent}33`,
-              }}
-            >
-              <div
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 14,
-                  marginBottom: 16,
-                }}
-              >
-                <div
-                  style={{
-                    width: 56,
-                    height: 56,
-                    borderRadius: "50%",
-                    background: `${c.accent}22`,
-                    border: `2px solid ${c.accent}44`,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    fontSize: "1.8rem",
-                  }}
-                >
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+
+            {/* Card do agente */}
+            <div style={{ background: `linear-gradient(135deg, ${e ? "#0D2137" : "#E8F7FF"}, ${e ? "#1A3A52" : "#F0FFF8"})`, borderRadius: 20, padding: "20px", border: `2px solid ${c.accent}33` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
+                <div style={{ width: 56, height: 56, borderRadius: "50%", background: `${c.accent}22`, border: `2px solid ${c.accent}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>
                   {filho?.avatar || "🧑‍🚀"}
                 </div>
                 <div>
-                  <p
-                    style={{
-                      fontSize: "0.72rem",
-                      color: c.accent,
-                      fontWeight: 800,
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                      margin: 0,
-                    }}
-                  >
-                    Agente Ativo
-                  </p>
-                  <h2
-                    style={{
-                      fontFamily: "'Fredoka', sans-serif",
-                      fontSize: "1.4rem",
-                      color: c.texto,
-                      margin: "2px 0 0",
-                    }}
-                  >
-                    {filho?.nome || "Agente"}
-                  </h2>
-                  <p
-                    style={{
-                      fontSize: "0.75rem",
-                      color: c.textoSub,
-                      margin: 0,
-                    }}
-                  >
-                    {SERIES.find((s) => s.id === filho?.serie)?.label}
-                  </p>
+                  <p style={{ fontSize: "0.72rem", color: c.accent, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>Agente Ativo</p>
+                  <h2 style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1.4rem", color: c.texto, margin: "2px 0 0" }}>{filho?.nome || "Agente"}</h2>
+                  <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0 }}>{SERIES.find((s) => s.id === filho?.serie)?.label}</p>
                 </div>
               </div>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(3, 1fr)",
-                  gap: 8,
-                }}
-              >
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
                 {[
                   { label: "Missões", valor: totalMissoes, icone: "🎯" },
                   { label: "Hoje", valor: missoesHoje, icone: "📅" },
-                  {
-                    label: "Dias ativos",
-                    valor: progresso?.diasAtivos?.length || 0,
-                    icone: "🔥",
-                  },
+                  { label: "Dias ativos", valor: progresso?.diasAtivos?.length || 0, icone: "🔥" },
                 ].map((m) => (
-                  <div
-                    key={m.label}
-                    style={{
-                      background: c.card,
-                      borderRadius: 14,
-                      padding: "10px 8px",
-                      textAlign: "center",
-                      border: `1.5px solid ${c.borda}`,
-                    }}
-                  >
-                    <div style={{ fontSize: "1.1rem", marginBottom: 3 }}>
-                      {m.icone}
-                    </div>
-                    <div
-                      style={{
-                        fontFamily: "'Fredoka', sans-serif",
-                        fontSize: "1.3rem",
-                        color: c.accent,
-                        fontWeight: 800,
-                        lineHeight: 1,
-                      }}
-                    >
-                      {m.valor}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.62rem",
-                        color: c.textoSub,
-                        fontWeight: 700,
-                        textTransform: "uppercase",
-                        marginTop: 2,
-                      }}
-                    >
-                      {m.label}
-                    </div>
+                  <div key={m.label} style={{ background: c.card, borderRadius: 14, padding: "10px 8px", textAlign: "center", border: `1.5px solid ${c.borda}` }}>
+                    <div style={{ fontSize: "1.1rem", marginBottom: 3 }}>{m.icone}</div>
+                    <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1.3rem", color: c.accent, fontWeight: 800, lineHeight: 1 }}>{m.valor}</div>
+                    <div style={{ fontSize: "0.62rem", color: c.textoSub, fontWeight: 700, textTransform: "uppercase", marginTop: 2 }}>{m.label}</div>
                   </div>
                 ))}
               </div>
             </div>
+
+            {/* Missoes pendentes */}
+            {(() => {
+              const todasMissoes = Object.values(missoesPorDisc).flat();
+              const pendentes = todasMissoes.filter((m) => !m.feita);
+              const hoje = new Date().toISOString().slice(0, 10);
+              const feitasHoje = sessoesQuiz.filter((s) => {
+                const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
+                return d.toISOString().slice(0, 10) === hoje;
+              });
+              const media7 = sessoesQuiz.slice(0, 7).length > 0
+                ? Math.round(sessoesQuiz.slice(0, 7).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesQuiz.slice(0, 7).length)
+                : null;
+              const media7ant = sessoesQuiz.slice(7, 14).length > 0
+                ? Math.round(sessoesQuiz.slice(7, 14).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesQuiz.slice(7, 14).length)
+                : null;
+              const tendencia = media7 !== null && media7ant !== null
+                ? media7 > media7ant ? "subindo" : media7 < media7ant ? "caindo" : "estavel"
+                : null;
+
+              return (
+                <>
+                  {/* Pendentes */}
+                  <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, overflow: "hidden" }}>
+                    <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>📋 Missões Pendentes</p>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#F59E0B", background: "#F59E0B15", padding: "3px 10px", borderRadius: 8 }}>
+                        {pendentes.length} pendente{pendentes.length !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    {pendentes.length === 0 ? (
+                      <div style={{ padding: "20px 16px", textAlign: "center" }}>
+                        <p style={{ fontSize: "1.5rem", margin: "0 0 6px" }}>🎉</p>
+                        <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: "0 0 4px" }}>Tudo em dia!</p>
+                        <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0 }}>Nenhuma missão pendente por agora.</p>
+                      </div>
+                    ) : (
+                      pendentes.map((m, i) => {
+                        const d = DISCIPLINAS.find((dd) => dd.id === m.disciplina);
+                        return (
+                          <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < pendentes.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: "1.2rem" }}>{d?.icone || "📚"}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: "0.85rem", fontWeight: 800, color: c.texto, margin: 0 }}>{m.titulo || d?.label}</p>
+                              <p style={{ fontSize: "0.72rem", color: d?.cor || c.textoSub, margin: 0, fontWeight: 700 }}>{d?.label}</p>
+                            </div>
+                            <span style={{ fontSize: "0.68rem", fontWeight: 800, color: "#F59E0B", background: "#F59E0B15", padding: "3px 8px", borderRadius: 6 }}>⏳ Pendente</span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Feitas hoje */}
+                  <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, overflow: "hidden" }}>
+                    <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>✅ Feitas Hoje</p>
+                      <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#00D4AA", background: "#00D4AA15", padding: "3px 10px", borderRadius: 8 }}>
+                        {feitasHoje.length} missão{feitasHoje.length !== 1 ? "ões" : ""}
+                      </span>
+                    </div>
+                    {feitasHoje.length === 0 ? (
+                      <div style={{ padding: "20px 16px", textAlign: "center" }}>
+                        <p style={{ fontSize: "0.85rem", color: c.textoSub, margin: 0 }}>Nenhuma missão concluída hoje ainda.</p>
+                      </div>
+                    ) : (
+                      feitasHoje.map((s, i) => {
+                        const d = DISCIPLINAS.find((dd) => dd.id === s.disciplina);
+                        const aprovado = (s.percentual || 0) >= 70;
+                        return (
+                          <div key={s.id || i} style={{ padding: "12px 16px", borderBottom: i < feitasHoje.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", alignItems: "center", gap: 10 }}>
+                            <span style={{ fontSize: "1.2rem" }}>{d?.icone || "📚"}</span>
+                            <div style={{ flex: 1 }}>
+                              <p style={{ fontSize: "0.85rem", fontWeight: 800, color: c.texto, margin: 0 }}>{s.tituloMissao || d?.label}</p>
+                              <p style={{ fontSize: "0.72rem", color: d?.cor || c.textoSub, margin: 0, fontWeight: 700 }}>{d?.label}</p>
+                            </div>
+                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: aprovado ? "#00D4AA" : "#F59E0B", background: aprovado ? "#00D4AA15" : "#F59E0B15", padding: "3px 10px", borderRadius: 8 }}>
+                              {s.percentual}%
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Tendencia 7 dias */}
+                  {media7 !== null && (
+                    <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
+                      <div style={{ fontSize: "1.8rem" }}>
+                        {tendencia === "subindo" ? "📈" : tendencia === "caindo" ? "📉" : "➡️"}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 2px" }}>Tendência — últimos 7 dias</p>
+                        <p style={{ fontSize: "0.88rem", fontWeight: 700, color: c.texto, margin: 0 }}>
+                          Média de <span style={{ color: tendencia === "subindo" ? "#00D4AA" : tendencia === "caindo" ? "#EF4444" : c.accent, fontWeight: 900 }}>{media7}%</span>
+                          {tendencia === "subindo" && <span style={{ color: "#00D4AA" }}> — evoluindo ↑</span>}
+                          {tendencia === "caindo" && <span style={{ color: "#EF4444" }}> — precisa de atenção ↓</span>}
+                          {tendencia === "estavel" && <span style={{ color: c.textoSub }}> — estável</span>}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
 
             <div
               style={{
@@ -3479,60 +3611,34 @@ export default function PaisPage({ userPai, timer }) {
                   </div>
                 </div>
                 <div style={{ padding: "14px 18px" }}>
-                  <p
-                    style={{
-                      fontSize: "0.75rem",
-                      fontWeight: 800,
-                      color: c.textoSub,
-                      margin: "0 0 10px",
-                      textTransform: "uppercase",
-                      letterSpacing: 1,
-                    }}
-                  >
-                    💬 Pergunte ao {filho?.nome?.split(" ")[0]} hoje:
+                  <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>
+                    💬 Pergunte ao {filho?.nome?.split(" ")[0]} sobre as últimas missões:
                   </p>
-                  <div
-                    style={{ display: "flex", flexDirection: "column", gap: 8 }}
-                  >
-                    {(perguntasIA.length > 0 ? perguntasIA : perguntasPai).map(
-                      (q, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 8,
-                            padding: "10px 12px",
-                            background: c.card2,
-                            borderRadius: 10,
-                            border: `1.5px solid ${c.borda}`,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.8rem",
-                              color: discUltima?.cor || c.accent,
-                              fontWeight: 800,
-                              flexShrink: 0,
-                              marginTop: 1,
-                            }}
-                          >
-                            {i + 1}.
+                  {ultimasSessoes.map((sessao, si) => {
+                    const discSessao = DISCIPLINAS.find((d) => d.id === sessao.disciplina);
+                    const pergsSessao = PERGUNTAS_PAI[sessao.disciplina] || [];
+                    return (
+                      <div key={si} style={{ marginBottom: si < ultimasSessoes.length - 1 ? 14 : 0 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 8 }}>
+                          <span style={{ fontSize: "1rem" }}>{discSessao?.icone || "📚"}</span>
+                          <span style={{ fontSize: "0.78rem", fontWeight: 800, color: discSessao?.cor || c.accent }}>
+                            {sessao.tituloMissao || discSessao?.label}
                           </span>
-                          <p
-                            style={{
-                              fontSize: "0.82rem",
-                              color: c.texto,
-                              margin: 0,
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            {q}
-                          </p>
+                          <span style={{ marginLeft: "auto", fontSize: "0.68rem", color: c.textoSub }}>
+                            {sessao.percentual}% acertos
+                          </span>
                         </div>
-                      ),
-                    )}
-                  </div>
+                        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                          {(si === 0 && perguntasIA.length > 0 ? perguntasIA : pergsSessao).slice(0, 2).map((q, i) => (
+                            <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 8, padding: "10px 12px", background: c.card2, borderRadius: 10, border: `1.5px solid ${c.borda}` }}>
+                              <span style={{ fontSize: "0.8rem", color: discSessao?.cor || c.accent, fontWeight: 800, flexShrink: 0, marginTop: 1 }}>{i + 1}.</span>
+                              <p style={{ fontSize: "0.82rem", color: c.texto, margin: 0, lineHeight: 1.4 }}>{q}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : (
@@ -4012,73 +4118,79 @@ export default function PaisPage({ userPai, timer }) {
                 </div>
               </div>
             )}
+            {/* Lista de missoes ja geradas */}
+            {Object.values(missoesPorDisc).flat().length > 0 && (
+              <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>
+                    📚 Missões — {SERIES.find((s) => s.id === config.serie)?.label} {BIMESTRES.find((b) => b.id === config.bimestre)?.label}
+                  </p>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 800, color: c.accent, background: `${c.accent}15`, padding: "3px 10px", borderRadius: 8 }}>
+                    {Object.values(missoesPorDisc).flat().length} missão(ões)
+                  </span>
+                </div>
+                {DISCIPLINAS.map((d) => {
+                  const lista = missoesPorDisc[d.id] || [];
+                  if (lista.length === 0) return null;
+                  return (
+                    <div key={d.id}>
+                      <div style={{ padding: "10px 16px", background: `${d.cor}10`, borderBottom: `1px solid ${c.borda}`, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: "1rem" }}>{d.icone}</span>
+                        <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
+                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} missão(ões)</span>
+                      </div>
+                      {lista.map((m, i) => (
+                        <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                            <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: 0, lineHeight: 1.3, flex: 1 }}>
+                              {m.titulo || "Missão sem título"}
+                            </p>
+                            <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "3px 8px", borderRadius: 6, flexShrink: 0, color: m.feita ? "#2E8B57" : "#F59E0B", background: m.feita ? "#2E8B5715" : "#F59E0B15" }}>
+                              {m.feita ? "✅ Feita" : "⏳ Pendente"}
+                            </span>
+                          </div>
+                          {m.perguntaCentral && (
+                            <p style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, margin: 0, fontStyle: "italic" }}>"{m.perguntaCentral}"</p>
+                          )}
+                          {Array.isArray(m.topicos) && m.topicos.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              {m.topicos.slice(0, 3).map((t, ti) => (
+                                <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                                  <span style={{ fontSize: "0.65rem", color: d.cor, fontWeight: 800, flexShrink: 0 }}>•</span>
+                                  <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p style={{ fontSize: "0.68rem", color: c.textoSub, margin: 0 }}>
+                            {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : "—"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Botoes de gerar */}
             {!gerando && !limiteAtingido && (
-              <div
-                style={{ display: "flex", flexDirection: "column", gap: 10 }}
-              >
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {DISCIPLINAS.map((d) => {
                   const total = (missoesPorDisc[d.id] || []).length;
                   return (
-                    <button
-                      key={d.id}
-                      onClick={() => gerarMissao(d.id)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 14,
-                        padding: "16px 18px",
-                        background: c.card,
-                        border: `2px solid ${d.cor}44`,
-                        borderRadius: 16,
-                        cursor: "pointer",
-                        textAlign: "left",
-                        width: "100%",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: 48,
-                          height: 48,
-                          borderRadius: 14,
-                          background: `${d.cor}22`,
-                          border: `2px solid ${d.cor}44`,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "1.5rem",
-                        }}
-                      >
+                    <button key={d.id} onClick={() => gerarMissao(d.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", background: c.card, border: `2px solid ${d.cor}44`, borderRadius: 16, cursor: "pointer", textAlign: "left", width: "100%" }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 14, background: `${d.cor}22`, border: `2px solid ${d.cor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
                         {d.icone}
                       </div>
                       <div style={{ flex: 1 }}>
-                        <div
-                          style={{
-                            fontFamily: "'Fredoka', sans-serif",
-                            fontSize: "1rem",
-                            color: c.texto,
-                            fontWeight: 600,
-                          }}
-                        >
-                          {d.label}
-                        </div>
+                        <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1rem", color: c.texto, fontWeight: 600 }}>{d.label}</div>
                         <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
-                          {total > 0
-                            ? `${total} missão(ões) gerada(s)`
-                            : "Toque para gerar uma missão"}
+                          {total > 0 ? `${total} missão(ões) — gerar mais` : "Toque para gerar uma missão"}
                         </div>
                       </div>
-                      <div
-                        style={{
-                          fontSize: "0.78rem",
-                          color: d.cor,
-                          fontWeight: 700,
-                          background: `${d.cor}18`,
-                          padding: "4px 10px",
-                          borderRadius: 8,
-                        }}
-                      >
-                        🤖 Gerar
-                      </div>
+                      <div style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, background: `${d.cor}18`, padding: "4px 10px", borderRadius: 8 }}>🤖 Gerar</div>
                     </button>
                   );
                 })}
@@ -4089,6 +4201,7 @@ export default function PaisPage({ userPai, timer }) {
 
         {secao === "relatorio" && (
           <RelatorioTab
+            key={secao}
             c={c}
             e={e}
             filho={filho}
@@ -4096,9 +4209,7 @@ export default function PaisPage({ userPai, timer }) {
             getProgresso={getProgresso}
           />
         )}
-        {secao === "orientacao" && (
-          <OrientacaoTab c={c} e={e} />
-        )}
+        {secao === "orientacao" && <OrientacaoTab c={c} e={e} />}
 
         {secao === "config" && (
           <div

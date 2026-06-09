@@ -733,7 +733,7 @@ export default function SubjectPage() {
                   temasPorDisciplina[disciplinaId] ||
                   `Conteudo de ${disciplinaId}`,
               });
-              await salvarMissao(codigoAcesso, disciplinaId, missao);
+              await salvarMissao(codigoAcesso, disciplinaId, missao, serieAtual, bimestreAtual);
               const novaLista = await getMissoesPorDisciplina(
                 codigoAcesso,
                 disciplinaId,

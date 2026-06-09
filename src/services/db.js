@@ -226,10 +226,12 @@ export async function adicionarBadge(codigoAcesso, badge) {
  * Salva missão gerada pelo pai no Firestore
  * COM VERIFICAÇÃO ANTI-DUPLICATA
  */
-export async function salvarMissao(codigoAcesso, disciplina, missao) {
+export async function salvarMissao(codigoAcesso, disciplina, missao, serie = "", bimestre = "") {
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
   const docRef = await addDoc(ref, {
     disciplina,
+    serie,
+    bimestre,
     titulo: missao.titulo || "",
     perguntaCentral: missao.perguntaCentral || "",
     resumo: missao.resumo || "",
@@ -263,9 +265,13 @@ export async function getMissoesPorDisciplina(
 }
 
 /** Busca todas as missões de uma criança agrupadas por disciplina */
-export async function getTodasMissoes(codigoAcesso) {
+export async function getTodasMissoes(codigoAcesso, serie = null, bimestre = null) {
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
-  const q = query(ref, orderBy("criadoEm", "desc"));
+  const conditions = [];
+  if (serie) conditions.push(where("serie", "==", serie));
+  if (bimestre) conditions.push(where("bimestre", "==", bimestre));
+  conditions.push(orderBy("criadoEm", "desc"));
+  const q = query(ref, ...conditions);
   const snap = await getDocs(q);
   const missoes = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
@@ -451,3 +457,5 @@ export async function ativarAssinatura(codigoAcesso, dados) {
     ...dados,
   });
 }
+
+
