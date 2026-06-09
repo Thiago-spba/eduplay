@@ -3302,11 +3302,17 @@ export default function PaisPage({ userPai, timer }) {
                 const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
                 return d.toLocaleDateString('pt-BR') === hoje;
               });
-              const media7 = sessoesQuiz.slice(0, 7).length > 0
-                ? Math.round(sessoesQuiz.slice(0, 7).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesQuiz.slice(0, 7).length)
+              const sessoesOrdenadas = [...sessoesQuiz].sort((a, b) => {
+                  const dataA = a.criadoEm?.toDate ? a.criadoEm.toDate().getTime() : new Date(a.criadoEm).getTime();
+                  const dataB = b.criadoEm?.toDate ? b.criadoEm.toDate().getTime() : new Date(b.criadoEm).getTime();
+                  return dataB - dataA;
+                });
+
+                const media7 = sessoesOrdenadas.slice(0, 7).length > 0
+                ? Math.round(sessoesOrdenadas.slice(0, 7).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesOrdenadas.slice(0, 7).length)
                 : null;
-              const media7ant = sessoesQuiz.slice(7, 14).length > 0
-                ? Math.round(sessoesQuiz.slice(7, 14).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesQuiz.slice(7, 14).length)
+              const media7ant = sessoesOrdenadas.slice(7, 14).length > 0
+                ? Math.round(sessoesOrdenadas.slice(7, 14).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesOrdenadas.slice(7, 14).length)
                 : null;
               const tendencia = media7 !== null && media7ant !== null
                 ? media7 > media7ant ? "subindo" : media7 < media7ant ? "caindo" : "estavel"
