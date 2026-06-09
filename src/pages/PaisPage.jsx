@@ -3297,10 +3297,10 @@ export default function PaisPage({ userPai, timer }) {
             {(() => {
               const todasMissoes = Object.values(missoesPorDisc).flat();
               const pendentes = todasMissoes.filter((m) => !m.feita);
-              const hoje = new Date().toISOString().slice(0, 10);
+              const hoje = new Date().toLocaleDateString('pt-BR');
               const feitasHoje = sessoesQuiz.filter((s) => {
                 const d = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
-                return d.toISOString().slice(0, 10) === hoje;
+                return d.toLocaleDateString('pt-BR') === hoje;
               });
               const media7 = sessoesQuiz.slice(0, 7).length > 0
                 ? Math.round(sessoesQuiz.slice(0, 7).reduce((a, s) => a + (s.percentual || 0), 0) / sessoesQuiz.slice(0, 7).length)
@@ -3350,7 +3350,7 @@ export default function PaisPage({ userPai, timer }) {
                     <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                       <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>✅ Feitas Hoje</p>
                       <span style={{ fontSize: "0.72rem", fontWeight: 800, color: "#00D4AA", background: "#00D4AA15", padding: "3px 10px", borderRadius: 8 }}>
-                        {feitasHoje.length} missão{feitasHoje.length !== 1 ? "ões" : ""}
+                        {feitasHoje.length} {feitasHoje.length === 1 ? "missão" : "missões"}
                       </span>
                     </div>
                     {feitasHoje.length === 0 ? (
@@ -3790,7 +3790,7 @@ export default function PaisPage({ userPai, timer }) {
                         {d.icone} {d.label}
                       </span>
                       <span style={{ color: total > 0 ? d.cor : c.textoSub }}>
-                        {total > 0 ? `${total} missão(ões)` : "Pendente"}
+                        {total > 0 ? `${total} missões` : "Pendente"}
                       </span>
                     </div>
                     <div
@@ -4021,7 +4021,7 @@ export default function PaisPage({ userPai, timer }) {
                 >
                   {limiteAtingido
                     ? "Limite diário atingido"
-                    : `${MAX_MISSOES_DIA - missoesHoje} missão(ões) disponível(is) hoje`}
+                    : `${MAX_MISSOES_DIA - missoesHoje} missões disponível(is) hoje`}
                 </p>
                 <p
                   style={{
@@ -4126,7 +4126,7 @@ export default function PaisPage({ userPai, timer }) {
                     📚 Missões — {SERIES.find((s) => s.id === config.serie)?.label} {BIMESTRES.find((b) => b.id === config.bimestre)?.label}
                   </p>
                   <span style={{ fontSize: "0.72rem", fontWeight: 800, color: c.accent, background: `${c.accent}15`, padding: "3px 10px", borderRadius: 8 }}>
-                    {Object.values(missoesPorDisc).flat().length} missão(ões)
+                    {Object.values(missoesPorDisc).flat().length} missões
                   </span>
                 </div>
                 {DISCIPLINAS.map((d) => {
@@ -4137,7 +4137,7 @@ export default function PaisPage({ userPai, timer }) {
                       <div style={{ padding: "10px 16px", background: `${d.cor}10`, borderBottom: `1px solid ${c.borda}`, display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: "1rem" }}>{d.icone}</span>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
-                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} missão(ões)</span>
+                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} missões</span>
                       </div>
                       {lista.map((m, i) => (
                         <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
@@ -4187,7 +4187,7 @@ export default function PaisPage({ userPai, timer }) {
                       <div style={{ flex: 1 }}>
                         <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1rem", color: c.texto, fontWeight: 600 }}>{d.label}</div>
                         <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
-                          {total > 0 ? `${total} missão(ões) — gerar mais` : "Toque para gerar uma missão"}
+                          {total > 0 ? `${total} missões — gerar mais` : "Toque para gerar uma missão"}
                         </div>
                       </div>
                       <div style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, background: `${d.cor}18`, padding: "4px 10px", borderRadius: 8 }}>🤖 Gerar</div>
