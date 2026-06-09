@@ -3371,9 +3371,15 @@ export default function PaisPage({ userPai, timer }) {
                               <p style={{ fontSize: "0.85rem", fontWeight: 800, color: c.texto, margin: 0 }}>{s.tituloMissao || d?.label}</p>
                               <p style={{ fontSize: "0.72rem", color: d?.cor || c.textoSub, margin: 0, fontWeight: 700 }}>{d?.label}</p>
                             </div>
-                            <span style={{ fontSize: "0.75rem", fontWeight: 800, color: aprovado ? "#00D4AA" : "#F59E0B", background: aprovado ? "#00D4AA15" : "#F59E0B15", padding: "3px 10px", borderRadius: 8 }}>
-                              {s.percentual}%
-                            </span>
+                            {s.percentual !== undefined && s.percentual !== null ? (
+                              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: aprovado ? "#00D4AA" : "#F59E0B", background: aprovado ? "#00D4AA15" : "#F59E0B15", padding: "3px 10px", borderRadius: 8 }}>
+                                {s.percentual}%
+                              </span>
+                            ) : (
+                              <span style={{ fontSize: "0.75rem", fontWeight: 800, color: "#00D4AA", background: "#00D4AA15", padding: "3px 10px", borderRadius: 8 }}>
+                                ✅ Concluída
+                              </span>
+                            )}
                           </div>
                         );
                       })
@@ -4140,7 +4146,7 @@ export default function PaisPage({ userPai, timer }) {
                       <div style={{ padding: "10px 16px", background: `${d.cor}10`, borderBottom: `1px solid ${c.borda}`, display: "flex", alignItems: "center", gap: 8 }}>
                         <span style={{ fontSize: "1rem" }}>{d.icone}</span>
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
-                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} missões</span>
+                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} {lista.length === 1 ? "missão" : "missões"}</span>
                       </div>
                       {lista.map((m, i) => (
                         <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
