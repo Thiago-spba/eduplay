@@ -2061,6 +2061,8 @@ export default function PaisPage({ userPai, timer }) {
   const [erroFilho, setErroFilho] = useState("");
   const [codigoCopiado, setCodigoCopiado] = useState(false);
   const [linkCopiado, setLinkCopiado] = useState(false);
+  const [avatarFilho, setAvatarFilho] = useState("🧑‍🚀");
+  const [mostrarAvatares, setMostrarAvatares] = useState(false);
   const [secao, setSecao] = useState("visao");
   const [config, setConfig] = useState({
     serie: localStorage.getItem("eduplay_config_serie") || "6ano",
@@ -2160,6 +2162,8 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
+        if (crianca.avatar) setAvatarFilho(crianca.avatar);
+        if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (resp.premio) setPremio(resp.premio);
         if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
         if (resp.limiteMissoes) setLimiteMissoes(resp.limiteMissoes);
@@ -3316,11 +3320,51 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
 
+            {/* Banner motivacional - filho inativo hoje */}
+            {missoesHoje === 0 && totalMissoes === 0 && (
+              <div style={{ background: e ? "rgba(0,212,170,0.08)" : "#F0FFF8", border:`1.5px solid ${c.accent}33`, borderRadius:14, padding:"14px 16px", display:"flex", alignItems:"center", gap:12 }}>
+                <span style={{ fontSize:"1.8rem" }}>👋</span>
+                <div>
+                  <p style={{ fontSize:"0.85rem", fontWeight:800, color:c.accent, margin:0 }}>
+                    {filho?.nome?.split(" ")[0]} ainda não começou hoje!
+                  </p>
+                  <p style={{ fontSize:"0.75rem", color:c.textoSub, margin:"2px 0 0" }}>
+                    Envie o link agora e inicie a primeira missão do dia juntos.
+                  </p>
+                </div>
+                <button onClick={copiarLink} style={{ marginLeft:"auto", padding:"8px 12px", background:c.accent, color:"#fff", border:"none", borderRadius:10, fontWeight:800, fontSize:"0.78rem", cursor:"pointer", flexShrink:0 }}>
+                  Enviar link
+                </button>
+              </div>
+            )}
+
             {/* Card do agente */}
             <div style={{ background: `linear-gradient(135deg, ${e ? "#0D2137" : "#E8F7FF"}, ${e ? "#1A3A52" : "#F0FFF8"})`, borderRadius: 20, padding: "20px", border: `2px solid ${c.accent}33` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
-                <div style={{ width: 56, height: 56, borderRadius: "50%", background: `${c.accent}22`, border: `2px solid ${c.accent}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.8rem" }}>
-                  {filho?.avatar || "🧑‍🚀"}
+                <div style={{ position:"relative" }}>
+                  <div onClick={() => setMostrarAvatares(!mostrarAvatares)}
+                    style={{ width:56, height:56, borderRadius:"50%", background:`${c.accent}22`, border:`2px solid ${c.accent}44`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"1.8rem", cursor:"pointer", position:"relative" }}>
+                    {avatarFilho}
+                    <div style={{ position:"absolute", bottom:0, right:0, background:c.accent, borderRadius:"50%", width:18, height:18, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"0.6rem" }}>✏️</div>
+                  </div>
+                  {mostrarAvatares && (
+                    <div style={{ position:"absolute", top:64, left:0, zIndex:99, background:c.card, border:`1.5px solid ${c.borda}`, borderRadius:16, padding:12, display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:8, boxShadow:"0 8px 24px rgba(0,0,0,0.2)", width:200 }}>
+                      {["🧑‍🚀","🦸","🧙","🐉","🦊","🐼","🤖","👨‍💻","🧒","👧","🦁","🐯","🦋","🌟","⚡","🔥"].map(em => (
+                        <div key={em} onClick={async () => {
+                          setAvatarFilho(em);
+                          setMostrarAvatares(false);
+                          try {
+                            const { db } = await import("../services/firebase");
+                            const { doc, setDoc } = await import("firebase/firestore");
+                            await setDoc(doc(db, "criancas", filho.id), { avatar: em }, { merge: true });
+                          } catch(_) {}
+                        }}
+                        style={{ fontSize:"1.5rem", textAlign:"center", cursor:"pointer", padding:4, borderRadius:8, background: avatarFilho === em ? `${c.accent}22` : "transparent", border: avatarFilho === em ? `1.5px solid ${c.accent}` : "1.5px solid transparent" }}>
+                          {em}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <p style={{ fontSize: "0.72rem", color: c.accent, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>Agente Ativo</p>
@@ -3818,155 +3862,7 @@ export default function PaisPage({ userPai, timer }) {
               </p>
             </div>
 
-            <div
-              style={{
-                background: c.card,
-                border: `1.5px solid ${c.borda}`,
-                borderRadius: 16,
-                padding: "20px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 700,
-                  color: c.textoSub,
-                  margin: "0 0 16px",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Progresso por Disciplina
-              </p>
-              {DISCIPLINAS.map((d) => {
-                const total = (missoesPorDisc[d.id] || []).length;
-                return (
-                  <div key={d.id} style={{ marginBottom: 12 }}>
-                    <div
-                      style={{
-                        display: "flex",
-                        justifyContent: "space-between",
-                        fontSize: "0.85rem",
-                        color: c.texto,
-                        fontWeight: 700,
-                        marginBottom: 4,
-                      }}
-                    >
-                      <span>
-                        {d.icone} {d.label}
-                      </span>
-                      <span style={{ color: total > 0 ? d.cor : c.textoSub }}>
-                        {total > 0 ? `${total} missões` : "Pendente"}
-                      </span>
-                    </div>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: 8,
-                        background: c.borda,
-                        borderRadius: 4,
-                        overflow: "hidden",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: `${Math.min(total * 20, 100)}%`,
-                          height: "100%",
-                          background: d.cor,
-                          transition: "width 0.8s ease",
-                          borderRadius: 4,
-                        }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
 
-            <div
-              style={{
-                background: c.card,
-                border: `2px solid ${c.azul}33`,
-                borderRadius: 16,
-                padding: "16px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 800,
-                  color: c.azul,
-                  margin: "0 0 10px",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                🔗 Link do Agente
-              </p>
-              <div
-                style={{
-                  background: c.card2,
-                  borderRadius: 10,
-                  padding: "10px 14px",
-                  fontSize: "0.8rem",
-                  color: c.textoSub,
-                  fontFamily: "monospace",
-                  marginBottom: 12,
-                  wordBreak: "break-all",
-                }}
-              >
-                eduplay.olloapp.com.br/agente/
-                {gerarSlug(filho?.nome, filho?.id)}
-              </div>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  onClick={copiarLink}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 10,
-                    border: `2px solid ${c.borda}`,
-                    background: linkCopiado ? `${c.accent}15` : "transparent",
-                    color: linkCopiado ? c.accent : c.textoSub,
-                    fontWeight: 800,
-                    fontSize: "0.82rem",
-                    cursor: "pointer",
-                    fontFamily: "'Nunito', sans-serif",
-                  }}
-                >
-                  {linkCopiado ? "✅ Copiado!" : "📋 Copiar"}
-                </button>
-                <button
-                  onClick={compartilharWhatsApp}
-                  style={{
-                    flex: 1,
-                    padding: "10px",
-                    borderRadius: 10,
-                    border: "none",
-                    background: "#25D366",
-                    color: "#fff",
-                    fontWeight: 800,
-                    fontSize: "0.82rem",
-                    cursor: "pointer",
-                    fontFamily: "'Nunito', sans-serif",
-                  }}
-                >
-                  WhatsApp 📲
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {secao === "missoes" && (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 14,
-              animation: "fadeIn 0.3s ease",
-            }}
-          >
             <div
               style={{
                 background: c.card,
