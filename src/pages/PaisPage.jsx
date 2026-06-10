@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
+import ModalPremiacao from "../components/ModalPremiacao";
 import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
 import { httpsCallable } from "firebase/functions";
@@ -22,7 +23,7 @@ import {
   reativarConta,
 } from "../services/db";
 
-const MAX_MISSOES_DIA = 3;
+const MAX_MISSOES_DIA_DEFAULT = 3;
 const VERSAO_TERMOS = "1.0";
 
 const SERIES = [
@@ -1114,6 +1115,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
 
   // Função para filtrar por período
   const filtrarPorPeriodo = (sessoesList) => {
+    if (!Array.isArray(sessoesList)) return [];
     if (periodo === "todo") return sessoesList;
 
     const agora = new Date();
@@ -1390,6 +1392,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {Object.entries(porDisc).map(([disc, lista]) => {
+              if (!Array.isArray(lista) || lista.length === 0) return null;
               const info = DISC_INFO[disc] || {
                 label: disc,
                 icone: "📚",
@@ -2041,6 +2044,7 @@ export default function PaisPage({ userPai, timer }) {
   const [filho, setFilho] = useState(null);
   const [missoesPorDisc, setMissoesPorDisc] = useState({});
   const [missoesHoje, setMissoesHoje] = useState(0);
+  const [limiteMissoes, setLimiteMissoes] = useState(MAX_MISSOES_DIA_DEFAULT);
   const [sessoesQuiz, setSessoesQuiz] = useState([]);
   const [progresso, setProgresso] = useState(null);
   const [mensagemIA, setMensagemIA] = useState("");
@@ -2067,13 +2071,17 @@ export default function PaisPage({ userPai, timer }) {
   const [mensagem, setMensagem] = useState(null);
   const [fraseLoading, setFraseLoading] = useState(0);
   const [premio, setPremio] = useState("");
+  const [premioImagemUrl, setPremioImagemUrl] = useState(null);
+  const [premioEditando, setPremioEditando] = useState(false);
+  const [uploadingFoto, setUploadingFoto] = useState(false);
+  const [mostrarPreviewPremio, setMostrarPreviewPremio] = useState(false);
   const [perguntasIA, setPerguntasIA] = useState([]);
 
   // ── Estados para excluir conta ──
   const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
   const [desativando, setDesativando] = useState(false);
 
-  const limiteAtingido = missoesHoje >= MAX_MISSOES_DIA;
+  const limiteAtingido = missoesHoje >= limiteMissoes;
 
   const c = {
     bg: e ? "#0F1923" : "#F0F7FF",
@@ -2152,6 +2160,10 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
+        if (resp.premio) setPremio(resp.premio);
+        if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
+        if (resp.limiteMissoes) setLimiteMissoes(resp.limiteMissoes);
+        if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
         setConfig((prev) => ({
           ...prev,
           serie:
@@ -3266,6 +3278,44 @@ export default function PaisPage({ userPai, timer }) {
         {secao === "visao" && (
           <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
 
+            {/* Card link acesso - TOPO */}
+            <div style={{ background: e ? "linear-gradient(135deg,#0F2027,#1A3A4A)" : "linear-gradient(135deg,#E8F8FF,#F0FFF8)", border:`2px solid ${c.azul}55`, borderRadius:18, padding:"18px", position:"relative", overflow:"hidden" }}>
+              <div style={{ position:"absolute", top:-10, right:-10, fontSize:"5rem", opacity:0.06, pointerEvents:"none" }}>📱</div>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
+                <span style={{ fontSize:"1.4rem" }}>📲</span>
+                <div>
+                  <p style={{ fontSize:"0.85rem", fontWeight:900, color:c.azul, margin:0, textTransform:"uppercase", letterSpacing:1 }}>Acesso do seu filho</p>
+                  <p style={{ fontSize:"0.72rem", color:c.textoSub, margin:"2px 0 0", fontWeight:600 }}>Envie este link para {filho?.nome?.split(" ")[0] || "seu filho"} acessar as missões</p>
+                </div>
+              </div>
+              <div style={{ background: e ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.04)", borderRadius:12, padding:"12px 14px", marginBottom:12 }}>
+                <p style={{ fontSize:"0.78rem", fontWeight:800, color: e ? "#7DD3FC" : "#0369A1", margin:"0 0 8px" }}>Como funciona?</p>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {[
+                    { n:"1", txt:"Copie o link abaixo ou envie pelo WhatsApp" },
+                    { n:"2", txt:`${filho?.nome?.split(" ")[0] || "Seu filho"} abre o link no celular ou computador` },
+                    { n:"3", txt:"As missões do dia já estarão esperando por ele!" },
+                  ].map(({ n, txt }) => (
+                    <div key={n} style={{ display:"flex", alignItems:"flex-start", gap:8 }}>
+                      <div style={{ minWidth:20, height:20, borderRadius:"50%", background:c.azul, color:"#fff", display:"flex", alignItems:"center", justifyContent:"center", fontSize:"0.65rem", fontWeight:900, flexShrink:0 }}>{n}</div>
+                      <p style={{ fontSize:"0.75rem", color:c.textoSub, margin:0, lineHeight:1.4, fontWeight:600 }}>{txt}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ background:c.card2, borderRadius:10, padding:"10px 14px", fontSize:"0.78rem", color:c.textoSub, fontFamily:"monospace", marginBottom:12, wordBreak:"break-all", border:`1px solid ${c.borda}` }}>
+                eduplay.olloapp.com.br/agente/{gerarSlug(filho?.nome, filho?.id)}
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button onClick={copiarLink} style={{ flex:1, padding:"10px", borderRadius:10, border:`2px solid ${c.borda}`, background: linkCopiado ? `${c.accent}15` : "transparent", color: linkCopiado ? c.accent : c.textoSub, fontWeight:800, fontSize:"0.82rem", cursor:"pointer", fontFamily:"'Nunito', sans-serif" }}>
+                  {linkCopiado ? "Copiado!" : "Copiar"}
+                </button>
+                <button onClick={compartilharWhatsApp} style={{ flex:1, padding:"10px", borderRadius:10, border:"none", background:"#25D366", color:"#fff", fontWeight:900, fontSize:"0.82rem", cursor:"pointer", fontFamily:"'Nunito', sans-serif" }}>
+                  WhatsApp
+                </button>
+              </div>
+            </div>
+
             {/* Card do agente */}
             <div style={{ background: `linear-gradient(135deg, ${e ? "#0D2137" : "#E8F7FF"}, ${e ? "#1A3A52" : "#F0FFF8"})`, borderRadius: 20, padding: "20px", border: `2px solid ${c.accent}33` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 16 }}>
@@ -3298,8 +3348,15 @@ export default function PaisPage({ userPai, timer }) {
               const todasMissoes = Object.values(missoesPorDisc).flat();
               const pendentes = todasMissoes.filter((m) => !m.feita);
               const hoje = new Date().toLocaleDateString('pt-BR');
-              const feitasHoje = todasMissoes.filter((m) => m.feita);
-              const sessoesOrdenadas = [...sessoesQuiz].sort((a, b) => {
+              const hojeStr = new Date().toLocaleDateString("pt-BR");
+              const feitasHoje = todasMissoes.filter((m) => {
+                if (!m.feita) return false;
+                const dataMissao = m.criadoEm?.toDate
+                  ? m.criadoEm.toDate().toLocaleDateString("pt-BR")
+                  : m.criadoEm ? new Date(m.criadoEm).toLocaleDateString("pt-BR") : null;
+                return dataMissao === hojeStr;
+              });
+              const sessoesOrdenadas = [...(Array.isArray(sessoesQuiz) ? sessoesQuiz : [])].sort((a, b) => {
                   const dataA = a.criadoEm?.toDate ? a.criadoEm.toDate().getTime() : new Date(a.criadoEm).getTime();
                   const dataB = b.criadoEm?.toDate ? b.criadoEm.toDate().getTime() : new Date(b.criadoEm).getTime();
                   return dataB - dataA;
@@ -4030,7 +4087,7 @@ export default function PaisPage({ userPai, timer }) {
                 >
                   {limiteAtingido
                     ? "Limite diário atingido"
-                    : `${MAX_MISSOES_DIA - missoesHoje} missões disponível(is) hoje`}
+                    : `${limiteMissoes - missoesHoje} missões disponível(is) hoje`}
                 </p>
                 <p
                   style={{
@@ -4045,7 +4102,7 @@ export default function PaisPage({ userPai, timer }) {
                 </p>
               </div>
               <div style={{ display: "flex", gap: 4 }}>
-                {[0, 1, 2].map((i) => (
+                {Array.from({ length: limiteMissoes }, (_, i) => i).map((i) => (
                   <div
                     key={i}
                     style={{
@@ -4283,6 +4340,52 @@ export default function PaisPage({ userPai, timer }) {
               >
                 O app avisará seu filho antes do tempo esgotar.
               </p>
+
+              <p style={{ fontSize:"0.8rem", fontWeight:700, color:c.textoSub, margin:"16px 0 8px", textTransform:"uppercase", letterSpacing:1 }}>
+                Missões por Dia
+              </p>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, color:c.texto, fontWeight:700 }}>
+                <span>{limiteMissoes} missões/dia</span>
+                <span style={{ fontSize:"0.75rem", color:c.textoSub }}>mín. 3 · máx. 7</span>
+              </div>
+              <input type="range" min="3" max="7" step="1" value={limiteMissoes}
+                onChange={async (ev) => {
+                  const novo = Number(ev.target.value);
+                  setLimiteMissoes(novo);
+                  try {
+                    const { db } = await import("../services/firebase");
+                    const { doc, setDoc } = await import("firebase/firestore");
+                    await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true });
+                  } catch (_) {}
+                }}
+                style={{ width:"100%", accentColor:c.accent }}
+              />
+              <p style={{ fontSize:"0.7rem", color:c.textoSub, margin:"6px 0 0" }}>
+                Seu filho poderá receber até {limiteMissoes} missões por dia.
+              </p>
+
+              <p style={{ fontSize:"0.8rem", fontWeight:700, color:c.textoSub, margin:"16px 0 8px", textTransform:"uppercase", letterSpacing:1 }}>
+                Missões por Dia
+              </p>
+              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, color:c.texto, fontWeight:700 }}>
+                <span>{limiteMissoes} missões/dia</span>
+                <span style={{ fontSize:"0.75rem", color:c.textoSub }}>mín. 3 · máx. 7</span>
+              </div>
+              <input type="range" min="3" max="7" step="1" value={limiteMissoes}
+                onChange={async (ev) => {
+                  const novo = Number(ev.target.value);
+                  setLimiteMissoes(novo);
+                  try {
+                    const { db } = await import("../services/firebase");
+                    const { doc, setDoc } = await import("firebase/firestore");
+                    await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true });
+                  } catch (_) {}
+                }}
+                style={{ width:"100%", accentColor:c.accent }}
+              />
+              <p style={{ fontSize:"0.7rem", color:c.textoSub, margin:"6px 0 0" }}>
+                Seu filho poderá receber até {limiteMissoes} missões por dia.
+              </p>
             </div>
             <div
               style={{
@@ -4379,6 +4482,133 @@ export default function PaisPage({ userPai, timer }) {
                 }}
               />
             </div>
+
+            {/* Card visualizacao premio salvo */}
+            {premio.length > 0 && !premioEditando && (
+              <div style={{ animation:"fadeIn 0.3s ease", marginBottom:"14px" }}>
+                <div style={{ borderRadius:"16px", overflow:"hidden", border:"2px solid #FFB83044", background: e ? "rgba(0,0,0,0.2)" : "#FFFBF0" }}>
+                  {premioImagemUrl && (
+                    <img src={premioImagemUrl} alt="Premio" style={{ width:"100%", maxHeight:"180px", objectFit:"cover", display:"block" }}
+                      onError={(ev) => { ev.target.style.display="none"; }} />
+                  )}
+                  <div style={{ padding:"14px 16px" }}>
+                    <p style={{ fontSize:"0.7rem", fontWeight:800, color:"#FFB830", margin:"0 0 4px", textTransform:"uppercase", letterSpacing:1 }}>
+                      Prêmio configurado
+                    </p>
+                    <p style={{ fontSize:"0.82rem", fontWeight:700, color: e ? "#F8FAFC" : "#1E293B", margin:"0 0 4px" }}>
+                      {premio.includes("|") ? premio.split("|")[0] : "Semanal"} {" - "}
+                      {premio.includes("|") ? premio.split("|")[1]?.trim() : premio}
+                    </p>
+                  </div>
+                  <div style={{ display:"flex", gap:8, padding:"0 16px 14px" }}>
+                    <button onClick={() => setPremioEditando(true)}
+                      style={{ flex:1, padding:"9px", borderRadius:"10px", border:"1.5px solid #00D4AA44", background:"#00D4AA15", color:"#00D4AA", fontWeight:800, cursor:"pointer", fontSize:"0.82rem" }}>
+                      Editar
+                    </button>
+                    <button onClick={async () => {
+                        if (!confirm("Excluir o prêmio salvo?")) return;
+                        try {
+                          const { db, storage } = await import("../services/firebase");
+                          const { doc, setDoc } = await import("firebase/firestore");
+                          const { ref, deleteObject } = await import("firebase/storage");
+                          if (premioImagemUrl) { try { await deleteObject(ref(storage, premioImagemUrl)); } catch (_) {} }
+                          await setDoc(doc(db, "responsaveis", userPai.uid), { premio: "", premioImagemUrl: null }, { merge: true });
+                          setPremio(""); setPremioImagemUrl(null); setPremioEditando(false);
+                        } catch (err) { alert("Erro ao excluir o prêmio."); }
+                      }}
+                      style={{ flex:1, padding:"9px", borderRadius:"10px", border:"1.5px solid #EF444440", background:"#EF444410", color:"#EF4444", fontWeight:800, cursor:"pointer", fontSize:"0.82rem" }}>
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Formulario premio - so mostra se editando ou novo */}
+            {premio.length > 0 && premioEditando && (
+              <div style={{ marginBottom:"14px" }}>
+                {/* Upload foto */}
+                <div style={{ padding:"12px", borderRadius:"12px", border:"1px dashed #A0B8C8", background: e ? "rgba(255,255,255,0.05)" : "#F8FAFC", textAlign:"center", marginBottom:"12px" }}>
+                  {premioImagemUrl ? (
+                    <div style={{ position:"relative", display:"inline-block", width:"100%" }}>
+                      <img src={premioImagemUrl} alt="Premio" style={{ width:"100%", maxHeight:"150px", objectFit:"cover", borderRadius:"8px" }} />
+                      <button onClick={() => setPremioImagemUrl(null)}
+                        style={{ position:"absolute", top:5, right:5, background:"#EF4444", color:"white", border:"none", borderRadius:"50%", width:24, height:24, cursor:"pointer", fontWeight:"bold" }}>X</button>
+                    </div>
+                  ) : (
+                    <>
+                      <p style={{ fontSize:"0.75rem", color:c.textoSub, margin:"0 0 8px" }}>Adicionar foto do prêmio (Opcional)</p>
+                      <input type="file" accept="image/*" id="fotoPremioInput" style={{ display:"none" }}
+                        onChange={async (ev) => {
+                          const file = ev.target.files[0];
+                          if (!file) return;
+                          setUploadingFoto(true);
+                          try {
+                            const { storage } = await import("../services/firebase");
+                            const { ref, uploadBytes, getDownloadURL } = await import("firebase/storage");
+                            const storageRef = ref(storage, `premios/${userPai.uid}_${Date.now()}`);
+                            await uploadBytes(storageRef, file);
+                            const url = await getDownloadURL(storageRef);
+                            setPremioImagemUrl(url);
+                          } catch (err) { alert("Erro ao enviar imagem."); }
+                          setUploadingFoto(false);
+                        }} />
+                      <button onClick={() => document.getElementById("fotoPremioInput").click()} disabled={uploadingFoto}
+                        style={{ padding:"8px 16px", background:"#00D4AA20", color:"#00D4AA", border:"1.5px solid #00D4AA", borderRadius:"8px", fontWeight:"bold", cursor:"pointer", fontSize:"0.8rem" }}>
+                        {uploadingFoto ? "Enviando..." : "Escolher Foto"}
+                      </button>
+                    </>
+                  )}
+                </div>
+                {/* Botao salvar */}
+                <button onClick={async () => {
+                    try {
+                      const { db } = await import("../services/firebase");
+                      const { doc, setDoc } = await import("firebase/firestore");
+                      if (!userPai?.uid) { alert("Erro de autenticação."); return; }
+                      await setDoc(doc(db, "responsaveis", userPai.uid), {
+                        premio: premio,
+                        premioImagemUrl: premioImagemUrl || null,
+                      }, { merge: true });
+                      setPremioEditando(false);
+                      alert("Prêmio e regras salvos com sucesso!");
+                    } catch (err) { alert("Erro ao salvar."); }
+                  }}
+                  style={{ width:"100%", padding:"12px", marginTop:"8px", background:"#00D4AA", color:"#1E293B", border:"none", borderRadius:"12px", fontWeight:800, cursor:"pointer", fontSize:"0.95rem" }}>
+                  Salvar Regras do Prêmio
+                </button>
+                <button onClick={() => setPremioEditando(false)}
+                  style={{ width:"100%", padding:"9px", marginTop:"6px", background:"transparent", color:c.textoSub, border:`1px solid ${c.borda}`, borderRadius:"12px", fontWeight:700, cursor:"pointer", fontSize:"0.85rem" }}>
+                  Cancelar
+                </button>
+              </div>
+            )}
+
+            {/* Preview modal premiacao */}
+            {premio.length > 0 && (
+              <div style={{ background: e ? "#0F1F0F" : "#FFFBEB", border:"2px solid #FFD70066", borderRadius:16, padding:"16px 18px" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+                  <span style={{ fontSize:"1.4rem" }}>🎆</span>
+                  <div>
+                    <p style={{ fontSize:"0.85rem", fontWeight:800, color:"#FFD700", margin:0, textTransform:"uppercase", letterSpacing:1 }}>Visualizar Card da Criança</p>
+                    <p style={{ fontSize:"0.72rem", color:c.textoSub, margin:"2px 0 0" }}>Veja exatamente como seu filho verá a tela de premiação</p>
+                  </div>
+                </div>
+                <button onClick={() => setMostrarPreviewPremio(true)}
+                  style={{ width:"100%", padding:"12px", background:"linear-gradient(135deg,#00D4AA,#00B894)", color:"#fff", border:"none", borderRadius:12, fontWeight:900, cursor:"pointer", fontSize:"0.95rem", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  Visualizar como a Criança Vê
+                </button>
+              </div>
+            )}
+
+            <ModalPremiacao
+              isOpen={mostrarPreviewPremio}
+              fechar={() => setMostrarPreviewPremio(false)}
+              premioTexto={premio.includes("|") ? premio.split("|")[1]?.trim() : premio}
+              premioImagemUrl={premioImagemUrl}
+              premioFreq={premio.includes("|") ? premio.split("|")[0] : "Semanal"}
+              e={e}
+            />
 
             <CardAssinatura
               c={c}

@@ -1,4 +1,5 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https')
+const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { defineSecret } = require('firebase-functions/params')
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
@@ -714,3 +715,116 @@ exports.orientacaoFamiliar = onCall(
 // deploy-202606040403
 
 // security-202606040516
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// autoGerarMissoes — roda todo dia util as 07h (America/Sao_Paulo)
+// ═══════════════════════════════════════════════════════════════════════
+exports.autoGerarMissoes = onSchedule(
+  { schedule: '0 7 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY] },
+  async () => {
+    const db = admin.firestore()
+    const hoje = new Date().toISOString().slice(0, 10)
+    const diaSemana = new Date().getDay() // 1-5 = seg-sex
+
+    if (diaSemana === 0 || diaSemana === 6) return
+
+    // Busca todos os responsaveis com autoMissoes=true
+    const respSnap = await db.collection('responsaveis')
+      .where('autoMissoes', '==', true)
+      .get()
+
+    if (respSnap.empty) return
+    console.log(`[autoGerarMissoes] ${respSnap.size} responsaveis com auto ativo`)
+
+    for (const respDoc of respSnap.docs) {
+      try {
+        const resp = respDoc.data()
+        const paiId = respDoc.id
+        const limiteDia = resp.limiteMissoes || 3
+        const serie = resp.serie || '6ano'
+        const bimestre = resp.bimestre || '1bimestre'
+
+        // Busca crianca vinculada
+        const criancaSnap = await db.collection('criancas')
+          .where('parentId', '==', paiId)
+          .where('status', '==', 'ativo')
+          .limit(1)
+          .get()
+
+        if (criancaSnap.empty) continue
+        const crianca = criancaSnap.docs[0]
+        const criancaId = crianca.id
+
+        // Conta missoes geradas hoje
+        const missoesHoje = await db.collection('missoes')
+          .where('criancaId', '==', criancaId)
+          .where('data', '==', hoje)
+          .get()
+
+        const qtdHoje = missoesHoje.size
+        if (qtdHoje >= limiteDia) {
+          console.log(`[auto] ${criancaId} ja tem ${qtdHoje} missoes hoje`)
+          continue
+        }
+
+        const faltam = limiteDia - qtdHoje
+        const disciplinas = ['matematica', 'portugues', 'geografia', 'ciencias']
+
+        // Busca titulos ja gerados para evitar repeticao
+        const titulosSnap = await db.collection('missoes')
+          .where('criancaId', '==', criancaId)
+          .orderBy('criadoEm', 'desc')
+          .limit(20)
+          .get()
+        const titulosJaGerados = titulosSnap.docs.map(d => d.data().titulo || '').filter(Boolean)
+
+        for (let i = 0; i < faltam; i++) {
+          const disciplina = disciplinas[i % disciplinas.length]
+          const tema = CURRICULO[disciplina]?.[serie]?.[bimestre] || disciplina
+          try {
+            // Gera missao via Anthropic diretamente
+            const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+            const prompt = `Crie uma missão educacional para ${disciplina}, ${serie}, ${bimestre}. Tema: ${tema}. Títulos já usados: ${titulosJaGerados.slice(0,5).join(', ')}. Retorne JSON com: titulo, perguntaCentral, topicos (array 3 itens), atividades.quiz (array 5 perguntas com pergunta/opcoes[4]/resposta).`
+            
+            const msg = await anthropic.messages.create({
+              model: 'claude-haiku-4-5-20251001',
+              max_tokens: 1500,
+              messages: [{ role: 'user', content: prompt }]
+            })
+
+            let missao
+            try {
+              const texto = msg.content[0].text
+              const json = texto.substring(texto.indexOf('{'), texto.lastIndexOf('}') + 1)
+              missao = JSON.parse(json)
+            } catch {
+              console.warn('[auto] parse falhou para', disciplina)
+              continue
+            }
+
+            await db.collection('missoes').add({
+              criancaId,
+              disciplina,
+              serie,
+              bimestre,
+              titulo: missao.titulo || 'Missão do Dia',
+              perguntaCentral: missao.perguntaCentral || '',
+              topicos: missao.topicos || [],
+              atividades: missao.atividades || {},
+              feita: false,
+              autoGerada: true,
+              data: hoje,
+              criadoEm: admin.firestore.FieldValue.serverTimestamp()
+            })
+            console.log(`[auto] missao gerada: ${disciplina} para ${criancaId}`)
+          } catch (err) {
+            console.error(`[auto] erro gerando ${disciplina}:`, err.message)
+          }
+        }
+      } catch (err) {
+        console.error('[auto] erro no responsavel', respDoc.id, err.message)
+      }
+    }
+  }
+)

@@ -8,7 +8,8 @@ import {
   getTodasMissoes,
   getProgresso,
   registrarAcessoDiario,
-} from "../services/db";
+getCrianca, getResponsavel} from "../services/db";
+import ModalPremiacao from '../components/ModalPremiacao';
 
 // ── Utilitários ──
 function obterSaudacao() {
@@ -62,6 +63,8 @@ export default function HomePage({ playerName }) {
   const [missoes, setMissoes] = useState({});
   const [progresso, setProgresso] = useState(null);
   const [diasSemana, setDiasSemana] = useState([]);
+  const [premioConfig, setPremioConfig] = useState(null);
+  const [mostrarFesta, setMostrarFesta] = useState(false);
 
   const c = {
     bg: e ? "#0D141C" : "#F0F4F8",
@@ -90,9 +93,30 @@ export default function HomePage({ playerName }) {
 
         const [missoesFB, progressoFB] = await Promise.all([
           getTodasMissoes(codigoAcesso),
-          registrarAcessoDiario(codigoAcesso),
+          registrarAcessoDiario(codigoAcesso)
         ]);
+
+        // 1. PRIORIDADE: Renderiza as missões imediatamente, independente de falhas secundárias
         setMissoes(missoesFB);
+
+        // 2. Tenta buscar o prêmio de forma isolada e silenciosa
+        try {
+          const criancaFB = await getCrianca(codigoAcesso);
+          if (criancaFB && (criancaFB.uidPai || criancaFB.parentId)) {
+            const paiId = criancaFB.uidPai || criancaFB.parentId;
+            const paiFB = await getResponsavel(paiId);
+            
+            if (paiFB && paiFB.premio && paiFB.premio.length > 0) {
+              setPremioConfig({ 
+                texto: paiFB.premio.includes("|") ? paiFB.premio.split("|")[1] : paiFB.premio, 
+                imagemUrl: paiFB.premioImagemUrl || null,
+                freq: paiFB.premio.includes("|") ? paiFB.premio.split("|")[0] : "Semanal"
+              });
+            }
+          }
+        } catch (errSeguranca) {
+          console.warn("Aviso: Leitura do prêmio bloqueada pelo Firebase.", errSeguranca.message);
+        }
         setProgresso(progressoFB);
         setDiasSemana(obterDiasSemana(progressoFB?.diasAtivos || []));
       } catch (err) {
@@ -138,6 +162,20 @@ export default function HomePage({ playerName }) {
     badges.push({ icone: "✅", label: "5 missões concluídas" });
   if (missoesFeitas >= 1 && diasSeguidos >= 1)
     badges.push({ icone: "💡", label: "Voltou para aprender" });
+
+  // ── Observador de Missões (Gatilho da Festa) ──
+  useEffect(() => {
+    if (!missoes || Object.keys(missoes).length === 0 || !premioConfig) return;
+    
+    // Achata todas as matérias em uma lista única e verifica se zerou
+    const missoesArray = Object.values(missoes).flat();
+    const total = missoesArray.length;
+    const pendentes = missoesArray.filter(m => !m.feita).length;
+    
+    if (total > 0 && pendentes === 0) {
+      setMostrarFesta(true);
+    }
+  }, [missoes, premioConfig]);
 
   // ── Trocar usuário (Correção de Importação) ──
   const trocarUsuario = async () => {
@@ -693,6 +731,16 @@ export default function HomePage({ playerName }) {
             </div>
           </>
         )}
+
+        {/* Palco da Premiação */}
+        <ModalPremiacao 
+          isOpen={mostrarFesta} 
+          fechar={() => setMostrarFesta(false)} 
+          premioTexto={premioConfig?.texto} 
+          premioImagemUrl={premioConfig?.imagemUrl}
+          premioFreq={premioConfig?.freq}
+          e={e} 
+        />
       </main>
 
       <BottomNav />
