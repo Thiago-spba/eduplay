@@ -11,6 +11,7 @@ import {
   registrarMissaoConcluida,
   salvarMissao,
   salvarSessaoQuiz,
+  registrarAcessoDiario,
 } from "../services/db";
 import { gerarMissaoIA } from "../services/ia";
 import { signInAnonymously } from "firebase/auth";
@@ -806,6 +807,7 @@ export default function SubjectPage() {
             `${disciplinaId}_${moduloSelecionado.id}`,
           ),
           // ── Salva resultado para o painel dos pais ──
+          registrarAcessoDiario(codigoAcesso),
           salvarSessaoQuiz(codigoAcesso, {
             disciplina: disciplinaId,
             tituloMissao: moduloSelecionado.titulo || "",

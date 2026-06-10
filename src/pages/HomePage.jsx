@@ -7,7 +7,6 @@ import { auth } from "../services/firebase";
 import {
   getTodasMissoes,
   getProgresso,
-  registrarAcessoDiario,
 getCrianca, getResponsavel} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 
@@ -93,7 +92,6 @@ export default function HomePage({ playerName }) {
 
         const [missoesFB, progressoFB] = await Promise.all([
           getTodasMissoes(codigoAcesso),
-          registrarAcessoDiario(codigoAcesso)
         ]);
 
         // 1. PRIORIDADE: Renderiza as missões imediatamente, independente de falhas secundárias

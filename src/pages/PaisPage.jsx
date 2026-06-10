@@ -2063,6 +2063,7 @@ export default function PaisPage({ userPai, timer }) {
   const [linkCopiado, setLinkCopiado] = useState(false);
   const [avatarFilho, setAvatarFilho] = useState("🧑‍🚀");
   const [mostrarAvatares, setMostrarAvatares] = useState(false);
+
   const [secao, setSecao] = useState("visao");
   const [config, setConfig] = useState({
     serie: localStorage.getItem("eduplay_config_serie") || "6ano",
@@ -2162,6 +2163,7 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
+        if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (resp.premio) setPremio(resp.premio);
@@ -4160,6 +4162,314 @@ export default function PaisPage({ userPai, timer }) {
             )}
           </div>
         )}
+
+        {secao === "missoes" && (
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "16px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  fontWeight: 800,
+                  color: c.textoSub,
+                  margin: "0 0 10px",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Série
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 6,
+                  marginBottom: 14,
+                }}
+              >
+                {SERIES.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      setConfig({ ...config, serie: s.id });
+                      localStorage.setItem("eduplay_config_serie", s.id);
+                    }}
+                    style={{
+                      padding: "8px 4px",
+                      borderRadius: 10,
+                      border: `2px solid ${config.serie === s.id ? c.accent : c.borda}`,
+                      background:
+                        config.serie === s.id ? `${c.accent}15` : "transparent",
+                      color: config.serie === s.id ? c.accent : c.textoSub,
+                      fontWeight: 800,
+                      fontSize: "0.78rem",
+                      cursor: "pointer",
+                      fontFamily: "'Nunito', sans-serif",
+                    }}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  fontWeight: 800,
+                  color: c.textoSub,
+                  margin: "0 0 10px",
+                  textTransform: "uppercase",
+                  letterSpacing: 1,
+                }}
+              >
+                Bimestre
+              </p>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(4, 1fr)",
+                  gap: 6,
+                }}
+              >
+                {BIMESTRES.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => {
+                      setConfig({ ...config, bimestre: b.id });
+                      localStorage.setItem("eduplay_config_bimestre", b.id);
+                    }}
+                    style={{
+                      padding: "8px 4px",
+                      borderRadius: 10,
+                      border: `2px solid ${config.bimestre === b.id ? c.azul : c.borda}`,
+                      background:
+                        config.bimestre === b.id
+                          ? `${c.azul}15`
+                          : "transparent",
+                      color: config.bimestre === b.id ? c.azul : c.textoSub,
+                      fontWeight: 800,
+                      fontSize: "0.78rem",
+                      cursor: "pointer",
+                      fontFamily: "'Nunito', sans-serif",
+                    }}
+                  >
+                    {b.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div
+              style={{
+                background: limiteAtingido ? "#F59E0B12" : `${c.accent}10`,
+                border: `1.5px solid ${limiteAtingido ? "#F59E0B40" : `${c.accent}30`}`,
+                borderRadius: 14,
+                padding: "12px 18px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+              }}
+            >
+              <div>
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    color: limiteAtingido ? "#F59E0B" : c.accent,
+                    margin: 0,
+                  }}
+                >
+                  {limiteAtingido
+                    ? "Limite diário atingido"
+                    : `${limiteMissoes - missoesHoje} missões disponível(is) hoje`}
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.7rem",
+                    color: c.textoSub,
+                    margin: "2px 0 0",
+                  }}
+                >
+                  {limiteAtingido
+                    ? "Volte amanhã."
+                    : "Cada missão é única e personalizada."}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 4 }}>
+                {Array.from({ length: limiteMissoes }, (_, i) => i).map((i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 12,
+                      height: 12,
+                      borderRadius: "50%",
+                      background:
+                        i < missoesHoje
+                          ? limiteAtingido
+                            ? "#F59E0B"
+                            : c.accent
+                          : "transparent",
+                      border: `2px solid ${i < missoesHoje ? (limiteAtingido ? "#F59E0B" : c.accent) : c.borda}`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+            {gerando && (
+              <div
+                style={{
+                  background: `${c.accent}10`,
+                  border: `2px solid ${c.accent}30`,
+                  borderRadius: 16,
+                  padding: "20px",
+                  textAlign: "center",
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "2.2rem",
+                    marginBottom: 10,
+                    animation: "girarIA 2s linear infinite",
+                  }}
+                >
+                  🧠
+                </div>
+                <p
+                  style={{
+                    fontSize: "0.92rem",
+                    fontWeight: 700,
+                    color: c.accent,
+                    margin: "0 0 6px",
+                  }}
+                >
+                  {FRASES_LOADING[fraseLoading]}
+                </p>
+              </div>
+            )}
+            {mensagem && !gerando && (
+              <div
+                style={{
+                  borderRadius: 16,
+                  overflow: "hidden",
+                  border: `1.5px solid ${mensagem.tipo === "sucesso" ? `${c.accent}40` : "#E0555540"}`,
+                }}
+              >
+                <div
+                  style={{
+                    background:
+                      mensagem.tipo === "sucesso"
+                        ? `${c.accent}15`
+                        : "#E0555515",
+                    padding: "14px 18px",
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "0.9rem",
+                      fontWeight: 800,
+                      color: mensagem.tipo === "sucesso" ? c.accent : "#E05555",
+                      margin: 0,
+                    }}
+                  >
+                    {mensagem.tipo === "sucesso"
+                      ? `✅ ${mensagem.titulo}`
+                      : "❌ Erro ao gerar missão."}
+                  </p>
+                </div>
+              </div>
+            )}
+            {/* Lista de missoes ja geradas */}
+            {Object.values(missoesPorDisc).flat().length > 0 && (
+              <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, overflow: "hidden" }}>
+                <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>
+                    📚 Missões — {SERIES.find((s) => s.id === config.serie)?.label} {BIMESTRES.find((b) => b.id === config.bimestre)?.label}
+                  </p>
+                  <span style={{ fontSize: "0.72rem", fontWeight: 800, color: c.accent, background: `${c.accent}15`, padding: "3px 10px", borderRadius: 8 }}>
+                    {Object.values(missoesPorDisc).flat().length} missões
+                  </span>
+                </div>
+                {DISCIPLINAS.map((d) => {
+                  const lista = missoesPorDisc[d.id] || [];
+                  if (lista.length === 0) return null;
+                  return (
+                    <div key={d.id}>
+                      <div style={{ padding: "10px 16px", background: `${d.cor}10`, borderBottom: `1px solid ${c.borda}`, display: "flex", alignItems: "center", gap: 8 }}>
+                        <span style={{ fontSize: "1rem" }}>{d.icone}</span>
+                        <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
+                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} {lista.length === 1 ? "missão" : "missões"}</span>
+                      </div>
+                      {lista.map((m, i) => (
+                        <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
+                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
+                            <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: 0, lineHeight: 1.3, flex: 1 }}>
+                              {m.titulo || "Missão sem título"}
+                            </p>
+                            <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "3px 8px", borderRadius: 6, flexShrink: 0, color: m.feita ? "#2E8B57" : "#F59E0B", background: m.feita ? "#2E8B5715" : "#F59E0B15" }}>
+                              {m.feita ? "✅ Feita" : "⏳ Pendente"}
+                            </span>
+                          </div>
+                          {m.perguntaCentral && (
+                            <p style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, margin: 0, fontStyle: "italic" }}>"{m.perguntaCentral}"</p>
+                          )}
+                          {Array.isArray(m.topicos) && m.topicos.length > 0 && (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                              {m.topicos.slice(0, 3).map((t, ti) => (
+                                <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                                  <span style={{ fontSize: "0.65rem", color: d.cor, fontWeight: 800, flexShrink: 0 }}>•</span>
+                                  <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <p style={{ fontSize: "0.68rem", color: c.textoSub, margin: 0 }}>
+                            {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : "—"}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Botoes de gerar */}
+            {!gerando && !limiteAtingido && (
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                {DISCIPLINAS.map((d) => {
+                  const total = (missoesPorDisc[d.id] || []).length;
+                  return (
+                    <button key={d.id} onClick={() => gerarMissao(d.id)}
+                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", background: c.card, border: `2px solid ${d.cor}44`, borderRadius: 16, cursor: "pointer", textAlign: "left", width: "100%" }}>
+                      <div style={{ width: 48, height: 48, borderRadius: 14, background: `${d.cor}22`, border: `2px solid ${d.cor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
+                        {d.icone}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1rem", color: c.texto, fontWeight: 600 }}>{d.label}</div>
+                        <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
+                          {total > 0 ? `${total} missões — gerar mais` : "Toque para gerar uma missão"}
+                        </div>
+                      </div>
+                      <div style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, background: `${d.cor}18`, padding: "4px 10px", borderRadius: 8 }}>🤖 Gerar</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
 
         {secao === "relatorio" && (
           <RelatorioTab
