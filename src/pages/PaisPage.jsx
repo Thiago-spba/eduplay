@@ -21,6 +21,7 @@ import {
   getProgresso,
   desativarConta,
   reativarConta,
+  verificarTrial,
 } from "../services/db";
 
 const MAX_MISSOES_DIA_DEFAULT = 3;
@@ -885,7 +886,8 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
         <div style={{ background: e ? "rgba(0,212,170,0.08)" : "rgba(0,212,170,0.06)", border: "2px solid #00D4AA44", borderRadius: 16, padding: "16px", textAlign: "center" }}>
           <p style={{ fontSize: "0.8rem", fontWeight: 800, color: "#00D4AA", margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>⚡ PIX gerado — pague agora</p>
           {pixData.qrCodeBase64 && <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: 180, height: 180, borderRadius: 12, marginBottom: 10 }} />}
-          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 10px" }}>Válido por 30 minutos. Acesso liberado automaticamente após pagamento.</p>
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 10px" }}>Válido por 30 minutos. Acesso liberado automaticamente após pagamento.
+          <p style={{ fontSize: "0.72rem", color: "#F59E0B", fontWeight: 700, margin: "4px 0 10px", lineHeight: 1.5 }}>⚠️ PIX garante 30 dias de acesso. Renove manualmente todo mês.</p></p>
           <button onClick={() => { navigator.clipboard.writeText(pixData.qrCode); }}
             style={{ width: "100%", padding: "11px", borderRadius: 12, border: "2px solid #00D4AA44", background: "transparent", color: "#00D4AA", fontWeight: 800, fontSize: "0.85rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
             📋 Copiar código PIX
@@ -1643,10 +1645,11 @@ function OrientacaoTab({ c, e }) {
   const [input, setInput] = useState("");
   const [carregando, setCarregando] = useState(false);
   const fimRef = useRef(null);
+  const respostaRef = useRef(null);
 
   const rolarParaBaixo = () => {
     setTimeout(
-      () => fimRef.current?.scrollIntoView({ behavior: "smooth" }),
+      () => respostaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }),
       100,
     );
   };
@@ -1875,6 +1878,7 @@ function OrientacaoTab({ c, e }) {
           {mensagens.map((msg, i) => (
             <div
               key={i}
+              ref={i === mensagens.length - 1 && msg.role === "assistant" ? respostaRef : null}
               style={{
                 display: "flex",
                 justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
@@ -1921,18 +1925,70 @@ function OrientacaoTab({ c, e }) {
           ))}
           {carregando && (
             <div style={{ display: "flex", justifyContent: "flex-start" }}>
-              <div
-                style={{
-                  padding: "12px 16px",
-                  borderRadius: "18px 18px 18px 4px",
-                  background: c.card,
-                  border: `1.5px solid ${c.borda}`,
-                  fontSize: "0.85rem",
-                  color: c.textoSub,
-                  fontStyle: "italic",
-                }}
-              >
-                ✍️ Elaborando orientacao...
+              <div style={{ padding: "8px", borderRadius: "18px 18px 18px 4px", background: c.card, border: `1.5px solid ${c.borda}`, overflow: "hidden", width: "100%", maxWidth: 340 }}>
+                <svg viewBox="0 0 680 320" xmlns="http://www.w3.org/2000/svg" style={{ width: "100%", height: "auto", display: "block" }} role="img" aria-label="Assistente elaborando orientação">
+                  <defs>
+                    <style>{`.edu-s1{animation:edu-f1 2.4s ease-in-out infinite;transform-origin:290px 130px}.edu-s2{animation:edu-f2 2.0s ease-in-out infinite .4s;transform-origin:330px 100px}.edu-s3{animation:edu-f3 2.6s ease-in-out infinite .7s;transform-origin:370px 120px}.edu-s4{animation:edu-f4 2.1s ease-in-out infinite 1.0s;transform-origin:310px 85px}.edu-s5{animation:edu-f5 2.3s ease-in-out infinite .2s;transform-origin:355px 78px}.edu-s6{animation:edu-f6 1.9s ease-in-out infinite .9s;transform-origin:275px 108px}.edu-s7{animation:edu-f1 2.7s ease-in-out infinite .5s;transform-origin:390px 95px}.edu-s8{animation:edu-f3 2.2s ease-in-out infinite 1.3s;transform-origin:350px 65px}@keyframes edu-f1{0%,100%{transform:translateY(0) scale(1);opacity:1}50%{transform:translateY(-42px) scale(.3);opacity:0}}@keyframes edu-f2{0%,100%{transform:translateY(0) scale(1);opacity:.9}50%{transform:translateY(-50px) scale(.2);opacity:0}}@keyframes edu-f3{0%,100%{transform:translateY(0) scale(1);opacity:1}50%{transform:translateY(-38px) scale(.3);opacity:0}}@keyframes edu-f4{0%,100%{transform:translateY(0) scale(.9);opacity:.85}50%{transform:translateY(-46px) scale(.2);opacity:0}}@keyframes edu-f5{0%,100%{transform:translateY(0) scale(1);opacity:1}50%{transform:translateY(-44px) scale(.25);opacity:0}}@keyframes edu-f6{0%,100%{transform:translateY(0) scale(.8);opacity:.8}50%{transform:translateY(-36px) scale(.2);opacity:0}}.edu-pencil{animation:edu-write 1.6s cubic-bezier(.4,0,.6,1) infinite;transform-origin:340px 220px}@keyframes edu-write{0%{transform:translateX(-55px) rotate(-15deg)}45%{transform:translateX(55px) rotate(-15deg)}50%{transform:translateX(55px) rotate(-15deg)}95%{transform:translateX(-55px) rotate(-15deg)}100%{transform:translateX(-55px) rotate(-15deg)}}.edu-l1{animation:edu-el1 1.6s linear infinite;stroke-dasharray:110;stroke-dashoffset:110}.edu-l2{animation:edu-el2 1.6s linear infinite .2s;stroke-dasharray:90;stroke-dashoffset:90}.edu-l3{animation:edu-el3 1.6s linear infinite .4s;stroke-dasharray:70;stroke-dashoffset:70}@keyframes edu-el1{0%{stroke-dashoffset:110;opacity:1}60%{stroke-dashoffset:0;opacity:1}80%{stroke-dashoffset:0;opacity:.5}100%{stroke-dashoffset:0;opacity:0}}@keyframes edu-el2{0%{stroke-dashoffset:90;opacity:0}20%{stroke-dashoffset:90;opacity:0}70%{stroke-dashoffset:0;opacity:1}90%{stroke-dashoffset:0;opacity:.4}100%{stroke-dashoffset:0;opacity:0}}@keyframes edu-el3{0%{stroke-dashoffset:70;opacity:0}40%{stroke-dashoffset:70;opacity:0}85%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:0;opacity:.3}}.edu-d1{animation:edu-dot 1.6s ease-in-out infinite}.edu-d2{animation:edu-dot 1.6s ease-in-out infinite .3s}.edu-d3{animation:edu-dot 1.6s ease-in-out infinite .6s}@keyframes edu-dot{0%,100%{opacity:.2}50%{opacity:1}}.edu-livro{animation:edu-pulse 3s ease-in-out infinite;transform-origin:340px 210px}@keyframes edu-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}.edu-glow{animation:edu-glow 3s ease-in-out infinite}@keyframes edu-glow{0%,100%{opacity:.08}50%{opacity:.18}}`}</style>
+                  </defs>
+                  <rect x="80" y="15" width="520" height="290" rx="28" fill="#4F46E5" className="edu-glow"/>
+                  <rect x="90" y="22" width="500" height="276" rx="22" fill="#7C3AED" className="edu-glow" style={{animationDelay:".8s"}}/>
+                  <g className="edu-livro">
+                    <ellipse cx="340" cy="282" rx="100" ry="10" fill="#4F46E5" opacity="0.2"/>
+                    <rect x="210" y="155" width="130" height="118" rx="6" fill="#4F46E5"/>
+                    <rect x="210" y="155" width="130" height="118" rx="6" fill="none" stroke="#7C3AED" strokeWidth="2"/>
+                    <rect x="218" y="163" width="114" height="102" rx="4" fill="#5B52F0" opacity=".5"/>
+                    <rect x="340" y="155" width="130" height="118" rx="6" fill="#7C3AED"/>
+                    <rect x="340" y="155" width="130" height="118" rx="6" fill="none" stroke="#9F7AEA" strokeWidth="2"/>
+                    <rect x="348" y="163" width="114" height="102" rx="4" fill="#8B5CF6" opacity=".5"/>
+                    <rect x="332" y="153" width="16" height="122" rx="4" fill="#312E81"/>
+                    <line x1="340" y1="153" x2="340" y2="275" stroke="#4F46E5" strokeWidth="1.5" opacity=".6"/>
+                    <rect x="214" y="159" width="122" height="110" rx="3" fill="#F0F4FF"/>
+                    <line x1="222" y1="175" x2="328" y2="175" stroke="#4F46E5" strokeWidth="2" opacity=".35"/>
+                    <line x1="222" y1="186" x2="328" y2="186" stroke="#7C3AED" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="222" y1="197" x2="320" y2="197" stroke="#00D4AA" strokeWidth="2" opacity=".4"/>
+                    <line x1="222" y1="208" x2="324" y2="208" stroke="#4F46E5" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="222" y1="219" x2="318" y2="219" stroke="#F59E0B" strokeWidth="2" opacity=".4"/>
+                    <line x1="222" y1="230" x2="322" y2="230" stroke="#7C3AED" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="222" y1="241" x2="310" y2="241" stroke="#00D4AA" strokeWidth="2" opacity=".35"/>
+                    <line x1="222" y1="252" x2="315" y2="252" stroke="#4F46E5" strokeWidth="1.5" opacity=".25"/>
+                    <rect x="344" y="159" width="122" height="110" rx="3" fill="#F5F0FF"/>
+                    <line x1="352" y1="175" x2="458" y2="175" stroke="#7C3AED" strokeWidth="2" opacity=".35"/>
+                    <line x1="352" y1="186" x2="458" y2="186" stroke="#00D4AA" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="352" y1="197" x2="450" y2="197" stroke="#4F46E5" strokeWidth="2" opacity=".4"/>
+                    <line x1="352" y1="208" x2="454" y2="208" stroke="#F59E0B" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="352" y1="219" x2="448" y2="219" stroke="#7C3AED" strokeWidth="2" opacity=".4"/>
+                    <line x1="352" y1="230" x2="452" y2="230" stroke="#00D4AA" strokeWidth="1.5" opacity=".3"/>
+                    <line x1="352" y1="241" x2="444" y2="241" stroke="#4F46E5" strokeWidth="2" opacity=".35"/>
+                    <line x1="352" y1="252" x2="446" y2="252" stroke="#F59E0B" strokeWidth="1.5" opacity=".25"/>
+                  </g>
+                  <line x1="232" y1="270" x2="342" y2="270" stroke="#00D4AA" strokeWidth="3" strokeLinecap="round" className="edu-l1"/>
+                  <line x1="352" y1="270" x2="452" y2="270" stroke="#FFD700" strokeWidth="3" strokeLinecap="round" className="edu-l2"/>
+                  <line x1="232" y1="278" x2="302" y2="278" stroke="#F472B6" strokeWidth="2.5" strokeLinecap="round" className="edu-l3"/>
+                  <g className="edu-pencil">
+                    <ellipse cx="340" cy="278" rx="18" ry="4" fill="#000" opacity="0.15"/>
+                    <rect x="318" y="218" width="18" height="52" rx="3" fill="#FFD700"/>
+                    <rect x="318" y="224" width="18" height="3" fill="#F59E0B" opacity=".6"/>
+                    <rect x="318" y="231" width="18" height="3" fill="#F59E0B" opacity=".4"/>
+                    <rect x="318" y="212" width="18" height="9" rx="2" fill="#F472B6"/>
+                    <rect x="318" y="218" width="18" height="4" rx="0" fill="#E5E7EB"/>
+                    <rect x="318" y="270" width="18" height="6" fill="#DEB887"/>
+                    <polygon points="318,276 336,276 327,292" fill="#D97706"/>
+                    <polygon points="323,282 331,282 327,292" fill="#374151"/>
+                    <rect x="322" y="220" width="4" height="44" rx="2" fill="#FFF" opacity=".25"/>
+                  </g>
+                  <g className="edu-s1"><polygon points="290,118 293,127 303,127 295,133 298,142 290,136 282,142 285,133 277,127 287,127" fill="#FFD700"/></g>
+                  <g className="edu-s2"><polygon points="330,88 332.5,96 341,96 334.5,101 337,109 330,104 323,109 325.5,101 319,96 327.5,96" fill="#F472B6"/></g>
+                  <g className="edu-s3"><polygon points="372,108 374,115 381,115 376,119 378,126 372,122 366,126 368,119 363,115 370,115" fill="#00D4AA"/></g>
+                  <g className="edu-s4"><polygon points="310,73 312,80 319,80 314,84 316,91 310,87 304,91 306,84 301,80 308,80" fill="#A78BFA"/></g>
+                  <g className="edu-s5"><polygon points="356,66 357.5,72 364,72 359,76 361,82 356,78 351,82 353,76 348,72 354.5,72" fill="#FFD700"/></g>
+                  <g className="edu-s6"><polygon points="275,96 277,103 284,103 279,107 281,114 275,110 269,114 271,107 266,103 273,103" fill="#34D399"/></g>
+                  <g className="edu-s7"><polygon points="392,83 393.5,89 400,89 395,93 397,99 392,95 387,99 389,93 384,89 390.5,89" fill="#F472B6"/></g>
+                  <g className="edu-s8"><polygon points="352,53 353.5,59 360,59 355,63 357,69 352,65 347,69 349,63 344,59 350.5,59" fill="#00D4AA"/></g>
+                  <circle cx="305" cy="305" r="5" fill="#00D4AA" className="edu-d1"/>
+                  <circle cx="325" cy="305" r="5" fill="#A78BFA" className="edu-d2"/>
+                  <circle cx="345" cy="305" r="5" fill="#F472B6" className="edu-d3"/>
+                  <text x="340" y="300" textAnchor="middle" fontFamily="'Nunito',sans-serif" fontSize="15" fontWeight="800" fill="#00D4AA" letterSpacing="1">Elaborando orientação...</text>
+                </svg>
               </div>
             </div>
           )}
@@ -1960,7 +2016,7 @@ function OrientacaoTab({ c, e }) {
               enviar();
             }
           }}
-          placeholder="Digite sua duvida aqui..."
+          placeholder="Digite sua dúvida aqui..."
           rows={2}
           style={{
             flex: 1,
@@ -2016,7 +2072,7 @@ function OrientacaoTab({ c, e }) {
             gap: 8,
           }}
         >
-          📲 Compartilhar orientacao no WhatsApp
+          📲 Compartilhar orientação no WhatsApp
         </button>
       )}
 
@@ -2029,12 +2085,121 @@ function OrientacaoTab({ c, e }) {
           lineHeight: 1.5,
         }}
       >
-        ⚠️ Este assistente nao realiza diagnosticos. Para situacoes delicadas,
-        procure um profissional ou converse com o professor da sua crianca.
+        ⚠️ Este assistente não realiza diagnósticos. Para situações delicadas,
+        procure um profissional ou converse com o professor da sua criança.
       </p>
     </div>
   );
 }
+function CardAssinaturaCompacto({ c, e, filho, functions, userPai }) {
+  const [metodo, setMetodo] = useState("cartao");
+  const [carregando, setCarregando] = useState(false);
+  const [pixData, setPixData] = useState(null);
+  const [pixCopiado, setPixCopiado] = useState(false);
+
+  const pagar = async () => {
+    if (!filho?.id) return;
+    setCarregando(true);
+    try {
+      if (metodo === "pix") {
+        const fn = httpsCallable(functions, "criarPagamentoPix");
+        const r = await fn({ codigoAcesso: filho.id, emailResponsavel: userPai?.email, nomeResponsavel: userPai?.displayName || "Responsavel" });
+        if (r.data?.qrCode) setPixData(r.data);
+      } else {
+        const fn = httpsCallable(functions, "criarAssinatura");
+        const r = await fn({ codigoAcesso: filho.id, emailResponsavel: userPai?.email, nomeResponsavel: userPai?.displayName || "Responsavel" });
+        if (r.data?.checkoutUrl) window.open(r.data.checkoutUrl, "_blank");
+      }
+    } catch(_) {} finally { setCarregando(false); }
+  };
+
+  const verde = "#0F6E56";
+  const verdeBg = "#E1F5EE";
+
+  return (
+    <div style={{ background: c.card, border: "2px solid #5DCAA5", borderRadius: 16, padding: 20 }}>
+      {/* Topo — preco + checks */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 16 }}>
+        <div>
+          <p style={{ fontSize: "0.65rem", color: c.textoSub, letterSpacing: 1, margin: "0 0 6px", textTransform: "uppercase" }}>Plano Mensal</p>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 3 }}>
+            <span style={{ fontSize: "0.9rem", fontWeight: 700, color: verde }}>R$</span>
+            <span style={{ fontSize: "2.2rem", fontWeight: 900, color: verde, lineHeight: 1 }}>20</span>
+            <span style={{ fontSize: "0.9rem", fontWeight: 700, color: verde }}>/mês</span>
+          </div>
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "4px 0 0" }}>Menos que R$1 por dia</p>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-end" }}>
+          {["Cancele quando quiser", "Sem fidelidade", "Acesso imediato"].map(t => (
+            <span key={t} style={{ fontSize: "0.68rem", color: verde, display: "flex", alignItems: "center", gap: 4, fontWeight: 700 }}>
+              ✓ {t}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {/* Seletor metodo */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 14 }}>
+        {[
+          { id: "cartao", label: "💳 Cartão de crédito" },
+          { id: "pix", label: "⚡ PIX" },
+        ].map(m => (
+          <button key={m.id} onClick={() => { setMetodo(m.id); setPixData(null); }}
+            style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: `1.5px solid ${metodo === m.id ? "#5DCAA5" : c.borda}`, background: metodo === m.id ? verdeBg : "transparent", color: metodo === m.id ? "#085041" : c.textoSub, fontSize: "0.8rem", fontWeight: 700, cursor: "pointer", fontFamily: "'Nunito', sans-serif", transition: "all 0.2s" }}>
+            {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* PIX QR */}
+      {pixData && (
+        <div style={{ textAlign: "center", marginBottom: 14, padding: 14, background: e ? "rgba(0,212,170,0.08)" : "#F0FFF8", borderRadius: 12, border: "1.5px solid #5DCAA5" }}>
+          <p style={{ fontSize: "0.75rem", fontWeight: 800, color: verde, margin: "0 0 10px", textTransform: "uppercase", letterSpacing: 1 }}>⚡ PIX gerado — pague agora</p>
+          {pixData.qrCodeBase64 && <img src={`data:image/png;base64,${pixData.qrCodeBase64}`} alt="QR Code PIX" style={{ width: 160, height: 160, borderRadius: 10, marginBottom: 10 }} />}
+          <p style={{ fontSize: "0.7rem", color: c.textoSub, margin: "0 0 10px" }}>Válido por 30 minutos. Acesso liberado automaticamente após pagamento.
+          <p style={{ fontSize: "0.72rem", color: "#F59E0B", fontWeight: 700, margin: "4px 0 10px", lineHeight: 1.5 }}>⚠️ PIX garante 30 dias de acesso. Renove manualmente todo mês.</p></p>
+          <button onClick={() => { navigator.clipboard.writeText(pixData.qrCode); setPixCopiado(true); setTimeout(() => setPixCopiado(false), 2500); }}
+            style={{ width: "100%", padding: "10px", borderRadius: 10, border: "1.5px solid #5DCAA5", background: "transparent", color: verde, fontWeight: 800, fontSize: "0.82rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+            {pixCopiado ? "✅ Copiado!" : "📋 Copiar código PIX"}
+          </button>
+        </div>
+      )}
+
+      {/* Botao CTA */}
+      <button onClick={pagar} disabled={carregando || !!pixData}
+        style={{ width: "100%", padding: "14px", borderRadius: 30, border: "none", background: carregando ? c.borda : verde, color: "#E1F5EE", fontSize: "0.95rem", fontWeight: 900, cursor: carregando || !!pixData ? "not-allowed" : "pointer", fontFamily: "'Nunito', sans-serif", letterSpacing: 0.5 }}>
+        {carregando ? "Aguarde..." : metodo === "pix" ? "⚡ Gerar QR Code PIX — R$20" : "🚀 Garantir acesso — R$20/mês"}
+      </button>
+
+      <p style={{ fontSize: "0.68rem", color: c.textoSub, textAlign: "center", margin: "10px 0 0" }}>
+        🔒 Pagamento seguro via Mercado Pago
+      </p>
+    </div>
+  );
+}
+
+function DepoimentoCard({ d, i, c, e }) {
+  const [aberto, setAberto] = useState(false);
+  return (
+    <div style={{ marginBottom: i < 3 ? 10 : 0 }}>
+      <button onClick={() => setAberto(!aberto)}
+        style={{ width: "100%", background: e ? "rgba(255,255,255,0.04)" : "#F8FBFF", border: `1.5px solid ${aberto ? "#5DCAA5" : c.borda}`, borderRadius: aberto ? "12px 12px 0 0" : 12, padding: "12px 16px", cursor: "pointer", textAlign: "left", fontFamily: "'Nunito', sans-serif", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, transition: "all 0.2s" }}>
+        <div>
+          <p style={{ fontSize: "0.85rem", fontWeight: 800, color: "#0F6E56", margin: 0 }}>{d.nome}</p>
+          <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "2px 0 0" }}>{d.detalhe}</p>
+        </div>
+        <span style={{ fontSize: "0.8rem", color: c.textoSub, transition: "transform 0.3s", display: "inline-block", transform: aberto ? "rotate(180deg)" : "rotate(0deg)" }}>▼</span>
+      </button>
+      {aberto && (
+        <div style={{ background: e ? "rgba(0,212,170,0.06)" : "#F0FFF8", border: "1.5px solid #5DCAA5", borderTop: "none", borderRadius: "0 0 12px 12px", padding: "14px 16px", animation: "fadeIn 0.2s ease" }}>
+          <p style={{ fontSize: "0.85rem", color: e ? "#E8F4F8" : "#1A2B3C", lineHeight: 1.6, margin: "0 0 8px", fontStyle: "italic" }}>"{d.txt}"</p>
+          <span style={{ fontSize: "0.72rem", color: "#0F6E56", fontWeight: 700 }}>— {d.nome}, {d.detalhe}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function PaisPage({ userPai, timer }) {
   const navigate = useNavigate();
   const { tema, alternarTema } = useTema();
@@ -2042,6 +2207,20 @@ export default function PaisPage({ userPai, timer }) {
 
   const [etapa, setEtapa] = useState("verificando");
   const [filho, setFilho] = useState(null);
+  const [diasTrial, setDiasTrial] = useState(null);
+  const [autoMissoes, setAutoMissoes] = useState(false);
+  const [pixDiasRestantes, setPixDiasRestantes] = useState(null);
+  const [pixExpirado, setPixExpirado] = useState(false);
+  const [frasesIdx, setFrasesIdx] = useState(0);
+  const FRASES_ASSINAR = [
+    { t: "O EduPlay é um ", accent: "professor particular no celular", end: " — todos os dias, no horário que seu filho quiser." },
+    { t: "Uma vaga na ETEC custa zero reais. ", accent: "O preparo custa R$20/mês.", end: "" },
+    { t: "Enquanto outros pais pagam R$400 em cursinho, ", accent: "você investe menos de R$1 por dia.", end: "" },
+    { t: "Você sabe o que seu filho estudou hoje? ", accent: "Com o EduPlay, você sabe.", end: "" },
+    { t: "Um ", accent: "orientador especializado em comportamento educacional", end: " no seu celular, a qualquer hora." },
+    { t: "O hábito de estudar leva 21 dias para se formar. ", accent: "Não pare agora.", end: "" },
+    { t: "Consistência é o que separa ", accent: "quem sonha de quem conquista a vaga.", end: "" },
+  ];
   const [missoesPorDisc, setMissoesPorDisc] = useState({});
   const [missoesHoje, setMissoesHoje] = useState(0);
   const [limiteMissoes, setLimiteMissoes] = useState(MAX_MISSOES_DIA_DEFAULT);
@@ -2071,6 +2250,7 @@ export default function PaisPage({ userPai, timer }) {
     tempoEstudo: 45,
   });
   const [gerando, setGerando] = useState(null);
+  const gerandoRef = useRef(null);
   const [mensagem, setMensagem] = useState(null);
   const [fraseLoading, setFraseLoading] = useState(0);
   const [premio, setPremio] = useState("");
@@ -2163,12 +2343,22 @@ export default function PaisPage({ userPai, timer }) {
           return;
         }
         setFilho(crianca);
+        if (crianca.pixDiasRestantes !== undefined) setPixDiasRestantes(crianca.pixDiasRestantes);
+        if (crianca.plano === 'pix_expirado') setPixExpirado(true);
         if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (crianca.avatar) setAvatarFilho(crianca.avatar);
         if (resp.premio) setPremio(resp.premio);
         if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
         if (resp.limiteMissoes) setLimiteMissoes(resp.limiteMissoes);
+        if (resp.tempoEstudo) setConfig(prev => ({ ...prev, tempoEstudo: resp.tempoEstudo }));
+        if (resp.autoMissoes !== undefined) setAutoMissoes(resp.autoMissoes);
+        if (resp.serie) { setConfig(prev => ({ ...prev, serie: resp.serie })); localStorage.setItem("eduplay_config_serie", resp.serie); }
+        if (resp.bimestre) { setConfig(prev => ({ ...prev, bimestre: resp.bimestre })); localStorage.setItem("eduplay_config_bimestre", resp.bimestre); }
+        if (resp.tempoEstudo) setConfig(prev => ({ ...prev, tempoEstudo: resp.tempoEstudo }));
+        if (resp.autoMissoes !== undefined) setAutoMissoes(resp.autoMissoes);
+        if (resp.serie) { setConfig(prev => ({ ...prev, serie: resp.serie })); localStorage.setItem("eduplay_config_serie", resp.serie); }
+        if (resp.bimestre) { setConfig(prev => ({ ...prev, bimestre: resp.bimestre })); localStorage.setItem("eduplay_config_bimestre", resp.bimestre); }
         if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
         setConfig((prev) => ({
           ...prev,
@@ -2197,6 +2387,12 @@ export default function PaisPage({ userPai, timer }) {
         } catch (err) {
           console.warn("Progresso:", err);
         }
+        // Verifica trial
+        try {
+          const trial = await verificarTrial(crianca.id);
+          if (trial.diasRestantes !== undefined) setDiasTrial(trial.diasRestantes);
+        } catch(_) {}
+
         setEtapa("painel");
         gerarMensagemIA(crianca, sessoes, prog);
         // Listener tempo real para sessoes de quiz
@@ -2234,6 +2430,12 @@ export default function PaisPage({ userPai, timer }) {
   useEffect(() => {
     if (timer?.ajustarTempo) timer.ajustarTempo(config.tempoEstudo);
   }, [config.tempoEstudo, timer]);
+
+  useEffect(() => {
+    if (secao !== "assinar") return;
+    const t = setInterval(() => setFrasesIdx(i => (i + 1) % 7), 4000);
+    return () => clearInterval(t);
+  }, [secao]);
 
   const handleAceitarECA = async () => {
     if (!aceitouECA || !aceitouTermos) {
@@ -2315,6 +2517,7 @@ export default function PaisPage({ userPai, timer }) {
     if (limiteAtingido || !filho) return;
     setGerando(disciplinaId);
     setMensagem(null);
+    setTimeout(() => gerandoRef.current?.scrollIntoView({ behavior: "smooth", block: "center" }), 100);
     try {
       const serie = filho.serie || config.serie;
       const temaAtual = `Conteudo do ${SERIES.find((s) => s.id === serie)?.label} - ${BIMESTRES.find((b) => b.id === config.bimestre)?.label}`;
@@ -2328,6 +2531,7 @@ export default function PaisPage({ userPai, timer }) {
       });
       await salvarMissao(filho.id, disciplinaId, missao, config.serie, config.bimestre);
       setMissoesPorDisc((prev) => ({
+        ...prev,
         [disciplinaId]: [
           { disciplina: disciplinaId, ...missao },
           ...(prev[disciplinaId] || []),
@@ -3248,6 +3452,86 @@ export default function PaisPage({ userPai, timer }) {
           gap: 16,
         }}
       >
+        {/* Banner trial dia 4 — 1 dia restante */}
+        {diasTrial === 1 && (
+          <div style={{ background: "#E1F5EE", border: "1px solid #5DCAA5", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.3s ease" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>🌱</span>
+              <div>
+                <p style={{ fontSize: "0.88rem", fontWeight: 800, color: "#085041", margin: "0 0 4px", lineHeight: 1.4 }}>
+                  {filho?.nome?.split(" ")[0]} tem 1 dia de estudo gratuito restante.
+                </p>
+                <p style={{ fontSize: "0.8rem", color: "#0F6E56", margin: 0, lineHeight: 1.5 }}>
+                  O hábito que vocês construíram juntos pode continuar — por menos de R$1 por dia.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setSecao("assinar")} style={{ width: "100%", padding: "11px", borderRadius: 30, border: "none", background: "#0F6E56", color: "#E1F5EE", fontWeight: 800, fontSize: "0.88rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+              Garantir acesso agora
+            </button>
+          </div>
+        )}
+
+        {/* Banner trial dia 5 — ultimo dia */}
+        {diasTrial === 0 && (
+          <div style={{ background: "#FAEEDA", border: "1px solid #EF9F27", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.3s ease" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>🕯️</span>
+              <div>
+                <p style={{ fontSize: "0.88rem", fontWeight: 800, color: "#633806", margin: "0 0 4px", lineHeight: 1.4 }}>
+                  Hoje é o último dia gratuito de {filho?.nome?.split(" ")[0]}.
+                </p>
+                <p style={{ fontSize: "0.8rem", color: "#854F0B", margin: 0, lineHeight: 1.5 }}>
+                  Ele estudou, se dedicou, cresceu. Não deixe esse momento ser o fim — é só o começo para vocês.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setSecao("assinar")} style={{ width: "100%", padding: "11px", borderRadius: 30, border: "none", background: "#BA7517", color: "#FAEEDA", fontWeight: 800, fontSize: "0.88rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+              Continuar a jornada
+            </button>
+          </div>
+        )}
+
+        {/* Banner PIX prestes a expirar — 5 dias ou menos */}
+        {pixDiasRestantes !== null && pixDiasRestantes <= 5 && pixDiasRestantes > 0 && !pixExpirado && (
+          <div style={{ background: "#FAEEDA", border: "1px solid #EF9F27", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.3s ease" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>⚡</span>
+              <div>
+                <p style={{ fontSize: "0.88rem", fontWeight: 800, color: "#633806", margin: "0 0 4px", lineHeight: 1.4 }}>
+                  Seu PIX vence em {pixDiasRestantes} {pixDiasRestantes === 1 ? "dia" : "dias"}.
+                </p>
+                <p style={{ fontSize: "0.8rem", color: "#854F0B", margin: 0, lineHeight: 1.5 }}>
+                  Migre para o cartão e nunca mais se preocupe — o acesso de {filho?.nome?.split(" ")[0]} é renovado automaticamente todo mês, sem precisar lembrar de pagar. Cancele no Mercado Pago quando quiser, sem burocracia.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setSecao("assinar")} style={{ width: "100%", padding: "11px", borderRadius: 30, border: "none", background: "#BA7517", color: "#FAEEDA", fontWeight: 800, fontSize: "0.88rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+              💳 Migrar para cartão — R$20/mês
+            </button>
+          </div>
+        )}
+
+        {/* Banner PIX expirado */}
+        {pixExpirado && (
+          <div style={{ background: "#E6F1FB", border: "1px solid #85B7EB", borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", gap: 10, animation: "fadeIn 0.3s ease" }}>
+            <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: "1.5rem", flexShrink: 0 }}>💙</span>
+              <div>
+                <p style={{ fontSize: "0.88rem", fontWeight: 800, color: "#042C53", margin: "0 0 4px", lineHeight: 1.4 }}>
+                  O acesso de {filho?.nome?.split(" ")[0]} foi pausado.
+                </p>
+                <p style={{ fontSize: "0.8rem", color: "#185FA5", margin: 0, lineHeight: 1.5 }}>
+                  Tudo que ele aprendeu está salvo, esperando por ele. Migre para o cartão e garanta acesso automático todo mês — cancele no Mercado Pago quando quiser, sem burocracia.
+                </p>
+              </div>
+            </div>
+            <button onClick={() => setSecao("assinar")} style={{ width: "100%", padding: "11px", borderRadius: 30, border: "none", background: "#185FA5", color: "#E6F1FB", fontWeight: 800, fontSize: "0.88rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+              💳 Reativar com cartão — R$20/mês
+            </button>
+          </div>
+        )}
+
         <div style={{ display: "flex", gap: 6 }}>
           {[
             { id: "visao", label: "Visão", icone: "📊" },
@@ -3255,6 +3539,7 @@ export default function PaisPage({ userPai, timer }) {
             { id: "relatorio", label: "Relatório", icone: "📋" },
             { id: "orientacao", label: "Família", icone: "💡" },
             { id: "config", label: "Config", icone: "⚙️" },
+            { id: "assinar", label: "Assinar", icone: "🚀" },
           ].map((aba) => (
             <button
               key={aba.id}
@@ -3430,9 +3715,22 @@ export default function PaisPage({ userPai, timer }) {
                     </div>
                     {pendentes.length === 0 ? (
                       <div style={{ padding: "20px 16px", textAlign: "center" }}>
-                        <p style={{ fontSize: "1.5rem", margin: "0 0 6px" }}>🎉</p>
-                        <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: "0 0 4px" }}>Tudo em dia!</p>
-                        <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0 }}>Nenhuma missão pendente por agora.</p>
+                        {totalMissoes === 0 ? (
+                          <>
+                            <p style={{ fontSize: "1.5rem", margin: "0 0 6px" }}>📋</p>
+                            <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: "0 0 4px" }}>Nenhuma missão gerada ainda.</p>
+                            <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: "0 0 12px" }}>Vá na aba Missões e gere a primeira missão do dia para seu filho.</p>
+                            <button onClick={() => setSecao("missoes")} style={{ padding: "9px 18px", borderRadius: 10, border: "none", background: c.accent, color: "#fff", fontWeight: 800, fontSize: "0.82rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+                              Ir para Missões →
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <p style={{ fontSize: "1.5rem", margin: "0 0 6px" }}>🎉</p>
+                            <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: "0 0 4px" }}>Tudo em dia!</p>
+                            <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0 }}>Todas as missões foram concluídas.</p>
+                          </>
+                        )}
                       </div>
                     ) : (
                       pendentes.map((m, i) => {
@@ -3865,301 +4163,6 @@ export default function PaisPage({ userPai, timer }) {
             </div>
 
 
-            <div
-              style={{
-                background: c.card,
-                border: `1.5px solid ${c.borda}`,
-                borderRadius: 16,
-                padding: "16px",
-              }}
-            >
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 800,
-                  color: c.textoSub,
-                  margin: "0 0 10px",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Série
-              </p>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: 6,
-                  marginBottom: 14,
-                }}
-              >
-                {SERIES.map((s) => (
-                  <button
-                    key={s.id}
-                    onClick={() => {
-                      setConfig({ ...config, serie: s.id });
-                      localStorage.setItem("eduplay_config_serie", s.id);
-                    }}
-                    style={{
-                      padding: "8px 4px",
-                      borderRadius: 10,
-                      border: `2px solid ${config.serie === s.id ? c.accent : c.borda}`,
-                      background:
-                        config.serie === s.id ? `${c.accent}15` : "transparent",
-                      color: config.serie === s.id ? c.accent : c.textoSub,
-                      fontWeight: 800,
-                      fontSize: "0.78rem",
-                      cursor: "pointer",
-                      fontFamily: "'Nunito', sans-serif",
-                    }}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
-              <p
-                style={{
-                  fontSize: "0.8rem",
-                  fontWeight: 800,
-                  color: c.textoSub,
-                  margin: "0 0 10px",
-                  textTransform: "uppercase",
-                  letterSpacing: 1,
-                }}
-              >
-                Bimestre
-              </p>
-              <div
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(4, 1fr)",
-                  gap: 6,
-                }}
-              >
-                {BIMESTRES.map((b) => (
-                  <button
-                    key={b.id}
-                    onClick={() => {
-                      setConfig({ ...config, bimestre: b.id });
-                      localStorage.setItem("eduplay_config_bimestre", b.id);
-                    }}
-                    style={{
-                      padding: "8px 4px",
-                      borderRadius: 10,
-                      border: `2px solid ${config.bimestre === b.id ? c.azul : c.borda}`,
-                      background:
-                        config.bimestre === b.id
-                          ? `${c.azul}15`
-                          : "transparent",
-                      color: config.bimestre === b.id ? c.azul : c.textoSub,
-                      fontWeight: 800,
-                      fontSize: "0.78rem",
-                      cursor: "pointer",
-                      fontFamily: "'Nunito', sans-serif",
-                    }}
-                  >
-                    {b.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div
-              style={{
-                background: limiteAtingido ? "#F59E0B12" : `${c.accent}10`,
-                border: `1.5px solid ${limiteAtingido ? "#F59E0B40" : `${c.accent}30`}`,
-                borderRadius: 14,
-                padding: "12px 18px",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-              }}
-            >
-              <div>
-                <p
-                  style={{
-                    fontSize: "0.78rem",
-                    fontWeight: 700,
-                    color: limiteAtingido ? "#F59E0B" : c.accent,
-                    margin: 0,
-                  }}
-                >
-                  {limiteAtingido
-                    ? "Limite diário atingido"
-                    : `${limiteMissoes - missoesHoje} missões disponível(is) hoje`}
-                </p>
-                <p
-                  style={{
-                    fontSize: "0.7rem",
-                    color: c.textoSub,
-                    margin: "2px 0 0",
-                  }}
-                >
-                  {limiteAtingido
-                    ? "Volte amanhã."
-                    : "Cada missão é única e personalizada."}
-                </p>
-              </div>
-              <div style={{ display: "flex", gap: 4 }}>
-                {Array.from({ length: limiteMissoes }, (_, i) => i).map((i) => (
-                  <div
-                    key={i}
-                    style={{
-                      width: 12,
-                      height: 12,
-                      borderRadius: "50%",
-                      background:
-                        i < missoesHoje
-                          ? limiteAtingido
-                            ? "#F59E0B"
-                            : c.accent
-                          : "transparent",
-                      border: `2px solid ${i < missoesHoje ? (limiteAtingido ? "#F59E0B" : c.accent) : c.borda}`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            {gerando && (
-              <div
-                style={{
-                  background: `${c.accent}10`,
-                  border: `2px solid ${c.accent}30`,
-                  borderRadius: 16,
-                  padding: "20px",
-                  textAlign: "center",
-                }}
-              >
-                <div
-                  style={{
-                    fontSize: "2.2rem",
-                    marginBottom: 10,
-                    animation: "girarIA 2s linear infinite",
-                  }}
-                >
-                  🧠
-                </div>
-                <p
-                  style={{
-                    fontSize: "0.92rem",
-                    fontWeight: 700,
-                    color: c.accent,
-                    margin: "0 0 6px",
-                  }}
-                >
-                  {FRASES_LOADING[fraseLoading]}
-                </p>
-              </div>
-            )}
-            {mensagem && !gerando && (
-              <div
-                style={{
-                  borderRadius: 16,
-                  overflow: "hidden",
-                  border: `1.5px solid ${mensagem.tipo === "sucesso" ? `${c.accent}40` : "#E0555540"}`,
-                }}
-              >
-                <div
-                  style={{
-                    background:
-                      mensagem.tipo === "sucesso"
-                        ? `${c.accent}15`
-                        : "#E0555515",
-                    padding: "14px 18px",
-                  }}
-                >
-                  <p
-                    style={{
-                      fontSize: "0.9rem",
-                      fontWeight: 800,
-                      color: mensagem.tipo === "sucesso" ? c.accent : "#E05555",
-                      margin: 0,
-                    }}
-                  >
-                    {mensagem.tipo === "sucesso"
-                      ? `✅ ${mensagem.titulo}`
-                      : "❌ Erro ao gerar missão."}
-                  </p>
-                </div>
-              </div>
-            )}
-            {/* Lista de missoes ja geradas */}
-            {Object.values(missoesPorDisc).flat().length > 0 && (
-              <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, overflow: "hidden" }}>
-                <div style={{ padding: "12px 16px", borderBottom: `1.5px solid ${c.borda}`, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  <p style={{ fontSize: "0.75rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>
-                    📚 Missões — {SERIES.find((s) => s.id === config.serie)?.label} {BIMESTRES.find((b) => b.id === config.bimestre)?.label}
-                  </p>
-                  <span style={{ fontSize: "0.72rem", fontWeight: 800, color: c.accent, background: `${c.accent}15`, padding: "3px 10px", borderRadius: 8 }}>
-                    {Object.values(missoesPorDisc).flat().length} missões
-                  </span>
-                </div>
-                {DISCIPLINAS.map((d) => {
-                  const lista = missoesPorDisc[d.id] || [];
-                  if (lista.length === 0) return null;
-                  return (
-                    <div key={d.id}>
-                      <div style={{ padding: "10px 16px", background: `${d.cor}10`, borderBottom: `1px solid ${c.borda}`, display: "flex", alignItems: "center", gap: 8 }}>
-                        <span style={{ fontSize: "1rem" }}>{d.icone}</span>
-                        <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
-                        <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} {lista.length === 1 ? "missão" : "missões"}</span>
-                      </div>
-                      {lista.map((m, i) => (
-                        <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                            <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: 0, lineHeight: 1.3, flex: 1 }}>
-                              {m.titulo || "Missão sem título"}
-                            </p>
-                            <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "3px 8px", borderRadius: 6, flexShrink: 0, color: m.feita ? "#2E8B57" : "#F59E0B", background: m.feita ? "#2E8B5715" : "#F59E0B15" }}>
-                              {m.feita ? "✅ Feita" : "⏳ Pendente"}
-                            </span>
-                          </div>
-                          {m.perguntaCentral && (
-                            <p style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, margin: 0, fontStyle: "italic" }}>"{m.perguntaCentral}"</p>
-                          )}
-                          {Array.isArray(m.topicos) && m.topicos.length > 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              {m.topicos.slice(0, 3).map((t, ti) => (
-                                <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                                  <span style={{ fontSize: "0.65rem", color: d.cor, fontWeight: 800, flexShrink: 0 }}>•</span>
-                                  <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <p style={{ fontSize: "0.68rem", color: c.textoSub, margin: 0 }}>
-                            {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : "—"}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Botoes de gerar */}
-            {!gerando && !limiteAtingido && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {DISCIPLINAS.map((d) => {
-                  const total = (missoesPorDisc[d.id] || []).length;
-                  return (
-                    <button key={d.id} onClick={() => gerarMissao(d.id)}
-                      style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 18px", background: c.card, border: `2px solid ${d.cor}44`, borderRadius: 16, cursor: "pointer", textAlign: "left", width: "100%" }}>
-                      <div style={{ width: 48, height: 48, borderRadius: 14, background: `${d.cor}22`, border: `2px solid ${d.cor}44`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.5rem" }}>
-                        {d.icone}
-                      </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1rem", color: c.texto, fontWeight: 600 }}>{d.label}</div>
-                        <div style={{ fontSize: "0.75rem", color: c.textoSub }}>
-                          {total > 0 ? `${total} missões — gerar mais` : "Toque para gerar uma missão"}
-                        </div>
-                      </div>
-                      <div style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, background: `${d.cor}18`, padding: "4px 10px", borderRadius: 8 }}>🤖 Gerar</div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
         )}
 
@@ -4203,9 +4206,10 @@ export default function PaisPage({ userPai, timer }) {
                 {SERIES.map((s) => (
                   <button
                     key={s.id}
-                    onClick={() => {
+                    onClick={async () => {
                       setConfig({ ...config, serie: s.id });
                       localStorage.setItem("eduplay_config_serie", s.id);
+                      try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { serie: s.id }, { merge: true }); } catch(_) {}
                     }}
                     style={{
                       padding: "8px 4px",
@@ -4246,9 +4250,10 @@ export default function PaisPage({ userPai, timer }) {
                 {BIMESTRES.map((b) => (
                   <button
                     key={b.id}
-                    onClick={() => {
+                    onClick={async () => {
                       setConfig({ ...config, bimestre: b.id });
                       localStorage.setItem("eduplay_config_bimestre", b.id);
+                      try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { bimestre: b.id }, { merge: true }); } catch(_) {}
                     }}
                     style={{
                       padding: "8px 4px",
@@ -4292,7 +4297,7 @@ export default function PaisPage({ userPai, timer }) {
                 >
                   {limiteAtingido
                     ? "Limite diário atingido"
-                    : `${limiteMissoes - missoesHoje} missões disponível(is) hoje`}
+                    : `${limiteMissoes - missoesHoje} missões disponíveis hoje`}
                 </p>
                 <p
                   style={{
@@ -4328,6 +4333,7 @@ export default function PaisPage({ userPai, timer }) {
             </div>
             {gerando && (
               <div
+                ref={gerandoRef}
                 style={{
                   background: `${c.accent}10`,
                   border: `2px solid ${c.accent}30`,
@@ -4483,6 +4489,123 @@ export default function PaisPage({ userPai, timer }) {
         )}
         {secao === "orientacao" && <OrientacaoTab c={c} e={e} />}
 
+        {secao === "assinar" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, animation: "fadeIn 0.3s ease" }}>
+
+            {/* Badge */}
+            <div style={{ textAlign: "center" }}>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "#E1F5EE", color: "#085041", border: "0.5px solid #5DCAA5", borderRadius: 20, fontSize: "0.72rem", fontWeight: 700, padding: "4px 14px" }}>
+                🚀 plano mensal — R$20/mês
+              </div>
+            </div>
+
+            {/* Hero */}
+            <div style={{ textAlign: "center" }}>
+              <p style={{ fontSize: "1.1rem", fontWeight: 800, color: c.texto, lineHeight: 1.4, margin: "0 0 8px" }}>
+                Seu filho provou que consegue.<br/>Agora é a sua vez.
+              </p>
+              <p style={{ fontSize: "0.85rem", color: c.textoSub, lineHeight: 1.6, margin: 0 }}>
+                Garanta o acesso completo e acompanhe cada passo do desenvolvimento dele.
+              </p>
+            </div>
+
+            {/* Card compacto pagamento — topo */}
+            <CardAssinaturaCompacto c={c} e={e} filho={filho} functions={functions} userPai={userPai} />
+
+            {/* Frases rotativas */}
+            {/* Frases rotativas */}
+            <div style={{ background: c.card, border: `0.5px solid ${c.borda}`, borderRadius: 16, padding: 20, minHeight: 88, display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+              <p key={frasesIdx} style={{ fontSize: "0.92rem", fontWeight: 700, color: c.texto, lineHeight: 1.6, margin: 0, animation: "fadeIn 0.5s ease" }}>
+                {FRASES_ASSINAR[frasesIdx].t}<span style={{ color: "#0F6E56" }}>{FRASES_ASSINAR[frasesIdx].accent}</span>{FRASES_ASSINAR[frasesIdx].end}
+              </p>
+            </div>
+            <div style={{ display: "flex", gap: 6, justifyContent: "center" }}>
+              {FRASES_ASSINAR.map((_, i) => (
+                <div key={i} onClick={() => setFrasesIdx(i)} style={{ width: 6, height: 6, borderRadius: "50%", background: i === frasesIdx ? "#0F6E56" : c.borda, transform: i === frasesIdx ? "scale(1.4)" : "scale(1)", transition: "all 0.3s", cursor: "pointer" }}/>
+              ))}
+            </div>
+
+            {/* Preco */}
+            <div style={{ background: c.card, border: "2px solid #5DCAA5", borderRadius: 16, padding: "24px 20px", textAlign: "center" }}>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, letterSpacing: 1, margin: "0 0 8px" }}>PLANO MENSAL</p>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 4, justifyContent: "center", marginBottom: 4 }}>
+                <span style={{ fontSize: "1rem", fontWeight: 700, color: "#0F6E56" }}>R$</span>
+                <span style={{ fontSize: "3.2rem", fontWeight: 900, color: "#0F6E56", lineHeight: 1 }}>20</span>
+                <span style={{ fontSize: "1rem", fontWeight: 700, color: "#0F6E56" }}>/mês</span>
+              </div>
+              <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: "6px 0 12px" }}>Menos que R$1 por dia</p>
+              <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+                {["✓ Cancele quando quiser", "✓ Sem fidelidade", "✓ Acesso imediato"].map(t => (
+                  <span key={t} style={{ fontSize: "0.72rem", color: "#0F6E56", fontWeight: 700 }}>{t}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Beneficios */}
+            <div style={{ background: c.card, border: `0.5px solid ${c.borda}`, borderRadius: 16, padding: 20 }}>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, letterSpacing: 1, margin: "0 0 16px", textTransform: "uppercase" }}>O que está incluído</p>
+              {[
+                { icone: "🏫", titulo: "Professor particular no celular", sub: "Missões diárias alinhadas ao currículo da escola — sem precisar sair de casa." },
+                { icone: "📱", titulo: "O controle nas suas mãos", sub: "Você acompanha tudo — matérias, acertos, progresso e dias de estudo." },
+                { icone: "🧠", titulo: "Orientador educacional no seu celular", sub: "Tire dúvidas sobre rotina, comportamento e aprendizado — a qualquer hora." },
+                { icone: "🏆", titulo: "Preparação para ETEC, IFSP e colégios federais", sub: "Uma vaga na ETEC custa zero reais. O preparo custa R$20/mês." },
+                { icone: "📊", titulo: "Relatório completo de progresso", sub: "Veja exatamente o que seu filho aprendeu, com histórico e PDF para guardar." },
+                { icone: "🔄", titulo: "Missões únicas, nunca repetidas", sub: "A IA cria atividades diferentes a cada vez — sempre alinhadas ao currículo." },
+              ].map((b, i) => (
+                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: i < 5 ? 14 : 0 }}>
+                  <div style={{ width: 40, height: 40, minWidth: 40, borderRadius: 10, background: "#E1F5EE", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "1.2rem" }}>{b.icone}</div>
+                  <div>
+                    <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: "0 0 2px" }}>{b.titulo}</p>
+                    <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0, lineHeight: 1.5 }}>{b.sub}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Urgencia */}
+            <div style={{ background: "#E1F5EE", border: "0.5px solid #5DCAA5", borderRadius: 16, padding: 16, display: "flex", alignItems: "flex-start", gap: 12 }}>
+              <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>⏰</span>
+              <p style={{ margin: 0, fontSize: "0.85rem", color: "#085041", lineHeight: 1.5, fontWeight: 600 }}>
+                Enquanto outros pais pagam <strong style={{ color: "#0F6E56" }}>R$400/mês em cursinho</strong>, você investe menos de R$1 por dia com o mesmo resultado pedagógico.
+              </p>
+            </div>
+
+            {/* Depoimentos expansiveis */}
+            <div style={{ background: c.card, border: `0.5px solid ${c.borda}`, borderRadius: 16, padding: 20 }}>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, letterSpacing: 1, margin: "0 0 14px", textTransform: "uppercase" }}>O que os pais dizem</p>
+              {[
+                { txt: "Meu filho nao percebe que esta aprendendo. Acha que esta so jogando. Pra mim tanto faz — o que importa e que ele para de reclamar quando chega a hora de estudar.", nome: "Marcos Andrade", detalhe: "Pai de aluno do 7º ano" },
+                { txt: "Minha filha chegava da escola e jogava o caderno no canto. Hoje ela abre o app sozinha antes de eu pedir. Ainda nao acredito que foi tao rapido.", nome: "Rosana Oliveira", detalhe: "Mae de aluna do 6º ano" },
+                { txt: "Menos que uma pizza por mes. E o impacto e de professor particular, todos os dias.", nome: "Patricia Lima", detalhe: "Mae de aluno do 8º ano" },
+                { txt: "Meu filho me falou que as missoes parecem um jogo. Pra mim tanto faz, o que importa e que ele para de reclamar quando chega a hora de estudar.", nome: "Camila Ferreira", detalhe: "Mae de aluno do 6º ano" },
+              ].map((d, i) => (
+                <DepoimentoCard key={i} d={d} i={i} c={c} e={e} />
+              ))}
+            </div>
+
+            {/* Botoes de pagamento */}
+            <button onClick={() => { const fn = httpsCallable(functions, "criarAssinatura"); fn({ codigoAcesso: filho?.id, emailResponsavel: userPai?.email, nomeResponsavel: userPai?.displayName || "Responsavel" }).then(r => { if (r.data?.checkoutUrl) window.open(r.data.checkoutUrl, "_blank"); }); }}
+              style={{ width: "100%", padding: 16, borderRadius: 30, border: "none", background: "#0F6E56", color: "#E1F5EE", fontSize: "1rem", fontWeight: 900, cursor: "pointer", fontFamily: "'Nunito', sans-serif", letterSpacing: 0.5 }}>
+              🚀 Garantir acesso agora — R$20/mês
+            </button>
+            <p style={{ fontSize: "0.7rem", color: c.textoSub, textAlign: "center", margin: 0 }}>
+              🔒 Pagamento seguro via Mercado Pago • Cancele quando quiser
+            </p>
+
+            {/* Contato */}
+            <div style={{ borderTop: `0.5px solid ${c.borda}`, paddingTop: 16, textAlign: "center" }}>
+              <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: "0 0 10px", lineHeight: 1.5 }}>
+                Dúvidas, sugestões ou precisa de ajuda?<br/>Nossa equipe responde em até 24h.
+              </p>
+              <a href="mailto:contato@olloapp.com.br?subject=Dúvida%20EduPlay&body=Olá%2C%20tenho%20uma%20dúvida%20sobre%20o%20EduPlay%3A%0A%0A"
+                style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, border: `0.5px solid ${c.borda}`, background: "transparent", color: c.textoSub, fontSize: "0.85rem", fontWeight: 700, textDecoration: "none", fontFamily: "'Nunito', sans-serif" }}>
+                ✉️ Falar com a equipe — contato@olloapp.com.br
+              </a>
+            </div>
+
+          </div>
+        )}
+
         {secao === "config" && (
           <div
             style={{
@@ -4510,89 +4633,106 @@ export default function PaisPage({ userPai, timer }) {
                   letterSpacing: 1,
                 }}
               >
-                ⏱️ Limite de Tempo Diário
-              </p>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  marginBottom: 8,
-                  color: c.texto,
-                  fontWeight: 700,
-                }}
-              >
-                <span>{config.tempoEstudo} minutos</span>
-                <span style={{ fontSize: "0.75rem", color: c.textoSub }}>
-                  mín. 30min
-                </span>
-              </div>
-              <input
-                type="range"
-                min="30"
-                max="120"
-                step="15"
-                value={config.tempoEstudo}
-                onChange={(ev) =>
-                  setConfig({ ...config, tempoEstudo: Number(ev.target.value) })
-                }
-                style={{ width: "100%", accentColor: c.accent }}
-              />
-              <p
-                style={{
-                  fontSize: "0.7rem",
-                  color: c.textoSub,
-                  margin: "8px 0 0",
-                }}
-              >
-                O app avisará seu filho antes do tempo esgotar.
+                ⏱️ Rotina do Filho
               </p>
 
-              <p style={{ fontSize:"0.8rem", fontWeight:700, color:c.textoSub, margin:"16px 0 8px", textTransform:"uppercase", letterSpacing:1 }}>
-                Missões por Dia
-              </p>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, color:c.texto, fontWeight:700 }}>
-                <span>{limiteMissoes} missões/dia</span>
-                <span style={{ fontSize:"0.75rem", color:c.textoSub }}>mín. 3 · máx. 7</span>
+              {/* Dials — Tempo e Missoes */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:16 }}>
+                <div style={{ background: e ? "rgba(255,255,255,0.04)" : "#F8FBFF", border:`1px solid ${c.borda}`, borderRadius:14, padding:"16px 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+                  <p style={{ fontSize:"0.65rem", color:c.textoSub, letterSpacing:1, textTransform:"uppercase", margin:0 }}>Tempo/dia</p>
+                  <div style={{ position:"relative", width:120, height:120 }}>
+                    <svg width="120" height="120" viewBox="0 0 120 120" style={{ position:"absolute", top:0, left:0 }}>
+                      <circle cx="60" cy="60" r="46" fill="none" stroke={e ? "#1A3347" : "#EEF2F7"} strokeWidth="8" strokeLinecap="round" strokeDasharray="242" strokeDashoffset="0" transform="rotate(135 60 60)"/>
+                      <circle cx="60" cy="60" r="46" fill="none" stroke="#00D4AA" strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray="242"
+                        strokeDashoffset={Math.round(242 - ((config.tempoEstudo - 30) / 90) * 242)}
+                        transform="rotate(135 60 60)"
+                        style={{ transition:"stroke-dashoffset 0.3s ease" }}
+                      />
+                    </svg>
+                    <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", textAlign:"center" }}>
+                      <div style={{ fontSize:"1.4rem", fontWeight:900, color:c.accent, lineHeight:1 }}>{config.tempoEstudo}</div>
+                      <div style={{ fontSize:"0.6rem", color:c.textoSub, marginTop:2 }}>min</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={async () => { const novo = Math.max(30, config.tempoEstudo - 15); setConfig(p => ({...p, tempoEstudo: novo})); try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { tempoEstudo: novo }, { merge: true }); } catch(_) {} }}
+                      style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${c.borda}`, background:"transparent", color:c.texto, fontSize:"1.1rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+                    <button onClick={async () => { const novo = Math.min(120, config.tempoEstudo + 15); setConfig(p => ({...p, tempoEstudo: novo})); try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { tempoEstudo: novo }, { merge: true }); } catch(_) {} }}
+                      style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${c.borda}`, background:"transparent", color:c.texto, fontSize:"1.1rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                  </div>
+                </div>
+                <div style={{ background: e ? "rgba(255,255,255,0.04)" : "#F8FBFF", border:`1px solid ${c.borda}`, borderRadius:14, padding:"16px 12px", display:"flex", flexDirection:"column", alignItems:"center", gap:10 }}>
+                  <p style={{ fontSize:"0.65rem", color:c.textoSub, letterSpacing:1, textTransform:"uppercase", margin:0 }}>Missões/dia</p>
+                  <div style={{ position:"relative", width:120, height:120 }}>
+                    <svg width="120" height="120" viewBox="0 0 120 120" style={{ position:"absolute", top:0, left:0 }}>
+                      <circle cx="60" cy="60" r="46" fill="none" stroke={e ? "#1A3347" : "#EEF2F7"} strokeWidth="8" strokeLinecap="round" strokeDasharray="242" strokeDashoffset="0" transform="rotate(135 60 60)"/>
+                      <circle cx="60" cy="60" r="46" fill="none" stroke="#5DCAA5" strokeWidth="8" strokeLinecap="round"
+                        strokeDasharray="242"
+                        strokeDashoffset={Math.round(242 - ((limiteMissoes - 3) / 4) * 242)}
+                        transform="rotate(135 60 60)"
+                        style={{ transition:"stroke-dashoffset 0.3s ease" }}
+                      />
+                    </svg>
+                    <div style={{ position:"absolute", top:"50%", left:"50%", transform:"translate(-50%,-50%)", textAlign:"center" }}>
+                      <div style={{ fontSize:"1.4rem", fontWeight:900, color:"#5DCAA5", lineHeight:1 }}>{limiteMissoes}</div>
+                      <div style={{ fontSize:"0.6rem", color:c.textoSub, marginTop:2 }}>missões</div>
+                    </div>
+                  </div>
+                  <div style={{ display:"flex", gap:8 }}>
+                    <button onClick={async () => { const novo = Math.max(3, limiteMissoes - 1); setLimiteMissoes(novo); try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true }); } catch(_) {} }}
+                      style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${c.borda}`, background:"transparent", color:c.texto, fontSize:"1.1rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>−</button>
+                    <button onClick={async () => { const novo = Math.min(7, limiteMissoes + 1); setLimiteMissoes(novo); try { const { db } = await import("../services/firebase"); const { doc, setDoc } = await import("firebase/firestore"); await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true }); } catch(_) {} }}
+                      style={{ width:32, height:32, borderRadius:"50%", border:`1px solid ${c.borda}`, background:"transparent", color:c.texto, fontSize:"1.1rem", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>+</button>
+                  </div>
+                </div>
               </div>
-              <input type="range" min="3" max="7" step="1" value={limiteMissoes}
-                onChange={async (ev) => {
-                  const novo = Number(ev.target.value);
-                  setLimiteMissoes(novo);
-                  try {
-                    const { db } = await import("../services/firebase");
-                    const { doc, setDoc } = await import("firebase/firestore");
-                    await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true });
-                  } catch (_) {}
-                }}
-                style={{ width:"100%", accentColor:c.accent }}
-              />
-              <p style={{ fontSize:"0.7rem", color:c.textoSub, margin:"6px 0 0" }}>
-                Seu filho poderá receber até {limiteMissoes} missões por dia.
-              </p>
-
-              <p style={{ fontSize:"0.8rem", fontWeight:700, color:c.textoSub, margin:"16px 0 8px", textTransform:"uppercase", letterSpacing:1 }}>
-                Missões por Dia
-              </p>
-              <div style={{ display:"flex", justifyContent:"space-between", marginBottom:8, color:c.texto, fontWeight:700 }}>
-                <span>{limiteMissoes} missões/dia</span>
-                <span style={{ fontSize:"0.75rem", color:c.textoSub }}>mín. 3 · máx. 7</span>
+              <div style={{ background: e ? "rgba(0,212,170,0.06)" : "rgba(0,212,170,0.05)", border:`1px solid ${c.accent}22`, borderRadius:12, padding:"12px 14px", display:"flex", flexDirection:"column", gap:8 }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:"0.9rem" }}>🗓️</span>
+                  <span style={{ fontSize:"0.78rem", color:c.texto, fontWeight:700 }}>{config.tempoEstudo} min/dia · {limiteMissoes} missões · ~{Math.round(config.tempoEstudo / limiteMissoes)} min cada</span>
+                </div>
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <span style={{ fontSize:"0.9rem" }}>📅</span>
+                  <span style={{ fontSize:"0.75rem", color:c.textoSub }}>5 dias úteis = {limiteMissoes * 5} missões/semana · ~{limiteMissoes * 20} missões/mês</span>
+                </div>
               </div>
-              <input type="range" min="3" max="7" step="1" value={limiteMissoes}
-                onChange={async (ev) => {
-                  const novo = Number(ev.target.value);
-                  setLimiteMissoes(novo);
-                  try {
-                    const { db } = await import("../services/firebase");
-                    const { doc, setDoc } = await import("firebase/firestore");
-                    await setDoc(doc(db, "responsaveis", userPai.uid), { limiteMissoes: novo }, { merge: true });
-                  } catch (_) {}
-                }}
-                style={{ width:"100%", accentColor:c.accent }}
-              />
-              <p style={{ fontSize:"0.7rem", color:c.textoSub, margin:"6px 0 0" }}>
-                Seu filho poderá receber até {limiteMissoes} missões por dia.
-              </p>
             </div>
+            {/* Toggle missoes automaticas */}
+            <div style={{ background: c.card, border: `1.5px solid ${c.borda}`, borderRadius: 16, padding: "18px 18px" }}>
+              <p style={{ fontSize: "0.72rem", fontWeight: 800, color: c.textoSub, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 14px" }}>
+                🤖 Missões Automáticas
+              </p>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+                <div style={{ flex: 1 }}>
+                  <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: "0 0 4px" }}>Gerar missões automaticamente</p>
+                  <p style={{ fontSize: "0.75rem", color: c.textoSub, margin: 0, lineHeight: 1.5 }}>
+                    Se você não gerar missões, o sistema cria automaticamente toda manhã de dias úteis.
+                  </p>
+                </div>
+                <button onClick={async () => {
+                    const novo = !autoMissoes;
+                    setAutoMissoes(novo);
+                    try {
+                      const { db } = await import("../services/firebase");
+                      const { doc, setDoc } = await import("firebase/firestore");
+                      await setDoc(doc(db, "responsaveis", userPai.uid), { autoMissoes: novo }, { merge: true });
+                    } catch(_) {}
+                  }}
+                  style={{ width: 50, height: 28, borderRadius: 14, border: "none", background: autoMissoes ? "#0F6E56" : c.borda, cursor: "pointer", position: "relative", flexShrink: 0, transition: "background 0.25s" }}
+                  aria-label="ativar missões automáticas"
+                >
+                  <div style={{ position: "absolute", top: 4, left: autoMissoes ? 26 : 4, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.25s" }} />
+                </button>
+              </div>
+              <div style={{ borderRadius: 10, padding: "10px 14px", fontSize: "0.78rem", lineHeight: 1.6, fontWeight: 600, background: autoMissoes ? "#E1F5EE" : (e ? "rgba(255,255,255,0.04)" : "#F8FBFF"), color: autoMissoes ? "#085041" : c.textoSub, border: `1px solid ${autoMissoes ? "#5DCAA5" : c.borda}`, transition: "all 0.3s" }}>
+                {autoMissoes
+                  ? "✅ Ativado — Todo dia útil às 7h o sistema gera missões automaticamente para seu filho."
+                  : "⏸️ Desativado — Você gera as missões manualmente pela aba Missões."
+                }
+              </div>
+            </div>
+
             <div
               style={{
                 background: `linear-gradient(135deg, ${e ? "#1A1A2E" : "#FFF8E8"}, ${e ? "#2D1B4E" : "#FFF0D4"})`,
@@ -4816,13 +4956,6 @@ export default function PaisPage({ userPai, timer }) {
               e={e}
             />
 
-            <CardAssinatura
-              c={c}
-              e={e}
-              filho={filho}
-              functions={functions}
-              userPai={userPai}
-            />
 
             <div
               style={{

@@ -755,6 +755,30 @@ exports.autoGerarMissoes = onSchedule(
         if (criancaSnap.empty) continue
         const crianca = criancaSnap.docs[0]
         const criancaId = crianca.id
+        const criancaData = crianca.data()
+
+        // Verifica se tem acesso ativo (assinante ou trial valido)
+        if (criancaData.plano === 'expirado') {
+          console.log(`[auto] pulando ${criancaId} — trial expirado`)
+          continue
+        }
+        if (!criancaData.assinaturaAtiva) {
+          // Verifica dias uteis do trial
+          if (!criancaData.trialInicio) { console.log(`[auto] pulando ${criancaId} — sem trial`); continue }
+          const inicio = criancaData.trialInicio.toDate ? criancaData.trialInicio.toDate() : new Date(criancaData.trialInicio)
+          const agora = new Date()
+          let diasUteis = 0
+          const cursor = new Date(inicio)
+          cursor.setHours(0, 0, 0, 0)
+          const hoje2 = new Date(agora)
+          hoje2.setHours(0, 0, 0, 0)
+          while (cursor < hoje2) {
+            const dia = cursor.getDay()
+            if (dia !== 0 && dia !== 6) diasUteis++
+            cursor.setDate(cursor.getDate() + 1)
+          }
+          if (diasUteis >= 5) { console.log(`[auto] pulando ${criancaId} — trial expirado (${diasUteis} dias)`); continue }
+        }
 
         // Conta missoes geradas hoje
         const missoesHoje = await db.collection('missoes')
@@ -826,5 +850,108 @@ exports.autoGerarMissoes = onSchedule(
         console.error('[auto] erro no responsavel', respDoc.id, err.message)
       }
     }
+  }
+)
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// verificarTrialExpirado — roda todo dia meia-noite, marca trial expirado
+// ═══════════════════════════════════════════════════════════════════════
+exports.verificarTrialExpirado = onSchedule(
+  { schedule: '0 0 * * *', timeZone: 'America/Sao_Paulo', region: 'us-central1'},
+  async () => {
+    const agora = new Date()
+    let expirados = 0
+
+    // 1. Verifica trials gratuitos
+    const snapTrial = await db.collection('criancas')
+      .where('assinaturaAtiva', '!=', true)
+      .get()
+
+    for (const doc of snapTrial.docs) {
+      try {
+        const dados = doc.data()
+        if (dados.plano === 'expirado') continue
+        if (!dados.trialInicio) continue
+
+        const inicio = dados.trialInicio.toDate
+          ? dados.trialInicio.toDate()
+          : new Date(dados.trialInicio)
+
+        let diasUteis = 0
+        const cursor = new Date(inicio)
+        cursor.setHours(0, 0, 0, 0)
+        const hoje = new Date(agora)
+        hoje.setHours(0, 0, 0, 0)
+
+        while (cursor < hoje) {
+          const dia = cursor.getDay()
+          if (dia !== 0 && dia !== 6) diasUteis++
+          cursor.setDate(cursor.getDate() + 1)
+        }
+
+        if (diasUteis >= 5) {
+          await db.collection('criancas').doc(doc.id).set({
+            plano: 'expirado',
+            trialExpiradoEm: admin.firestore.FieldValue.serverTimestamp(),
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          expirados++
+          console.log(`[trial] expirado: ${doc.id}`)
+        } else {
+          console.log(`[trial] ativo: ${doc.id} — ${5 - diasUteis} restantes`)
+        }
+      } catch (err) {
+        console.error('[trial] erro:', doc.id, err.message)
+      }
+    }
+
+    // 2. Verifica assinantes PIX — expira em 30 dias
+    const snapPix = await db.collection('criancas')
+      .where('assinaturaAtiva', '==', true)
+      .get()
+
+    for (const doc of snapPix.docs) {
+      try {
+        const dados = doc.data()
+        if (!dados.pixPaymentId) continue
+        if (!dados.assinaturaInicio) continue
+
+        const inicio = dados.assinaturaInicio.toDate
+          ? dados.assinaturaInicio.toDate()
+          : new Date(dados.assinaturaInicio)
+
+        const diffDias = Math.floor((agora - inicio) / (1000 * 60 * 60 * 24))
+        const diasRestantes = 30 - diffDias
+
+        if (diasRestantes <= 0) {
+          await db.collection('criancas').doc(doc.id).set({
+            assinaturaAtiva: false,
+            plano: 'pix_expirado',
+            pixExpiradoEm: admin.firestore.FieldValue.serverTimestamp(),
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          expirados++
+          console.log(`[pix] expirado: ${doc.id}`)
+        } else if (diasRestantes <= 5) {
+          await db.collection('criancas').doc(doc.id).set({
+            pixDiasRestantes: diasRestantes,
+            pixAvisoEnviado: true,
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          console.log(`[pix] aviso: ${doc.id} — ${diasRestantes} dias restantes`)
+        } else {
+          await db.collection('criancas').doc(doc.id).set({
+            pixDiasRestantes: diasRestantes,
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          console.log(`[pix] ativo: ${doc.id} — ${diasRestantes} dias restantes`)
+        }
+      } catch (err) {
+        console.error('[pix] erro:', doc.id, err.message)
+      }
+    }
+
+    console.log(`[verificar] concluido — ${expirados} expiracao(s)`)
   }
 )

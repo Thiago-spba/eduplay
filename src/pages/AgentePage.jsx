@@ -4,59 +4,58 @@ import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
 import {
   getCrianca,
-  registrarAcessoDiario,
   verificarTrial,
 } from "../services/db";
 import { useTema } from "../context/ThemeContext";
 
 const MSGS = [
   {
-    main: "A vaga na Etec, na Fatec ou no colégio federal",
-    accent: "começa aqui, nas tarefas de hoje.",
+    main: "Suas missões estão esperando por você.",
+    accent: "Peça para quem cuida de você continuar sua jornada.",
   },
   {
-    main: "Alunos que estudam todos os dias chegam às melhores escolas.",
-    accent: "Seu filho pode ser um deles.",
+    main: "Cada dia sem estudar",
+    accent: "é um dia que os outros avançam.",
   },
   {
-    main: "O Currículo Paulista e a BNCC estão aqui.",
-    accent: "Ele aprende o que a escola exige — e vai além.",
+    main: "Você chegou até aqui.",
+    accent: "Não para agora.",
   },
   {
-    main: "Bolsas integrais no Etec, Colégio Pedro II e escolas estaduais de excelência",
-    accent: "são conquistadas por quem começa cedo.",
+    main: "A vaga na ETEC, no IFSP e nas melhores escolas",
+    accent: "é conquistada por quem não desiste.",
   },
   {
-    main: "Cada missão cumprida hoje",
-    accent: "é um ponto a mais na prova de amanhã.",
+    main: "Você provou que consegue estudar todo dia.",
+    accent: "Esse hábito vale mais que qualquer nota.",
   },
   {
-    main: "Do 6º ano ao 9º ano, do básico ao avançado.",
-    accent: "O EduPlay cresce junto com seu filho.",
+    main: "Seus colegas estão estudando agora.",
+    accent: "Você também pode — é só um passo.",
   },
   {
-    main: "Não é sobre estudar mais. É sobre estudar certo.",
-    accent: "Com o currículo que a escola usa, todo dia.",
+    main: "Tudo que você aprendeu está salvo.",
+    accent: "Continue de onde parou.",
   },
   {
-    main: "Seu filho acabou de provar que consegue.",
-    accent: "Agora é a sua vez de não deixar parar.",
+    main: "Não é sobre estudar mais.",
+    accent: "É sobre não parar quando está difícil.",
   },
   {
-    main: "Menos que uma pizza por mês.",
-    accent: "O impacto de um professor particular, todos os dias.",
-  },
-  {
-    main: "Colégios como Etec, Cefet e escolas estaduais de referência",
-    accent: "preparam os alunos que já chegam preparados.",
+    main: "Menos que R$1 por dia",
+    accent: "separa você das suas missões.",
   },
   {
     main: "O hábito de estudar leva 21 dias para se formar.",
-    accent: "Você está no dia 6. Não pare agora.",
+    accent: "Você já passou disso. Não quebra agora.",
   },
   {
     main: "Consistência é o que separa",
     accent: "quem sonha de quem conquista a vaga.",
+  },
+  {
+    main: "Manda mensagem para quem cuida de você.",
+    accent: "Um gesto simples pode mudar seu ano.",
   },
 ];
 
@@ -397,6 +396,52 @@ function TrialExpirado({ navigate }) {
           >
             🔒 Pagamento seguro via Mercado Pago
           </p>
+
+          {/* Divisor */}
+          <div style={{ width: "100%", height: 1, backgroundColor: c.sepBg, margin: "20px 0" }} />
+
+          {/* Botão WhatsApp para filho avisar o responsável */}
+          <p style={{ fontSize: "0.82rem", fontWeight: 700, color: c.subColor, margin: "0 0 12px", lineHeight: 1.5 }}>
+            Manda uma mensagem para quem cuida de você 💬
+          </p>
+          <button
+            onClick={() => {
+              const texto = `Preciso da sua ajuda! 🙏
+
+Meu acesso ao EduPlay pausou.
+
+Eu estava estudando todo dia — História, Matemática, Português, Ciências...
+
+São só R$20 por mês, menos que R$1 por dia. Bem menos que cursinho.
+
+Você pode reativar aqui 👇
+https://eduplay.olloapp.com.br/pais`;
+              window.open("https://wa.me/?text=" + encodeURIComponent(texto), "_blank");
+            }}
+            style={{
+              width: "100%",
+              padding: "14px",
+              borderRadius: 30,
+              border: "none",
+              fontSize: "0.95rem",
+              fontWeight: 900,
+              cursor: "pointer",
+              marginBottom: 10,
+              letterSpacing: ".3px",
+              backgroundColor: "#25D366",
+              color: "#fff",
+              boxShadow: "0 4px 20px rgba(37,211,102,0.35)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+            }}
+          >
+            📲 Avisar meu responsável pelo WhatsApp
+          </button>
+          <p style={{ fontSize: "0.70rem", color: c.segColor, margin: 0, lineHeight: 1.5 }}>
+            Mostre para quem cuida de você o que você aprendeu aqui 💙
+          </p>
         </div>
       </div>
     </>
@@ -555,7 +600,6 @@ export default function AgentePage() {
           return;
         }
         setDiasRestantes(trial.diasRestantes);
-        await registrarAcessoDiario(codigo);
         setEtapa("bemvindo");
         if (window.matchMedia("(display-mode: standalone)").matches)
           setTimeout(() => window.location.replace("/"), 2000);

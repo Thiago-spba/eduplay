@@ -438,8 +438,19 @@ export async function verificarTrial(codigoAcesso) {
     ? dados.trialInicio.toDate()
     : new Date(dados.trialInicio);
   const agora = new Date();
-  const diasPassados = Math.floor((agora - inicio) / (1000 * 60 * 60 * 24));
-  const diasRestantes = Math.max(0, 5 - diasPassados);
+
+  // Conta apenas dias uteis (seg-sex), ignora sabado e domingo
+  let diasUteisPassados = 0;
+  const cursor = new Date(inicio);
+  cursor.setHours(0, 0, 0, 0);
+  const hoje = new Date(agora);
+  hoje.setHours(0, 0, 0, 0);
+  while (cursor < hoje) {
+    const diaSemana = cursor.getDay();
+    if (diaSemana !== 0 && diaSemana !== 6) diasUteisPassados++;
+    cursor.setDate(cursor.getDate() + 1);
+  }
+  const diasRestantes = Math.max(0, 5 - diasUteisPassados);
 
   return {
     ativo: diasRestantes > 0,
