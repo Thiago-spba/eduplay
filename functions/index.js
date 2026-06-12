@@ -955,3 +955,60 @@ exports.verificarTrialExpirado = onSchedule(
     console.log(`[verificar] concluido — ${expirados} expiracao(s)`)
   }
 )
+
+
+// ═══════════════════════════════════════════════════════════════════════
+// gerarArquivoSecreto — gera titulo, mensagem e curiosidade apos missao
+// ═══════════════════════════════════════════════════════════════════════
+exports.gerarArquivoSecreto = onCall(
+  { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    const { disciplina, tituloMissao, topicos, serie, percentual } = request.data
+
+    if (!disciplina || !tituloMissao) throw new HttpsError('invalid-argument', 'Dados invalidos.')
+
+    const nomeDisc = { historia: 'Historia', geografia: 'Geografia', matematica: 'Matematica', ciencias: 'Ciencias', portugues: 'Portugues' }[disciplina] || disciplina
+    const topicosTexto = Array.isArray(topicos) && topicos.length > 0 ? topicos.slice(0, 3).join(', ') : tituloMissao
+    const desempenho = percentual >= 80 ? 'excelente' : percentual >= 50 ? 'bom' : 'dedicado'
+
+    const prompt = `Voce e um educador especialista em motivacao infantil para criancas de 11-13 anos.
+
+Uma crianca acabou de concluir uma missao de ${nomeDisc} sobre "${tituloMissao}".
+Topicos estudados: ${topicosTexto}
+Serie: ${serie || '6ano'}
+Desempenho: ${desempenho} (${percentual || 0}% de acertos)
+
+Gere um "Arquivo Secreto" motivacional. Responda APENAS com este JSON sem markdown:
+{
+  "titulo": "titulo misterioso e intrigante relacionado ao assunto — max 50 chars — nao use numeracao nem codigos",
+  "mensagem": "mensagem motivacional de 3-4 linhas para a crianca. Tom: direto, que valoriza a inteligencia dela. Sem elogios vazios. Conecta o que ela aprendeu com o mundo real.",
+  "curiosidade": "fato genuinamente surpreendente sobre o assunto — algo que a crianca vai querer contar para os amigos. Max 2 linhas.",
+  "escola": "uma frase sobre como esse conhecimento conecta a crianca a escolas de excelencia — varie entre: Institutos Federais, Colegios Pedro II, ETEC, escolas de referencia internacional como Finlandia e Singapura, escolas tecnicas de alto padrao. Max 1 linha."
+}`
+
+    const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
+    const msg = await client.messages.create({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 500,
+      messages: [{ role: 'user', content: prompt }]
+    })
+
+    let resultado
+    try {
+      const texto = msg.content[0].text.trim()
+      const json = texto.substring(texto.indexOf('{'), texto.lastIndexOf('}') + 1)
+      resultado = JSON.parse(json)
+    } catch {
+      resultado = {
+        titulo: 'O Segredo dos Que Chegaram Longe',
+        mensagem: 'Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.',
+        curiosidade: 'Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.',
+        escola: 'Esse conhecimento e estudado nas melhores escolas federais e institutos de excelencia do Brasil.'
+      }
+    }
+
+    return { ok: true, ...resultado }
+  }
+)

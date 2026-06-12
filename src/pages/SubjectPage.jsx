@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { httpsCallable } from "firebase/functions";
+import { functions } from "../services/firebase";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import { disciplinas } from "../utils/content";
@@ -674,88 +676,49 @@ export default function SubjectPage() {
   const [atividade, setAtividade] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [bloqueioSaida, setBloqueioSaida] = useState(false);
+  const [arquivoSecreto, setArquivoSecreto] = useState(null);
+  const [arquivoAberto, setArquivoAberto] = useState(false);
+  const [arquivoCarregando, setArquivoCarregando] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatPergs, setChatPergs] = useState(5);
 
   const disciplinaBase = disciplinas[disciplinaId];
   const codigoAcesso = localStorage.getItem("eduplay_codigo_acesso");
 
   // ── Carrega missões ──
   useEffect(() => {
-    if (!disciplinaId) return;
-    const carregar = async () => {
+    if (!disciplinaId || !codigoAcesso) return;
+    let unsubscribe = null;
+
+    const iniciar = async () => {
       try {
-        // Garante auth anônima antes de qualquer leitura do Firestore
         await signInAnonymously(auth).catch(() => {});
+        const { collection, query, where, orderBy, onSnapshot } = await import("firebase/firestore");
+        const { db: dbFs } = await import("../services/firebase");
 
-        if (codigoAcesso) {
-          const lista = await getMissoesPorDisciplina(
-            codigoAcesso,
-            disciplinaId,
-          );
-          const pendentes = lista.filter((m) => !m.feita);
-          if (pendentes.length > 0) {
-            setMissoes(pendentes);
-            setCarregando(false);
-          } else {
-            setCarregando(false);
-            setGerandoAuto(true);
-            try {
-              // ── Bimestre automático pelo mês atual ──
-              const mes = new Date().getMonth() + 1;
-              const bimestreAtual =
-                mes <= 4
-                  ? "1bimestre"
-                  : mes <= 7
-                    ? "2bimestre"
-                    : mes <= 10
-                      ? "3bimestre"
-                      : "4bimestre";
+        const q = query(
+          collection(dbFs, "missoes", codigoAcesso, "geradas"),
+          where("disciplina", "==", disciplinaId),
+          where("feita", "==", false),
+          orderBy("criadoEm", "desc")
+        );
 
-              const serieAtual =
-                localStorage.getItem("eduplay_serie") || "6ano";
-
-              const temasPorDisciplina = {
-                historia:
-                  "Investigação histórica baseada no currículo do bimestre",
-                geografia:
-                  "Exploração geográfica baseada no currículo do bimestre",
-                matematica:
-                  "Desafio matemático baseado no currículo do bimestre",
-                ciencias:
-                  "Descoberta científica baseada no currículo do bimestre",
-                portugues:
-                  "Missão de linguagem baseada no currículo do bimestre",
-              };
-
-              const missao = await gerarMissaoIA({
-                disciplina: disciplinaId,
-                serie: serieAtual,
-                bimestre: bimestreAtual,
-                tema:
-                  temasPorDisciplina[disciplinaId] ||
-                  `Conteudo de ${disciplinaId}`,
-              });
-              await salvarMissao(codigoAcesso, disciplinaId, missao, serieAtual, bimestreAtual);
-              const novaLista = await getMissoesPorDisciplina(
-                codigoAcesso,
-                disciplinaId,
-              );
-              setMissoes(novaLista.filter((m) => !m.feita));
-            } catch (err) {
-              console.error("Erro ao gerar missao automatica:", err);
-              setErroAutoGerar(true);
-            } finally {
-              setGerandoAuto(false);
-            }
-          }
-        } else {
+        unsubscribe = onSnapshot(q, (snap) => {
+          const todas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const pendentes = todas.filter(m => !m.feita);
+          setMissoes(pendentes);
           setCarregando(false);
-        }
+          setGerandoAuto(false);
+        });
       } catch (err) {
         console.error("Erro ao carregar missoes:", err);
         setCarregando(false);
       }
     };
-    carregar();
+
+    iniciar();
+    return () => { if (unsubscribe) unsubscribe(); };
   }, [disciplinaId, codigoAcesso]);
 
   if (!disciplinaBase) {
@@ -798,6 +761,32 @@ export default function SubjectPage() {
   const concluir = async (acertos, total) => {
     setResultado({ acertos, total });
     setAtividade(null);
+    setArquivoAberto(false);
+    setArquivoSecreto(null);
+    setChatMsgs([]);
+    setChatPergs(5);
+    // Gera arquivo secreto em paralelo
+    setArquivoCarregando(true);
+    try {
+      const fn = httpsCallable(functions, "gerarArquivoSecreto");
+      const r = await fn({
+        disciplina: disciplinaId,
+        tituloMissao: moduloSelecionado?.titulo || "",
+        topicos: moduloSelecionado?.topicos || [],
+        serie: localStorage.getItem("eduplay_serie") || "6ano",
+        percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
+      });
+      if (r.data?.ok) setArquivoSecreto(r.data);
+    } catch(e) {
+      setArquivoSecreto({
+        titulo: "O Segredo dos Que Chegaram Longe",
+        mensagem: "Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.",
+        curiosidade: "Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.",
+        escola: "Esse conhecimento e base para as melhores escolas federais e institutos de excelencia do Brasil."
+      });
+    } finally {
+      setArquivoCarregando(false);
+    }
     if (moduloSelecionado?.id && codigoAcesso) {
       try {
         await Promise.all([
@@ -805,6 +794,7 @@ export default function SubjectPage() {
           registrarMissaoConcluida(
             codigoAcesso,
             `${disciplinaId}_${moduloSelecionado.id}`,
+            total > 0 ? Math.round((acertos / total) * 100) : 0,
           ),
           // ── Salva resultado para o painel dos pais ──
           registrarAcessoDiario(codigoAcesso),
@@ -824,32 +814,171 @@ export default function SubjectPage() {
     }
   };
 
+  const fecharArquivo = () => {
+    setArquivoAberto(false);
+    setResultado(null);
+    setModuloAtivo(null);
+  };
+
+  const enviarChatArquivo = async (texto) => {
+    if (!texto.trim() || chatPergs <= 0) return;
+    const pergunta = texto.trim();
+    setChatInput("");
+    setChatMsgs(prev => [...prev, { role: "user", content: pergunta }]);
+    setChatPergs(p => p - 1);
+    try {
+      const fn = httpsCallable(functions, "perguntarAssistente");
+      const r = await fn({
+        pergunta,
+        tema: arquivoSecreto?.titulo || moduloSelecionado?.titulo || "",
+        disciplina: disciplinaId,
+        resumo: moduloSelecionado?.resumo || "",
+      });
+      setChatMsgs(prev => [...prev, { role: "assistant", content: r.data.resposta }]);
+    } catch {
+      setChatMsgs(prev => [...prev, { role: "assistant", content: "Erro de conexao. Tente novamente." }]);
+    }
+  };
+
   // ── Resultado ──
   if (resultado) {
+    const pct = total > 0 ? Math.round((resultado.acertos / resultado.total) * 100) : 0;
     return (
-      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: 90 }}>
-        <PageHeader
-          titulo="Missão Concluída"
-          subtitulo={moduloSelecionado?.titulo}
-          cor={cor}
-          onVoltar={() => {
-            setResultado(null);
-            setModuloAtivo(null);
-          }}
-          tema={tema}
-          c={c}
-          alternarTema={alternarTema}
-        />
-        <Resultado
-          acertos={resultado.acertos}
-          total={resultado.total}
-          onVoltar={() => {
-            setResultado(null);
-            setModuloAtivo(null);
-          }}
-          cor={cor}
-          c={c}
-        />
+      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: 90, fontFamily: "'Nunito', sans-serif" }}>
+        <PageHeader titulo="Missão Concluída" subtitulo={moduloSelecionado?.titulo} cor={cor}
+          onVoltar={() => { setResultado(null); setModuloAtivo(null); }} tema={tema} c={c} alternarTema={alternarTema} />
+
+        <main style={{ maxWidth: 480, margin: "0 auto", padding: "20px 16px", display: "flex", flexDirection: "column", gap: 16 }}>
+
+          {/* Card resultado */}
+          <div style={{ background: c.card, borderRadius: 20, padding: "24px", border: `2px solid ${cor}33`, textAlign: "center" }}>
+            <div style={{ fontSize: "3rem", marginBottom: 8 }}>{pct >= 80 ? "🌟" : pct >= 50 ? "💪" : "📚"}</div>
+            <h2 style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1.5rem", color: c.texto, margin: "0 0 6px" }}>
+              {pct >= 80 ? "Excelente trabalho!" : pct >= 50 ? "Você está evoluindo!" : "Você se dedicou hoje!"}
+            </h2>
+            <p style={{ fontSize: "0.85rem", color: c.textoSub, margin: "0 0 16px", lineHeight: 1.5 }}>
+              {pct >= 80 ? "Você demonstrou ótima compreensão do conteúdo." : pct >= 50 ? "Cada tentativa te deixa mais preparado." : "O mais importante é ter tentado. Continue!"}
+            </p>
+            <div style={{ height: 10, background: c.borda, borderRadius: 5, overflow: "hidden", marginBottom: 8 }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: cor, borderRadius: 5, transition: "width 1.2s ease" }} />
+            </div>
+            <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0 }}>
+              {resultado.acertos} de {resultado.total} questões — {pct}%
+            </p>
+          </div>
+
+          {/* Envelope ou Arquivo Aberto */}
+          {!arquivoAberto ? (
+            <div style={{ textAlign: "center", cursor: "pointer" }} onClick={() => !arquivoCarregando && setArquivoAberto(true)}>
+              {arquivoCarregando ? (
+                <div style={{ background: c.card, border: `0.5px solid ${c.borda}`, borderRadius: 20, padding: 24, textAlign: "center" }}>
+                  <div style={{ fontSize: "2rem", marginBottom: 8, animation: "girarIA 2s linear infinite" }}>🔐</div>
+                  <p style={{ fontSize: "0.85rem", color: c.textoSub, margin: 0 }}>Gerando seu Arquivo Secreto...</p>
+                </div>
+              ) : (
+                <div style={{ animation: "pulsar 2.5s ease-in-out infinite" }}>
+                  <div style={{ width: 160, height: 110, margin: "0 auto 12px", position: "relative" }}>
+                    <div style={{ position: "absolute", inset: 0, background: "#085041", borderRadius: 10, border: "1.5px solid #5DCAA5", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 16 }}>
+                        {[56, 42, 50].map((w, i) => <div key={i} style={{ height: 2, width: w, background: "#5DCAA5", opacity: .5, borderRadius: 1 }} />)}
+                      </div>
+                    </div>
+                    <div style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0, borderLeft: "80px solid transparent", borderRight: "80px solid transparent", borderTop: "50px solid #5DCAA5", zIndex: 2 }} />
+                    <div style={{ position: "absolute", top: 0, left: 0, width: 0, height: 0, borderLeft: "78px solid transparent", borderRight: "78px solid transparent", borderTop: "48px solid #085041", zIndex: 3 }} />
+                    <div style={{ position: "absolute", top: 8, right: 8, width: 26, height: 26, background: "#C0392B", borderRadius: "50%", zIndex: 4, display: "flex", alignItems: "center", justifyContent: "center", animation: "pulsar 1.5s ease-in-out infinite" }}>
+                      <span style={{ fontSize: "0.7rem", color: "#fff" }}>🔒</span>
+                    </div>
+                  </div>
+                  <p style={{ fontSize: "0.75rem", fontWeight: 800, color: "#0F6E56", letterSpacing: 1, margin: "0 0 4px", textTransform: "uppercase" }}>Arquivo Secreto Desbloqueado</p>
+                  <p style={{ fontSize: "0.72rem", color: c.textoSub, animation: "pulsar 2s ease-in-out infinite" }}>toque para revelar</p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ background: c.card, border: `0.5px solid ${c.borda}`, borderRadius: 20, overflow: "hidden", animation: "fadeIn 0.4s ease" }}>
+              {/* Header */}
+              <div style={{ background: "#085041", padding: "16px 18px" }}>
+                <p style={{ fontSize: "0.65rem", color: "#9FE1CB", letterSpacing: 1.5, margin: "0 0 6px", textTransform: "uppercase" }}>Arquivo Confidencial — Agente Pesquisador</p>
+                <p style={{ fontSize: "1rem", fontWeight: 800, color: "#E1F5EE", lineHeight: 1.3, margin: 0 }}>{arquivoSecreto?.titulo || "Arquivo Secreto"}</p>
+              </div>
+
+              {/* Body */}
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", gap: 12 }}>
+                <p style={{ fontSize: "0.88rem", color: c.texto, lineHeight: 1.7, margin: 0, paddingBottom: 12, borderBottom: `0.5px solid ${c.borda}` }}>
+                  {arquivoSecreto?.mensagem}
+                </p>
+                <div style={{ background: "#E1F5EE", borderRadius: 10, padding: "12px 14px" }}>
+                  <p style={{ fontSize: "0.65rem", color: "#0F6E56", letterSpacing: 1.5, margin: "0 0 6px", textTransform: "uppercase" }}>Dado Classificado</p>
+                  <p style={{ fontSize: "0.82rem", color: "#085041", lineHeight: 1.6, margin: 0 }}>{arquivoSecreto?.curiosidade}</p>
+                </div>
+                <div style={{ borderLeft: "3px solid #0F6E56", paddingLeft: 12 }}>
+                  <p style={{ fontSize: "0.78rem", color: c.textoSub, lineHeight: 1.6, margin: 0, fontStyle: "italic" }}>{arquivoSecreto?.escola}</p>
+                </div>
+              </div>
+
+              {/* Chat */}
+              <div style={{ borderTop: `0.5px solid ${c.borda}`, padding: "14px 16px" }}>
+                <p style={{ fontSize: "0.65rem", color: c.textoSub, letterSpacing: 1.5, margin: "0 0 10px", textTransform: "uppercase" }}>
+                  Assistente de Missão — {chatPergs} {chatPergs === 1 ? "pergunta" : "perguntas"} disponíveis
+                </p>
+                <div style={{ background: c.card2 || c.borda, borderRadius: "4px 12px 12px 12px", padding: "10px 12px", fontSize: "0.82rem", color: c.texto, lineHeight: 1.5, marginBottom: 10 }}>
+                  Ficou alguma dúvida? Pode perguntar — estou aqui.
+                </div>
+                {chatMsgs.length === 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 10 }}>
+                    {["Me explica melhor esse assunto", "Por que isso importa hoje?"].map((s, i) => (
+                      <button key={i} onClick={() => enviarChatArquivo(s)}
+                        style={{ textAlign: "left", padding: "8px 12px", borderRadius: 10, border: `0.5px solid ${c.borda}`, background: "transparent", fontSize: "0.82rem", color: c.texto, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {chatMsgs.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10, maxHeight: 200, overflowY: "auto" }}>
+                    {chatMsgs.map((m, i) => (
+                      <div key={i} style={{ alignSelf: m.role === "user" ? "flex-end" : "flex-start", maxWidth: "85%", padding: "8px 12px", borderRadius: m.role === "user" ? "12px 12px 4px 12px" : "4px 12px 12px 12px", background: m.role === "user" ? "#E1F5EE" : (c.card2 || c.borda), fontSize: "0.82rem", color: m.role === "user" ? "#085041" : c.texto, lineHeight: 1.5 }}>
+                        {m.content}
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {chatPergs > 0 && (
+                  <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                    <input value={chatInput} onChange={e => setChatInput(e.target.value)}
+                      onKeyDown={e => { if (e.key === "Enter") enviarChatArquivo(chatInput); }}
+                      placeholder="Digite sua dúvida..."
+                      style={{ flex: 1, padding: "8px 12px", borderRadius: 10, border: `0.5px solid ${c.borda}`, background: c.card, color: c.texto, fontSize: "0.82rem", fontFamily: "'Nunito', sans-serif", outline: "none" }} />
+                    <button onClick={() => enviarChatArquivo(chatInput)}
+                      style={{ padding: "8px 14px", borderRadius: 10, border: "none", background: "#0F6E56", color: "#E1F5EE", fontSize: "0.82rem", fontWeight: 800, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+                      Enviar
+                    </button>
+                  </div>
+                )}
+                {chatPergs <= 0 && (
+                  <p style={{ fontSize: "0.72rem", color: c.textoSub, textAlign: "center", marginBottom: 10 }}>Perguntas esgotadas para essa missão.</p>
+                )}
+                <a href={`https://youtube.com/results?search_query=${encodeURIComponent((moduloSelecionado?.titulo || disciplinaId) + " para crianças")}`} target="_blank" rel="noreferrer"
+                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px", borderRadius: 10, border: `0.5px solid ${c.borda}`, background: "transparent", color: c.texto, fontSize: "0.82rem", textDecoration: "none", fontFamily: "'Nunito', sans-serif" }}>
+                  ▶️ Ver vídeos sobre esse assunto
+                </a>
+              </div>
+
+              {/* Botoes */}
+              <div style={{ display: "flex", gap: 8, padding: "14px 16px", borderTop: `0.5px solid ${c.borda}` }}>
+                <button onClick={fecharArquivo}
+                  style={{ flex: 1, padding: "12px", borderRadius: 30, border: "none", background: "#0F6E56", color: "#E1F5EE", fontSize: "0.9rem", fontWeight: 800, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+                  Ver missões pendentes
+                </button>
+                <button onClick={() => navigate("/")}
+                  style={{ flex: 1, padding: "12px", borderRadius: 30, border: `0.5px solid ${c.borda}`, background: "transparent", color: c.texto, fontSize: "0.9rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}>
+                  Início
+                </button>
+              </div>
+            </div>
+          )}
+
+        </main>
         <BottomNav />
       </div>
     );

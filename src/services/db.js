@@ -138,6 +138,7 @@ export async function getCriancaPorPai(uidPai) {
 /** Cria perfil da criança */
 export async function criarCrianca(codigoAcesso, dados) {
   await setDoc(doc(db, "criancas", codigoAcesso), {
+    status: "ativo",
     ...dados,
     criadoEm: serverTimestamp(),
     atualizadoEm: serverTimestamp(),
@@ -175,12 +176,13 @@ export async function getProgresso(codigoAcesso) {
 
 /** Registra acesso diário e atualiza sequência */
 export async function registrarAcessoDiario(codigoAcesso) {
-  const hoje = new Date().toISOString().slice(0, 10);
+  const fmtSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const hoje = fmtSP(new Date());
   const prog = await getProgresso(codigoAcesso);
 
   if (prog.diasAtivos.includes(hoje)) return prog;
 
-  const ontem = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+  const ontem = fmtSP(new Date(Date.now() - 86400000));
   const ultimoDia = prog.diasAtivos.sort().at(-1);
   const diasSeguidos = ultimoDia === ontem ? prog.diasSeguidos + 1 : 1;
   const novosDias = [...prog.diasAtivos, hoje].slice(-90);
@@ -196,13 +198,39 @@ export async function registrarAcessoDiario(codigoAcesso) {
 }
 
 /** Registra missão concluída */
-export async function registrarMissaoConcluida(codigoAcesso, chaveMissao) {
+export async function registrarMissaoConcluida(codigoAcesso, chaveMissao, percentual = 0) {
   const prog = await getProgresso(codigoAcesso);
   if (prog.missoesCompletas.includes(chaveMissao)) return;
+
+  // Calcular media geral
+  const historicoPercentuais = prog.historicoPercentuais || [];
+  const novosPercentuais = [...historicoPercentuais, percentual].slice(-100);
+  const mediaGeral = Math.round(novosPercentuais.reduce((a, b) => a + b, 0) / novosPercentuais.length);
+
+  // Calcular missoes essa semana
+  const agora = new Date();
+  const inicioSemana = new Date(agora);
+  inicioSemana.setDate(agora.getDate() - agora.getDay());
+  inicioSemana.setHours(0, 0, 0, 0);
+  const missoesEssaSemana = (prog.missoesEssaSemana || 0) + 1;
+
+  // Calcular recorde de dias
+  const diasAtivos = prog.diasAtivos || [];
+  const hoje = new Date().toISOString().slice(0, 10);
+  const diasSeguidos = prog.diasSeguidos || 0;
+  const recordeDias = Math.max(prog.recordeDias || 0, diasSeguidos);
+
+  // Melhor nota
+  const melhorNota = Math.max(prog.melhorNota || 0, percentual);
 
   await setDoc(doc(db, "progresso", codigoAcesso), {
     missoesCompletas: [...prog.missoesCompletas, chaveMissao],
     missoesFeitas: increment(1),
+    historicoPercentuais: novosPercentuais,
+    mediaGeral,
+    melhorNota,
+    missoesEssaSemana,
+    recordeDias,
     atualizadoEm: serverTimestamp(),
   }, { merge: true });
 }

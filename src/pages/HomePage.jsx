@@ -64,6 +64,7 @@ export default function HomePage({ playerName }) {
   const [diasSemana, setDiasSemana] = useState([]);
   const [premioConfig, setPremioConfig] = useState(null);
   const [mostrarFesta, setMostrarFesta] = useState(false);
+  const [festaVista, setFestaVista] = useState(() => sessionStorage.getItem("festaVista") === "1");
 
   const c = {
     bg: e ? "#0D141C" : "#F0F4F8",
@@ -92,6 +93,7 @@ export default function HomePage({ playerName }) {
 
         const [missoesFB, progressoFB] = await Promise.all([
           getTodasMissoes(codigoAcesso),
+          getProgresso(codigoAcesso),
         ]);
 
         // 1. PRIORIDADE: Renderiza as missões imediatamente, independente de falhas secundárias
@@ -164,16 +166,27 @@ export default function HomePage({ playerName }) {
   // ── Observador de Missões (Gatilho da Festa) ──
   useEffect(() => {
     if (!missoes || Object.keys(missoes).length === 0 || !premioConfig) return;
-    
-    // Achata todas as matérias em uma lista única e verifica se zerou
+
+    const fmtSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+    const hojeSP = fmtSP(new Date());
     const missoesArray = Object.values(missoes).flat();
-    const total = missoesArray.length;
-    const pendentes = missoesArray.filter(m => !m.feita).length;
-    
-    if (total > 0 && pendentes === 0) {
+    const missoesHoje = missoesArray.filter(m => m.data === hojeSP);
+    const totalHoje = missoesHoje.length;
+    const pendentesHoje = missoesHoje.filter(m => !m.feita).length;
+
+    const chaveFesta = "festaVista_" + hojeSP;
+
+    // Se ha missoes pendentes hoje, libera a festa para quando concluir
+    if (pendentesHoje > 0 && localStorage.getItem(chaveFesta)) {
+      localStorage.removeItem(chaveFesta);
+      setFestaVista(false);
+    }
+
+    // Festa so dispara se HOJE houve missoes e TODAS foram concluidas
+    if (totalHoje > 0 && pendentesHoje === 0 && !festaVista && !localStorage.getItem(chaveFesta)) {
       setMostrarFesta(true);
     }
-  }, [missoes, premioConfig]);
+  }, [missoes, premioConfig, festaVista]);
 
   // ── Trocar usuário (Correção de Importação) ──
   const trocarUsuario = async () => {
@@ -733,7 +746,7 @@ export default function HomePage({ playerName }) {
         {/* Palco da Premiação */}
         <ModalPremiacao 
           isOpen={mostrarFesta} 
-          fechar={() => setMostrarFesta(false)} 
+          fechar={() => { setMostrarFesta(false); setFestaVista(true); const hojeSP = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }); localStorage.setItem("festaVista_" + hojeSP, "1"); }} 
           premioTexto={premioConfig?.texto} 
           premioImagemUrl={premioConfig?.imagemUrl}
           premioFreq={premioConfig?.freq}

@@ -2403,6 +2403,24 @@ export default function PaisPage({ userPai, timer }) {
           const novas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
           setSessoesQuiz(novas);
         });
+
+        // Listener tempo real para missoes — atualiza painel quando pai gera nova missao
+        const qMissoes = qry(col(dbFs, "missoes", crianca.id, "geradas"), oby("criadoEm", "desc"));
+        ons(qMissoes, (snap) => {
+          const todas = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+          const porDisc = {};
+          todas.forEach(m => {
+            if (!porDisc[m.disciplina]) porDisc[m.disciplina] = [];
+            porDisc[m.disciplina].push(m);
+          });
+          setMissoesPorDisc(porDisc);
+          const hoje = new Date().toLocaleDateString("pt-BR");
+          const qtdHoje = todas.filter(m => {
+            const data = m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : null;
+            return data === hoje;
+          }).length;
+          setMissoesHoje(qtdHoje);
+        });
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
         setEtapa("eca");
