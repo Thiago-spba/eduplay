@@ -4434,33 +4434,40 @@ export default function PaisPage({ userPai, timer }) {
                         <span style={{ fontSize: "0.82rem", fontWeight: 800, color: d.cor }}>{d.label}</span>
                         <span style={{ marginLeft: "auto", fontSize: "0.7rem", color: c.textoSub, fontWeight: 700 }}>{lista.length} {lista.length === 1 ? "missão" : "missões"}</span>
                       </div>
+                      <style>{`details[open] .seta-missao{transform:rotate(90deg)}`}</style>
                       {lista.map((m, i) => (
-                        <div key={m.id || i} style={{ padding: "12px 16px", borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none", display: "flex", flexDirection: "column", gap: 6 }}>
-                          <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 8 }}>
-                            <p style={{ fontSize: "0.88rem", fontWeight: 800, color: c.texto, margin: 0, lineHeight: 1.3, flex: 1 }}>
+                        <details key={m.id || i} style={{ borderBottom: i < lista.length - 1 ? `1px solid ${c.borda}` : "none" }}>
+                          <summary style={{ padding: "12px 16px", display: "flex", alignItems: "center", gap: 8, cursor: "pointer", listStyle: "none" }}>
+                            <span className="seta-missao" style={{ fontSize: "0.7rem", color: c.textoSub, transition: "transform 0.25s", flexShrink: 0 }}>▶</span>
+                            <p style={{ fontSize: "0.85rem", fontWeight: 800, color: c.texto, margin: 0, lineHeight: 1.3, flex: 1 }}>
                               {m.titulo || "Missão sem título"}
                             </p>
-                            <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "3px 8px", borderRadius: 6, flexShrink: 0, color: m.feita ? "#2E8B57" : "#F59E0B", background: m.feita ? "#2E8B5715" : "#F59E0B15" }}>
-                              {m.feita ? "✅ Feita" : "⏳ Pendente"}
+                            <span style={{ fontSize: "0.62rem", color: c.textoSub, fontWeight: 600, flexShrink: 0 }}>
+                              {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) : ""}
                             </span>
+                            <span style={{ fontSize: "0.65rem", fontWeight: 800, padding: "3px 8px", borderRadius: 6, flexShrink: 0, color: m.feita ? "#2E8B57" : "#F59E0B", background: m.feita ? "#2E8B5715" : "#F59E0B15" }}>
+                              {m.feita ? "✅" : "⏳"}
+                            </span>
+                          </summary>
+                          <div style={{ padding: "0 16px 12px 38px", display: "flex", flexDirection: "column", gap: 6 }}>
+                            {m.perguntaCentral && (
+                              <p style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, margin: 0, fontStyle: "italic" }}>"{m.perguntaCentral}"</p>
+                            )}
+                            {Array.isArray(m.topicos) && m.topicos.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                                {m.topicos.slice(0, 3).map((t, ti) => (
+                                  <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+                                    <span style={{ fontSize: "0.65rem", color: d.cor, fontWeight: 800, flexShrink: 0 }}>•</span>
+                                    <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            <p style={{ fontSize: "0.68rem", color: c.textoSub, margin: 0 }}>
+                              {m.feita ? "✅ Concluída em" : "⏳ Criada em"} {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : "—"}
+                            </p>
                           </div>
-                          {m.perguntaCentral && (
-                            <p style={{ fontSize: "0.78rem", color: d.cor, fontWeight: 700, margin: 0, fontStyle: "italic" }}>"{m.perguntaCentral}"</p>
-                          )}
-                          {Array.isArray(m.topicos) && m.topicos.length > 0 && (
-                            <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                              {m.topicos.slice(0, 3).map((t, ti) => (
-                                <div key={ti} style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-                                  <span style={{ fontSize: "0.65rem", color: d.cor, fontWeight: 800, flexShrink: 0 }}>•</span>
-                                  <span style={{ fontSize: "0.72rem", color: c.textoSub, fontWeight: 600, lineHeight: 1.4 }}>{t}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <p style={{ fontSize: "0.68rem", color: c.textoSub, margin: 0 }}>
-                            {m.criadoEm?.toDate ? m.criadoEm.toDate().toLocaleDateString("pt-BR") : "—"}
-                          </p>
-                        </div>
+                        </details>
                       ))}
                     </div>
                   );
@@ -4797,18 +4804,20 @@ export default function PaisPage({ userPai, timer }) {
               {premio.length > 0 && (
                 <div style={{ marginBottom: "14px" }}>
                   <p style={{ fontSize: "0.75rem", color: e ? "#A0B8C8" : "#8A6D3B", margin: "0 0 8px" }}>Frequência da Meta:</p>
-                  <select
-                    value={premio.includes("|") ? premio.split("|")[0] : "Semanal"}
-                    onChange={(ev) => {
-                      const textoAtual = premio.includes("|") ? premio.split("|")[1] : premio;
-                      setPremio(ev.target.value + "|" + textoAtual);
-                    }}
-                    style={{ width: "100%", padding: "10px", borderRadius: "8px", border: e ? "1px solid #334155" : "1px solid #E2E8F0", background: e ? "#1E293B" : "#FFF", color: e ? "#F8FAFC" : "#1E293B", outline: "none" }}
-                  >
-                    <option value="Semanal">Semanal (Todo fim de semana)</option>
-                    <option value="Quinzenal">Quinzenal (A cada 15 dias)</option>
-                    <option value="Mensal">Mensal (No fim do mês)</option>
-                  </select>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    {["Semanal", "Quinzenal", "Mensal", "Bimestral"].map((f) => {
+                      const atual = premio.includes("|") ? premio.split("|")[0] : "Semanal";
+                      const rotulos = { Semanal: "Semanal", Quinzenal: "Quinzenal", Mensal: "Fim do mês", Bimestral: "Fim do bimestre" };
+                      const sel = atual === f;
+                      return (
+                        <button key={f}
+                          onClick={() => { const textoAtual = premio.includes("|") ? premio.split("|")[1] : premio; setPremio(f + "|" + textoAtual); }}
+                          style={{ flex: "1 1 calc(50% - 8px)", minWidth: 120, padding: "11px 8px", borderRadius: 12, border: `2px solid ${sel ? "#00D4AA" : (e ? "#334155" : "#E2E8F0")}`, background: sel ? "#00D4AA18" : "transparent", color: sel ? "#00D4AA" : (e ? "#A0B8C8" : "#64748B"), fontWeight: 800, fontSize: "0.8rem", cursor: "pointer", fontFamily: "'Nunito', sans-serif", transition: "all 0.15s" }}>
+                          {sel ? "✓ " : ""}{rotulos[f]}
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
 
@@ -4845,29 +4854,60 @@ export default function PaisPage({ userPai, timer }) {
                   boxSizing: "border-box",
                 }}
               />
+              {premio.length > 0 && (
+                <button onClick={async () => {
+                    try {
+                      const { db } = await import("../services/firebase");
+                      const { doc, setDoc } = await import("firebase/firestore");
+                      if (!userPai?.uid) { alert("Erro de autenticação."); return; }
+                      await setDoc(doc(db, "responsaveis", userPai.uid), {
+                        premio: premio,
+                        premioImagemUrl: premioImagemUrl || null,
+                      }, { merge: true });
+                      if (filho?.id) {
+                        try {
+                          await setDoc(doc(db, "criancas", filho.id), {
+                            premio: premio,
+                            premioImagemUrl: premioImagemUrl || null,
+                          }, { merge: true });
+                        } catch (errEspelho) { console.error("Espelhamento do premio falhou:", errEspelho.code, errEspelho.message); }
+                      }
+                      setPremioEditando(false);
+                      alert("Prêmio e regras salvos com sucesso!");
+                    } catch (err) { alert("Erro ao salvar."); }
+                  }}
+                  style={{ width:"100%", padding:"13px", marginTop:"10px", background:"#00D4AA", color:"#1E293B", border:"none", borderRadius:"12px", fontWeight:800, cursor:"pointer", fontSize:"0.95rem", fontFamily:"'Nunito', sans-serif" }}>
+                  💾 Salvar Regras do Prêmio
+                </button>
+              )}
             </div>
 
             {/* Card visualizacao premio salvo */}
             {premio.length > 0 && !premioEditando && (
               <div style={{ animation:"fadeIn 0.3s ease", marginBottom:"14px" }}>
-                <div style={{ borderRadius:"16px", overflow:"hidden", border:"2px solid #FFB83044", background: e ? "rgba(0,0,0,0.2)" : "#FFFBF0" }}>
-                  {premioImagemUrl && (
-                    <img src={premioImagemUrl} alt="Premio" style={{ width:"100%", maxHeight:"180px", objectFit:"cover", display:"block" }}
-                      onError={(ev) => { ev.target.style.display="none"; }} />
-                  )}
-                  <div style={{ padding:"14px 16px" }}>
-                    <p style={{ fontSize:"0.7rem", fontWeight:800, color:"#FFB830", margin:"0 0 4px", textTransform:"uppercase", letterSpacing:1 }}>
-                      Prêmio configurado
-                    </p>
-                    <p style={{ fontSize:"0.82rem", fontWeight:700, color: e ? "#F8FAFC" : "#1E293B", margin:"0 0 4px" }}>
-                      {premio.includes("|") ? premio.split("|")[0] : "Semanal"} {" - "}
-                      {premio.includes("|") ? premio.split("|")[1]?.trim() : premio}
-                    </p>
+                <div style={{ borderRadius:"16px", border:"1.5px solid #FFB83044", background: e ? "rgba(0,0,0,0.2)" : "#FFFBF0", padding:"14px 16px" }}>
+                  <div style={{ display:"flex", gap:14, alignItems:"center" }}>
+                    {premioImagemUrl && (
+                      <img src={premioImagemUrl} alt="Premio"
+                        style={{ width:74, height:74, objectFit:"cover", borderRadius:"14px", flexShrink:0, boxShadow:"0 3px 10px rgba(0,0,0,0.3)" }}
+                        onError={(ev) => { ev.target.style.display="none"; }} />
+                    )}
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <p style={{ fontSize:"0.68rem", fontWeight:800, color:"#FFB830", margin:"0 0 4px", textTransform:"uppercase", letterSpacing:1 }}>
+                        🏆 Prêmio configurado
+                      </p>
+                      <p style={{ fontSize:"0.88rem", fontWeight:800, color: e ? "#F8FAFC" : "#1E293B", margin:"0 0 4px", lineHeight:1.35 }}>
+                        {premio.includes("|") ? premio.split("|")[1]?.trim() : premio}
+                      </p>
+                      <span style={{ fontSize:"0.65rem", fontWeight:800, color:"#00D4AA", background:"#00D4AA18", border:"1px solid #00D4AA44", borderRadius:8, padding:"2px 8px" }}>
+                        {premio.includes("|") ? premio.split("|")[0] : "Semanal"}
+                      </span>
+                    </div>
                   </div>
-                  <div style={{ display:"flex", gap:8, padding:"0 16px 14px" }}>
+                  <div style={{ display:"flex", gap:8, marginTop:12 }}>
                     <button onClick={() => setPremioEditando(true)}
-                      style={{ flex:1, padding:"9px", borderRadius:"10px", border:"1.5px solid #00D4AA44", background:"#00D4AA15", color:"#00D4AA", fontWeight:800, cursor:"pointer", fontSize:"0.82rem" }}>
-                      Editar
+                      style={{ flex:1, padding:"12px", borderRadius:"12px", border:"1.5px solid #00D4AA44", background:"#00D4AA15", color:"#00D4AA", fontWeight:800, cursor:"pointer", fontSize:"0.9rem", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                      ✏️ Editar
                     </button>
                     <button onClick={async () => {
                         if (!confirm("Excluir o prêmio salvo?")) return;
@@ -4877,11 +4917,12 @@ export default function PaisPage({ userPai, timer }) {
                           const { ref, deleteObject } = await import("firebase/storage");
                           if (premioImagemUrl) { try { await deleteObject(ref(storage, premioImagemUrl)); } catch (_) {} }
                           await setDoc(doc(db, "responsaveis", userPai.uid), { premio: "", premioImagemUrl: null }, { merge: true });
+                          if (filho?.id) { try { await setDoc(doc(db, "criancas", filho.id), { premio: "", premioImagemUrl: null }, { merge: true }); } catch (_) {} }
                           setPremio(""); setPremioImagemUrl(null); setPremioEditando(false);
                         } catch (err) { alert("Erro ao excluir o prêmio."); }
                       }}
-                      style={{ flex:1, padding:"9px", borderRadius:"10px", border:"1.5px solid #EF444440", background:"#EF444410", color:"#EF4444", fontWeight:800, cursor:"pointer", fontSize:"0.82rem" }}>
-                      Excluir
+                      style={{ flex:1, padding:"12px", borderRadius:"12px", border:"1.5px solid #EF444440", background:"#EF444410", color:"#EF4444", fontWeight:800, cursor:"pointer", fontSize:"0.9rem", display:"flex", alignItems:"center", justifyContent:"center", gap:6 }}>
+                      🗑️ Excluir
                     </button>
                   </div>
                 </div>
@@ -4892,10 +4933,10 @@ export default function PaisPage({ userPai, timer }) {
             {premio.length > 0 && premioEditando && (
               <div style={{ marginBottom:"14px" }}>
                 {/* Upload foto */}
-                <div style={{ padding:"12px", borderRadius:"12px", border:"1px dashed #A0B8C8", background: e ? "rgba(255,255,255,0.05)" : "#F8FAFC", textAlign:"center", marginBottom:"12px" }}>
+                <div style={{ padding:"12px", borderRadius:"14px", border:"1.5px solid #A0B8C833", background: e ? "rgba(255,255,255,0.05)" : "#F8FAFC", textAlign:"center", marginBottom:"12px" }}>
                   {premioImagemUrl ? (
                     <div style={{ position:"relative", display:"inline-block", width:"100%" }}>
-                      <img src={premioImagemUrl} alt="Premio" style={{ width:"100%", maxHeight:"150px", objectFit:"cover", borderRadius:"8px" }} />
+                      <img src={premioImagemUrl} alt="Premio" style={{ width:"100%", height:"170px", objectFit:"cover", borderRadius:"14px", boxShadow:"0 4px 14px rgba(0,0,0,0.25)" }} />
                       <button onClick={() => setPremioImagemUrl(null)}
                         style={{ position:"absolute", top:5, right:5, background:"#EF4444", color:"white", border:"none", borderRadius:"50%", width:24, height:24, cursor:"pointer", fontWeight:"bold" }}>X</button>
                     </div>
@@ -4924,23 +4965,7 @@ export default function PaisPage({ userPai, timer }) {
                     </>
                   )}
                 </div>
-                {/* Botao salvar */}
-                <button onClick={async () => {
-                    try {
-                      const { db } = await import("../services/firebase");
-                      const { doc, setDoc } = await import("firebase/firestore");
-                      if (!userPai?.uid) { alert("Erro de autenticação."); return; }
-                      await setDoc(doc(db, "responsaveis", userPai.uid), {
-                        premio: premio,
-                        premioImagemUrl: premioImagemUrl || null,
-                      }, { merge: true });
-                      setPremioEditando(false);
-                      alert("Prêmio e regras salvos com sucesso!");
-                    } catch (err) { alert("Erro ao salvar."); }
-                  }}
-                  style={{ width:"100%", padding:"12px", marginTop:"8px", background:"#00D4AA", color:"#1E293B", border:"none", borderRadius:"12px", fontWeight:800, cursor:"pointer", fontSize:"0.95rem" }}>
-                  Salvar Regras do Prêmio
-                </button>
+                
                 <button onClick={() => setPremioEditando(false)}
                   style={{ width:"100%", padding:"9px", marginTop:"6px", background:"transparent", color:c.textoSub, border:`1px solid ${c.borda}`, borderRadius:"12px", fontWeight:700, cursor:"pointer", fontSize:"0.85rem" }}>
                   Cancelar

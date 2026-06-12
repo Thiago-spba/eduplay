@@ -842,7 +842,7 @@ export default function SubjectPage() {
 
   // ── Resultado ──
   if (resultado) {
-    const pct = total > 0 ? Math.round((resultado.acertos / resultado.total) * 100) : 0;
+    const pct = resultado.total > 0 ? Math.round((resultado.acertos / resultado.total) * 100) : 0;
     return (
       <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: 90, fontFamily: "'Nunito', sans-serif" }}>
         <PageHeader titulo="Missão Concluída" subtitulo={moduloSelecionado?.titulo} cor={cor}

@@ -111,21 +111,17 @@ export default function HomePage({ playerName }) {
 
         // 2. Tenta buscar o prêmio de forma isolada e silenciosa
         try {
+          // Premio agora e lido direto do doc da crianca (espelhado pelo painel do pai)
           const criancaFB = await getCrianca(codigoAcesso);
-          if (criancaFB && (criancaFB.uidPai || criancaFB.parentId)) {
-            const paiId = criancaFB.uidPai || criancaFB.parentId;
-            const paiFB = await getResponsavel(paiId);
-            
-            if (paiFB && paiFB.premio && paiFB.premio.length > 0) {
-              setPremioConfig({ 
-                texto: paiFB.premio.includes("|") ? paiFB.premio.split("|")[1] : paiFB.premio, 
-                imagemUrl: paiFB.premioImagemUrl || null,
-                freq: paiFB.premio.includes("|") ? paiFB.premio.split("|")[0] : "Semanal"
-              });
-            }
+          if (criancaFB && criancaFB.premio && criancaFB.premio.length > 0) {
+            setPremioConfig({
+              texto: criancaFB.premio.includes("|") ? criancaFB.premio.split("|")[1] : criancaFB.premio,
+              imagemUrl: criancaFB.premioImagemUrl || null,
+              freq: criancaFB.premio.includes("|") ? criancaFB.premio.split("|")[0] : "Semanal"
+            });
           }
         } catch (errSeguranca) {
-          console.warn("Aviso: Leitura do prêmio bloqueada pelo Firebase.", errSeguranca.message);
+          console.warn("Aviso: leitura do prêmio indisponível.", errSeguranca.message);
         }
         setProgresso(progressoFB);
         setDiasSemana(obterDiasSemana(progressoFB?.diasAtivos || []));
@@ -157,10 +153,14 @@ export default function HomePage({ playerName }) {
   })();
 
   // ── Outras disciplinas com missões pendentes ──
-  const outrasDisciplinas = ORDEM_DISCIPLINAS.filter((id) => {
-    if (id === missaoPrincipal?.id) return false;
-    return (missoes[id] || []).some((m) => !m.feita);
+  // ── Demais missoes pendentes (todas, de todas as disciplinas) ──
+  const missoesPendentesResto = ORDEM_DISCIPLINAS.flatMap((id) => {
+    const lista = missoes[id] || [];
+    return lista
+      .filter((m) => !m.feita)
+      .map((m) => ({ id, missao: m, ...DISCIPLINAS_META[id] }));
   });
+
 
   // ── Badges de esforço ──
   const diasSeguidos = progresso?.diasSeguidos || 0;
@@ -416,86 +416,40 @@ export default function HomePage({ playerName }) {
         </p>
 
         {missaoPrincipal ? (
-          <button
-            onClick={() => navigate(`/${missaoPrincipal.id}`)}
-            style={{
-              width: "100%",
-              background: c.verdeClaro,
-              borderRadius: 20,
-              padding: "18px",
-              border: "1.5px solid #9FE1CB",
-              cursor: "pointer",
-              textAlign: "left",
-              marginBottom: 20,
-              transition: "opacity 0.15s",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: 10,
-              }}
-            >
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  color: c.verde,
-                  background: "#fff",
-                  borderRadius: 20,
-                  padding: "3px 10px",
-                  border: "1px solid #9FE1CB",
-                }}
-              >
-                {missaoPrincipal.label}
-              </span>
-              <span style={{ fontSize: "0.7rem", color: "#085041" }}>
-                ~15 min
-              </span>
+          <>
+          {missoesPendentesResto.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+              <style>{`details[open] .seta-home{transform:rotate(90deg)} summary::-webkit-details-marker{display:none}`}</style>
+              {missoesPendentesResto.map((item, idx) => (
+                <details key={idx} style={{ background: c.card, borderRadius: 16, border: `1.5px solid ${c.borda}`, overflow: "hidden" }}>
+                  <summary style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", listStyle: "none" }}>
+                    <span className="seta-home" style={{ fontSize: "0.7rem", color: c.textoSub, transition: "transform 0.25s", flexShrink: 0 }}>▶</span>
+                    <span style={{ fontSize: "1.3rem", flexShrink: 0 }}>{item.icone}</span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: "0.7rem", fontWeight: 700, color: c.textoSub, margin: "0 0 2px" }}>{item.label}</p>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: 0, lineHeight: 1.3 }}>
+                        {item.missao?.titulo || `Missão de ${item.label}`}
+                      </p>
+                    </div>
+                  </summary>
+                  <div style={{ padding: "0 16px 14px 42px", display: "flex", flexDirection: "column", gap: 10 }}>
+                    {item.missao?.perguntaCentral && (
+                      <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0, lineHeight: 1.5, fontStyle: "italic" }}>
+                        "{item.missao.perguntaCentral}"
+                      </p>
+                    )}
+                    <button
+                      onClick={() => navigate(`/${item.id}`)}
+                      style={{ alignSelf: "flex-end", background: c.verde, color: c.verdeClaro, border: "none", borderRadius: 10, padding: "7px 18px", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+                    >
+                      ▶ Jogar
+                    </button>
+                  </div>
+                </details>
+              ))}
             </div>
-            <p
-              style={{
-                fontFamily: "'Fredoka', sans-serif",
-                fontSize: "1.05rem",
-                fontWeight: 600,
-                color: "#085041",
-                margin: "0 0 6px",
-              }}
-            >
-              {missaoPrincipal.missao?.titulo ||
-                `Missão de ${missaoPrincipal.label}`}
-            </p>
-            <p
-              style={{
-                fontSize: "0.78rem",
-                color: "#0F6E56",
-                margin: "0 0 14px",
-                lineHeight: 1.5,
-              }}
-            >
-              {missaoPrincipal.missao?.perguntaCentral ||
-                "Clique para iniciar sua missão de hoje."}
-            </p>
-            <div style={{ display: "flex", justifyContent: "flex-end" }}>
-              <div
-                style={{
-                  background: c.verde,
-                  color: c.verdeClaro,
-                  borderRadius: 10,
-                  padding: "7px 18px",
-                  fontSize: "0.85rem",
-                  fontWeight: 600,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-              >
-                ▶ Jogar
-              </div>
-            </div>
-          </button>
+          )}
+          </>
         ) : (
           <div
             style={{
@@ -674,84 +628,6 @@ export default function HomePage({ playerName }) {
           </>
         )}
 
-        {/* Outras matérias */}
-        {outrasDisciplinas.length > 0 && (
-          <>
-            <p
-              style={{
-                fontSize: "0.66rem",
-                fontWeight: 700,
-                color: c.textoSub,
-                textTransform: "uppercase",
-                letterSpacing: "0.06em",
-                margin: "0 0 10px",
-              }}
-            >
-              Outras matérias disponíveis
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-              {outrasDisciplinas.map((id) => {
-                const meta = DISCIPLINAS_META[id];
-                const total = (missoes[id] || []).filter(
-                  (m) => !m.feita,
-                ).length;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => navigate(`/${id}`)}
-                    style={{
-                      background: c.card,
-                      borderRadius: 16,
-                      padding: "14px 16px",
-                      border: `1.5px solid ${c.borda}`,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 14,
-                      cursor: "pointer",
-                      textAlign: "left",
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 12,
-                        background: `${meta.cor}22`,
-                        border: `1.5px solid ${meta.cor}44`,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: "1.4rem",
-                        flexShrink: 0,
-                      }}
-                    >
-                      {meta.icone}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div
-                        style={{
-                          fontFamily: "'Fredoka', sans-serif",
-                          fontSize: "0.95rem",
-                          color: c.texto,
-                          fontWeight: 600,
-                        }}
-                      >
-                        {meta.label}
-                      </div>
-                      <div style={{ fontSize: "0.7rem", color: c.textoSub }}>
-                        {total}{" "}
-                        {total === 1 ? "missão pendente" : "missões pendentes"}
-                      </div>
-                    </div>
-                    <span style={{ color: c.textoSub, fontSize: "1.1rem" }}>
-                      ›
-                    </span>
-                  </button>
-                );
-              })}
-            </div>
-          </>
-        )}
 
         {/* Palco da Premiação */}
         <ModalPremiacao 

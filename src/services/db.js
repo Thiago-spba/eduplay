@@ -339,23 +339,29 @@ export async function contarMissoesHoje(codigoAcesso) {
 
 /** Salva resultado de quiz/forca ao concluir missão */
 export async function salvarSessaoQuiz(codigoAcesso, dados) {
-  const { Timestamp } = await import("firebase/firestore"); const cincoMinAtras = Timestamp.fromDate(new Date(Date.now() - 5 * 60 * 1000));
-  
-  const q = query(
-    collection(db, "quizSessions"),
-    where("codigoAcesso", "==", codigoAcesso),
-    where("tituloMissao", "==", dados.tituloMissao),
-    where("criadoEm", ">=", cincoMinAtras),
-    limit(1)
-  );
-  
-  const snap = await getDocs(q);
-  
-  if (!snap.empty) {
-    console.log("⏭️ Sessão de quiz duplicada evitada:", dados.tituloMissao);
-    return null;
+  // Anti-duplicata SEM indice composto: busca por igualdades e compara a data no codigo
+  try {
+    const q = query(
+      collection(db, "quizSessions"),
+      where("codigoAcesso", "==", codigoAcesso),
+      where("tituloMissao", "==", dados.tituloMissao)
+    );
+    const snap = await getDocs(q);
+    const cincoMinAtras = Date.now() - 5 * 60 * 1000;
+    const duplicada = snap.docs.some((d) => {
+      const cr = d.data().criadoEm;
+      const t = cr?.toDate ? cr.toDate().getTime() : 0;
+      return t >= cincoMinAtras;
+    });
+    if (duplicada) {
+      console.log("⏭️ Sessão de quiz duplicada evitada:", dados.tituloMissao);
+      return null;
+    }
+  } catch (err) {
+    // Checagem anti-duplicata NUNCA pode impedir a gravacao da sessao
+    console.warn("Anti-duplicata falhou, gravando mesmo assim:", err.message);
   }
-  
+
   await addDoc(collection(db, "quizSessions"), {
     codigoAcesso,
     ...dados,

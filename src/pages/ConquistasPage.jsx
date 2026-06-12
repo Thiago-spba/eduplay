@@ -11,80 +11,486 @@ const DISC = {
   portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
 };
 
-function calcularNivel(total) {
-  const marcos = [
-    0, 5, 10, 20, 35, 55, 80, 110, 145, 185, 230, 280, 340, 410, 490, 580, 680,
-    790, 910, 1000,
-  ];
-  let nivel = 1;
-  for (let i = 0; i < marcos.length; i++) {
-    if (total >= marcos[i]) nivel = i + 1;
-    else break;
-  }
-  const atual = marcos[nivel - 1] || 0;
-  const prox = marcos[nivel] || marcos[marcos.length - 1] + 100;
-  const pct =
-    prox > atual ? Math.round(((total - atual) / (prox - atual)) * 100) : 100;
-  return { nivel, pct: Math.min(pct, 100) };
+// ─────────────────────────────────────────────────────────────
+// NÍVEL INFINITO — os 20 marcos originais permanecem intactos;
+// depois deles a progressão continua para sempre.
+// ─────────────────────────────────────────────────────────────
+const MARCOS = [
+  0, 5, 10, 20, 35, 55, 80, 110, 145, 185, 230, 280, 340, 410, 490, 580, 680,
+  790, 910, 1000,
+];
+
+function marcoDoNivel(idx) {
+  if (idx < MARCOS.length) return MARCOS[idx];
+  // Após o nível 20: cada nível exige +120 missões (jornada sem fim)
+  return MARCOS[MARCOS.length - 1] + (idx - (MARCOS.length - 1)) * 120;
 }
 
-function gerarFrase(progresso, missoesPorDisc, nome) {
-  const total = Object.values(missoesPorDisc).flat().length;
-  const feitas = Object.values(missoesPorDisc)
+function calcularNivel(total) {
+  let nivel = 1;
+  while (total >= marcoDoNivel(nivel)) nivel++;
+  const atual = marcoDoNivel(nivel - 1);
+  const prox = marcoDoNivel(nivel);
+  const pct =
+    prox > atual ? Math.round(((total - atual) / (prox - atual)) * 100) : 100;
+  return { nivel, pct: Math.min(pct, 100), atual, prox };
+}
+
+// Identidade que cresce com a criança
+function tituloDoNivel(nivel) {
+  if (nivel < 5) return { titulo: "Explorador", emoji: "🧭" };
+  if (nivel < 10) return { titulo: "Investigador", emoji: "🔍" };
+  if (nivel < 15) return { titulo: "Pesquisador", emoji: "📖" };
+  if (nivel < 20) return { titulo: "Cientista", emoji: "🔬" };
+  if (nivel < 30) return { titulo: "Mestre do Saber", emoji: "🎓" };
+  return { titulo: "Lenda do Saber", emoji: "🏛️" };
+}
+
+// ─────────────────────────────────────────────────────────────
+// DATAS NO FUSO DE SÃO PAULO (corrige o calendário deslocado)
+// ─────────────────────────────────────────────────────────────
+const fmtSP = (d) =>
+  d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+function datasDaSemanaAtual() {
+  // Constrói a data de hoje em SP sem ambiguidade de UTC
+  const [y, m, dia] = fmtSP(new Date()).split("-").map(Number);
+  const hojeLocal = new Date(y, m - 1, dia);
+  const diaSemana = hojeLocal.getDay(); // 0=Dom
+  const idxSegunda = diaSemana === 0 ? 6 : diaSemana - 1;
+  const segunda = new Date(hojeLocal);
+  segunda.setDate(hojeLocal.getDate() - idxSegunda);
+  const dias = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(segunda);
+    d.setDate(segunda.getDate() + i);
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, "0");
+    const dd = String(d.getDate()).padStart(2, "0");
+    dias.push(`${yy}-${mm}-${dd}`);
+  }
+  return { dias, idxHoje: idxSegunda };
+}
+
+// ─────────────────────────────────────────────────────────────
+// CONQUISTAS — calculadas só com dados que JÁ existem no banco
+// ─────────────────────────────────────────────────────────────
+function gerarConquistas(progresso, totalFeitas, missoesPorDisc) {
+  const dias = progresso?.diasSeguidos || 0;
+  const recorde = progresso?.recordeDias || 0;
+  const media = progresso?.mediaGeral || 0;
+  const melhorNota = progresso?.melhorNota || 0;
+  const discComMissao = Object.keys(DISC).filter((d) =>
+    (missoesPorDisc[d] || []).some((m) => m.feita),
+  ).length;
+
+  return [
+    {
+      id: "m1",
+      emoji: "🚀",
+      nome: "Decolagem",
+      desc: "1ª missão concluída",
+      ok: totalFeitas >= 1,
+      req: "Complete sua 1ª missão",
+    },
+    {
+      id: "m5",
+      emoji: "⭐",
+      nome: "Constelação",
+      desc: "5 missões",
+      ok: totalFeitas >= 5,
+      req: "Complete 5 missões",
+    },
+    {
+      id: "m10",
+      emoji: "🌟",
+      nome: "Supernova",
+      desc: "10 missões",
+      ok: totalFeitas >= 10,
+      req: "Complete 10 missões",
+    },
+    {
+      id: "m25",
+      emoji: "🏅",
+      nome: "Maratonista",
+      desc: "25 missões",
+      ok: totalFeitas >= 25,
+      req: "Complete 25 missões",
+    },
+    {
+      id: "m50",
+      emoji: "🏆",
+      nome: "Campeão",
+      desc: "50 missões",
+      ok: totalFeitas >= 50,
+      req: "Complete 50 missões",
+    },
+    {
+      id: "d3",
+      emoji: "🔥",
+      nome: "Chama Acesa",
+      desc: "3 dias seguidos",
+      ok: dias >= 3 || recorde >= 3,
+      req: "Estude 3 dias seguidos",
+    },
+    {
+      id: "d7",
+      emoji: "🔥",
+      nome: "Semana de Fogo",
+      desc: "7 dias seguidos",
+      ok: dias >= 7 || recorde >= 7,
+      req: "Estude 7 dias seguidos",
+    },
+    {
+      id: "d14",
+      emoji: "💎",
+      nome: "Imparável",
+      desc: "14 dias seguidos",
+      ok: dias >= 14 || recorde >= 14,
+      req: "Estude 14 dias seguidos",
+    },
+    {
+      id: "n80",
+      emoji: "🎯",
+      nome: "Precisão",
+      desc: "Média ≥ 80%",
+      ok: media >= 80 && totalFeitas > 0,
+      req: "Alcance média de 80%",
+    },
+    {
+      id: "n100",
+      emoji: "💯",
+      nome: "Nota Máxima",
+      desc: "100% em uma missão",
+      ok: melhorNota >= 100,
+      req: "Tire 100% em uma missão",
+    },
+    {
+      id: "disc5",
+      emoji: "🗺️",
+      nome: "Desbravador",
+      desc: "Todas as 5 matérias",
+      ok: discComMissao >= 5,
+      req: "Faça missões nas 5 matérias",
+    },
+  ];
+}
+
+// ─────────────────────────────────────────────────────────────
+// MENSAGENS MOTIVACIONAIS ROTATIVAS — tom de mentalidade de
+// crescimento: elogia esforço e estratégia, nunca rotula.
+// ─────────────────────────────────────────────────────────────
+function gerarMensagens(progresso, missoesPorDisc, nome) {
+  const total = Object.values(missoesPorDisc)
     .flat()
     .filter((m) => m.feita).length;
   const dias = progresso?.diasSeguidos || 0;
-  const diasAtivos = progresso?.diasAtivos?.length || 0;
   const media = progresso?.mediaGeral || 0;
+  const recorde = progresso?.recordeDias || 0;
 
-  if (total === 0)
-    return {
-      emoji: "🌱",
-      frase: `${nome}, sua jornada começa agora. Cada missão que você fizer vai aparecer aqui. Vamos lá!`,
-    };
+  const qtds = Object.keys(DISC).map((d) => ({
+    id: d,
+    n: (missoesPorDisc[d] || []).filter((m) => m.feita).length,
+  }));
+  const forte = qtds.reduce((a, b) => (b.n > a.n ? b : a), qtds[0]);
+  const fraca = qtds.reduce((a, b) => (b.n < a.n ? b : a), qtds[0]);
 
-  if (media >= 80 && dias >= 3)
-    return {
-      emoji: "🌟",
-      frase: `${nome}, seu desempenho está excelente! ${media}% de aproveitamento e ${dias} dias seguidos de estudo. Esse ritmo é de quem chega longe.`,
-    };
+  const msgs = [];
+
+  if (total === 0) {
+    return [
+      {
+        emoji: "🌱",
+        texto: `${nome}, toda grande jornada começa com um único passo. Sua primeira missão está esperando!`,
+      },
+      {
+        emoji: "🧭",
+        texto: `Sabia que seu cérebro cria novas conexões cada vez que você aprende algo? Vamos começar a construir!`,
+      },
+    ];
+  }
+
+  msgs.push({
+    emoji: "⚡",
+    texto: `${nome}, você já completou ${total} ${total === 1 ? "missão" : "missões"}. Cada uma delas mudou seu cérebro de verdade — isso é ciência!`,
+  });
+
+  if (dias >= 2)
+    msgs.push({
+      emoji: "🔥",
+      texto: `${dias} dias seguidos! A constância vale mais que a pressa. Quem estuda um pouco todo dia chega mais longe que quem estuda muito de vez em quando.`,
+    });
+  else
+    msgs.push({
+      emoji: "🌅",
+      texto: `Que tal voltar amanhã também? Sequências de dias são o segredo dos grandes estudantes — comece a sua hoje.`,
+    });
 
   if (media >= 80)
-    return {
+    msgs.push({
       emoji: "🎯",
-      frase: `${nome}, parabéns! ${media}% de aproveitamento mostra que você está dominando o conteúdo. Continue assim!`,
-    };
-
-  if (media >= 50 && dias >= 2)
-    return {
+      texto: `Média de ${media}%! Isso mostra que você não está só fazendo — está entendendo. Continue revisando o que erra, é assim que se chega ao topo.`,
+    });
+  else if (media > 0)
+    msgs.push({
       emoji: "💪",
-      frase: `${nome}, você está evoluindo. ${feitas} missões concluídas com consistência. Seu esforço está valendo a pena.`,
-    };
+      texto: `Errar faz parte do treino, ${nome}. Cada erro mostra exatamente onde focar. Refazer uma missão é jogada de mestre, não de quem desistiu.`,
+    });
 
-  if (media >= 50)
-    return {
-      emoji: "📚",
-      frase: `${nome}, bom trabalho! Você já concluiu ${feitas} missões. Continue praticando e a média vai subir naturalmente.`,
-    };
+  if (forte && forte.n > 0)
+    msgs.push({
+      emoji: DISC[forte.id].icone,
+      texto: `${DISC[forte.id].label} é a sua força! Que tal usar essa confiança para encarar um desafio novo hoje?`,
+    });
 
-  if (media > 0 && media < 50)
-    return {
-      emoji: "🔄",
-      frase: `${nome}, vamos mudar isso juntos. Você tem potencial — preciso que se esforce um pouco mais. Cada missão refeita é uma chance de melhorar.`,
-    };
+  if (fraca && fraca.n < forte.n)
+    msgs.push({
+      emoji: DISC[fraca.id].icone,
+      texto: `${DISC[fraca.id].label} ainda é território pouco explorado. Os melhores exploradores vão onde poucos foram. Topa desbravar?`,
+    });
 
-  if (diasAtivos >= 2)
-    return {
-      emoji: "🔥",
-      frase: `${nome}, você já criou o hábito de voltar. Isso é mais importante do que qualquer nota. Continue!`,
-    };
+  if (recorde > 0 && dias < recorde)
+    msgs.push({
+      emoji: "🏆",
+      texto: `Seu recorde é ${recorde} dias seguidos. Você já provou que consegue — agora é só repetir a fórmula!`,
+    });
 
-  return {
-    emoji: "⚡",
-    frase: `${nome}, você completou ${feitas} missões até agora. Cada uma delas é um passo real no seu conhecimento.`,
-  };
+  msgs.push({
+    emoji: "🧠",
+    texto: `Conselho de mestre: explicar o que você aprendeu para alguém da família fixa o conhecimento 2x mais. Experimenta!`,
+  });
+
+  return msgs;
 }
 
+// ─────────────────────────────────────────────────────────────
+// TRILHA DO SABER — mapa interativo da jornada
+// ─────────────────────────────────────────────────────────────
+function TrilhaDoSaber({ nivelInfo, totalFeitas, c, e }) {
+  const [selecionado, setSelecionado] = useState(nivelInfo.nivel);
+
+  // Mostra do nível 1 (ou atual-2) até atual+3 — a estrada continua...
+  const inicio = Math.max(1, nivelInfo.nivel - 2);
+  const fim = nivelInfo.nivel + 3;
+  const niveis = [];
+  for (let n = inicio; n <= fim; n++) niveis.push(n);
+
+  const altura = niveis.length * 86 + 40;
+  const xEsq = 80,
+    xDir = 220,
+    cxMeio = 150;
+
+  const pos = niveis.map((n, i) => ({
+    nivel: n,
+    x: i % 2 === 0 ? xEsq : xDir,
+    y: 40 + i * 86,
+  }));
+
+  // Caminho sinuoso ligando os nós
+  let path = `M ${pos[0].x} ${pos[0].y}`;
+  for (let i = 1; i < pos.length; i++) {
+    const a = pos[i - 1],
+      b = pos[i];
+    path += ` C ${a.x} ${a.y + 43}, ${b.x} ${b.y - 43}, ${b.x} ${b.y}`;
+  }
+
+  const infoSel = (() => {
+    const m = marcoDoNivel(selecionado - 1);
+    const mProx = marcoDoNivel(selecionado);
+    const tit = tituloDoNivel(selecionado);
+    if (selecionado < nivelInfo.nivel)
+      return {
+        emoji: "✅",
+        titulo: `Nível ${selecionado} · ${tit.titulo}`,
+        texto: `Conquistado! Você passou por aqui com ${m}+ missões. Esse caminho já é seu.`,
+      };
+    if (selecionado === nivelInfo.nivel)
+      return {
+        emoji: "📍",
+        titulo: `Você está aqui! Nível ${selecionado} · ${tit.titulo}`,
+        texto: `Faltam ${Math.max(0, mProx - totalFeitas)} ${mProx - totalFeitas === 1 ? "missão" : "missões"} para o nível ${selecionado + 1}. Um passo de cada vez!`,
+      };
+    return {
+      emoji: "🔒",
+      titulo: `Nível ${selecionado} · ${tit.titulo}`,
+      texto: `Para chegar aqui: ${m} missões no total. Faltam ${Math.max(0, m - totalFeitas)}. A trilha está esperando você.`,
+    };
+  })();
+
+  return (
+    <div
+      style={{
+        background: c.card,
+        border: `1.5px solid ${c.borda}`,
+        borderRadius: 16,
+        padding: 16,
+        overflow: "hidden",
+      }}
+    >
+      <p
+        style={{
+          fontSize: "0.88rem",
+          fontWeight: 700,
+          color: c.texto,
+          margin: "0 0 4px",
+          fontFamily: "'Fredoka', sans-serif",
+        }}
+      >
+        🗺️ Trilha do Saber
+      </p>
+      <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "0 0 8px" }}>
+        Toque nas estações da sua jornada — ela não tem fim!
+      </p>
+
+      <svg
+        viewBox={`0 0 300 ${altura}`}
+        width="100%"
+        style={{ maxWidth: 320, margin: "0 auto", display: "block" }}
+      >
+        {/* Estrada */}
+        <path
+          d={path}
+          fill="none"
+          stroke={e ? "#2D3D50" : "#E2E8F0"}
+          strokeWidth="10"
+          strokeLinecap="round"
+        />
+        <path
+          d={path}
+          fill="none"
+          stroke="#0F6E56"
+          strokeWidth="10"
+          strokeLinecap="round"
+          strokeDasharray="2000"
+          strokeDashoffset="2000"
+          style={{ animation: "edu-trilha 2.5s ease forwards" }}
+          pathLength="2000"
+        />
+        {/* Continuação da estrada (a jornada não acaba) */}
+        <text
+          x={pos[pos.length - 1].x}
+          y={altura - 4}
+          textAnchor="middle"
+          fontSize="14"
+          fill={c.textoSub}
+        >
+          ⋯
+        </text>
+
+        {pos.map((p) => {
+          const feito = p.nivel < nivelInfo.nivel;
+          const atual = p.nivel === nivelInfo.nivel;
+          const sel = p.nivel === selecionado;
+          return (
+            <g
+              key={p.nivel}
+              onClick={() => setSelecionado(p.nivel)}
+              style={{ cursor: "pointer" }}
+            >
+              {atual && (
+                <circle
+                  cx={p.x}
+                  cy={p.y}
+                  r="26"
+                  fill="none"
+                  stroke="#FFD700"
+                  strokeWidth="2"
+                  opacity="0.6"
+                  style={{ animation: "edu-pulso 1.8s ease-in-out infinite" }}
+                />
+              )}
+              <circle
+                cx={p.x}
+                cy={p.y}
+                r="20"
+                fill={
+                  atual
+                    ? "#FFD700"
+                    : feito
+                      ? "#0F6E56"
+                      : e
+                        ? "#1A2633"
+                        : "#F0F4F8"
+                }
+                stroke={sel ? "#FFD700" : feito || atual ? "#0F6E56" : c.borda}
+                strokeWidth={sel ? 3 : 2}
+              />
+              <text
+                x={p.x}
+                y={p.y + 1}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize="13"
+                fontWeight="800"
+                fill={atual ? "#633806" : feito ? "#E1F5EE" : c.textoSub}
+                fontFamily="Nunito, sans-serif"
+              >
+                {feito ? "✓" : atual ? "★" : p.nivel}
+              </text>
+              <text
+                x={p.x}
+                y={p.y + 34}
+                textAnchor="middle"
+                fontSize="9"
+                fontWeight="700"
+                fill={atual ? "#FFD700" : c.textoSub}
+                fontFamily="Nunito, sans-serif"
+              >
+                Nv {p.nivel}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+
+      {/* Card de detalhe da estação selecionada */}
+      <div
+        key={selecionado}
+        style={{
+          marginTop: 10,
+          background: e ? "#0F6E5622" : "#E1F5EE",
+          border: "1.5px solid #5DCAA5",
+          borderRadius: 12,
+          padding: "10px 14px",
+          display: "flex",
+          gap: 10,
+          alignItems: "flex-start",
+          animation: "edu-surgir 0.35s ease",
+        }}
+      >
+        <span style={{ fontSize: "1.4rem", flexShrink: 0 }}>
+          {infoSel.emoji}
+        </span>
+        <div>
+          <p
+            style={{
+              fontSize: "0.8rem",
+              fontWeight: 800,
+              color: c.texto,
+              margin: "0 0 2px",
+            }}
+          >
+            {infoSel.titulo}
+          </p>
+          <p
+            style={{
+              fontSize: "0.75rem",
+              color: c.textoSub,
+              margin: 0,
+              lineHeight: 1.5,
+            }}
+          >
+            {infoSel.texto}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// RADAR (mantido do original)
+// ─────────────────────────────────────────────────────────────
 function RadarHabilidades({ missoesPorDisc, c, e }) {
   const ids = ["historia", "geografia", "matematica", "ciencias", "portugues"];
   const labels = [
@@ -160,6 +566,7 @@ function RadarHabilidades({ missoesPorDisc, c, e }) {
           fill={e ? "rgba(0,212,170,0.15)" : "rgba(15,110,86,0.12)"}
           stroke="#0F6E56"
           strokeWidth="2"
+          style={{ animation: "edu-surgir 0.8s ease" }}
         />
         {angulos.map((a, i) => {
           const r = Math.max(12, (qtds[i] / max) * raio);
@@ -213,6 +620,9 @@ function RadarHabilidades({ missoesPorDisc, c, e }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// PÁGINA
+// ─────────────────────────────────────────────────────────────
 export default function ConquistasPage() {
   const { tema, alternarTema } = useTema();
   const e = tema === "escuro";
@@ -230,10 +640,11 @@ export default function ConquistasPage() {
   const [missoesPorDisc, setMissoes] = useState({});
   const [crianca, setCrianca] = useState(null);
   const [carregando, setCarregando] = useState(true);
+  const [msgIdx, setMsgIdx] = useState(0);
   const [exp, setExp] = useState({
+    conquistas: true,
     consistencia: false,
     missoes: false,
-    disciplinas: false,
     semana: true,
   });
   const tog = (k) => setExp((p) => ({ ...p, [k]: !p[k] }));
@@ -259,6 +670,18 @@ export default function ConquistasPage() {
       .finally(() => setCarregando(false));
   }, [codigoAcesso]);
 
+  // Rotação das mensagens motivacionais (a cada 7s)
+  const nome = crianca?.nome?.split(" ")[0] || "Agente";
+  const mensagens = gerarMensagens(progresso, missoesPorDisc, nome);
+  useEffect(() => {
+    if (mensagens.length <= 1) return;
+    const t = setInterval(
+      () => setMsgIdx((i) => (i + 1) % mensagens.length),
+      7000,
+    );
+    return () => clearInterval(t);
+  }, [mensagens.length]);
+
   if (carregando) {
     return (
       <div
@@ -278,17 +701,27 @@ export default function ConquistasPage() {
     );
   }
 
-  const nome = crianca?.nome?.split(" ")[0] || "Agente";
   const serie = crianca?.serie || "6ano";
   const serieNum = parseInt(serie.replace("ano", "")) || 6;
   const totalFeitas = Object.values(missoesPorDisc)
     .flat()
     .filter((m) => m.feita).length;
-  const nivel = calcularNivel(totalFeitas);
+  const nivelInfo = calcularNivel(totalFeitas);
+  const tit = tituloDoNivel(nivelInfo.nivel);
   const dias = progresso?.diasSeguidos || 0;
   const diasAtivos = progresso?.diasAtivos || [];
   const media = progresso?.mediaGeral || 0;
-  const info = gerarFrase(progresso, missoesPorDisc, nome);
+  const conquistas = gerarConquistas(progresso, totalFeitas, missoesPorDisc);
+  const desbloqueadas = conquistas.filter((cq) => cq.ok).length;
+  const msg = mensagens[msgIdx % mensagens.length];
+  const { dias: semanaDias, idxHoje } = datasDaSemanaAtual();
+
+  // Próximo desafio: disciplina menos explorada, como convite
+  const qtdsDisc = Object.keys(DISC).map((d) => ({
+    id: d,
+    n: (missoesPorDisc[d] || []).filter((m) => m.feita).length,
+  }));
+  const desafio = qtdsDisc.reduce((a, b) => (b.n < a.n ? b : a), qtdsDisc[0]);
 
   const SecHeader = ({ titulo, chave }) => (
     <div
@@ -401,6 +834,7 @@ export default function ConquistasPage() {
             padding: 20,
             position: "relative",
             overflow: "hidden",
+            animation: "edu-surgir 0.5s ease",
           }}
         >
           <div
@@ -414,6 +848,17 @@ export default function ConquistasPage() {
               borderRadius: "50%",
             }}
           />
+          <span
+            style={{
+              position: "absolute",
+              top: 14,
+              right: 16,
+              fontSize: "1.6rem",
+              animation: "edu-flutuar 3s ease-in-out infinite",
+            }}
+          >
+            {tit.emoji}
+          </span>
           <p
             style={{
               fontSize: "0.65rem",
@@ -423,7 +868,7 @@ export default function ConquistasPage() {
               textTransform: "uppercase",
             }}
           >
-            Agente Pesquisador
+            Agente {tit.titulo}
           </p>
           <p
             style={{
@@ -443,7 +888,7 @@ export default function ConquistasPage() {
               margin: "0 0 14px",
             }}
           >
-            Nível {nivel.nivel} · {serieNum}º Ano
+            Nível {nivelInfo.nivel} · {serieNum}º Ano
           </p>
           <div
             style={{
@@ -464,10 +909,12 @@ export default function ConquistasPage() {
               <div
                 style={{
                   height: "100%",
-                  width: `${nivel.pct}%`,
+                  width: `${nivelInfo.pct}%`,
                   background: "linear-gradient(90deg,#5DCAA5,#FFD700)",
                   borderRadius: 3,
                   transition: "width 1s ease",
+                  backgroundSize: "200% 100%",
+                  animation: "edu-brilho 2.5s linear infinite",
                 }}
               />
             </div>
@@ -479,13 +926,124 @@ export default function ConquistasPage() {
                 textAlign: "right",
               }}
             >
-              próximas missões
+              {Math.max(0, nivelInfo.prox - totalFeitas)}{" "}
+              {nivelInfo.prox - totalFeitas === 1 ? "missão" : "missões"} para o
+              nível {nivelInfo.nivel + 1}
             </p>
           </div>
         </div>
 
+        {/* MENSAGEM MOTIVACIONAL ROTATIVA */}
+        <div
+          key={msgIdx}
+          style={{
+            background: c.card,
+            border: `1.5px solid ${c.borda}`,
+            borderRadius: 16,
+            padding: "16px 18px",
+            display: "flex",
+            gap: 12,
+            alignItems: "flex-start",
+            animation: "edu-surgir 0.5s ease",
+          }}
+        >
+          <span
+            style={{
+              fontSize: "1.8rem",
+              flexShrink: 0,
+              animation: "edu-flutuar 3s ease-in-out infinite",
+            }}
+          >
+            {msg.emoji}
+          </span>
+          <div style={{ flex: 1 }}>
+            <p
+              style={{
+                fontSize: "0.85rem",
+                color: c.texto,
+                lineHeight: 1.7,
+                margin: 0,
+              }}
+            >
+              {msg.texto}
+            </p>
+            {mensagens.length > 1 && (
+              <div style={{ display: "flex", gap: 4, marginTop: 8 }}>
+                {mensagens.map((_, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      width: 6,
+                      height: 6,
+                      borderRadius: "50%",
+                      background:
+                        i === msgIdx % mensagens.length ? "#0F6E56" : c.borda,
+                      transition: "background 0.3s",
+                    }}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* TRILHA DO SABER */}
+        <TrilhaDoSaber
+          nivelInfo={nivelInfo}
+          totalFeitas={totalFeitas}
+          c={c}
+          e={e}
+        />
+
         {/* RADAR */}
         <RadarHabilidades missoesPorDisc={missoesPorDisc} c={c} e={e} />
+
+        {/* PRÓXIMO DESAFIO */}
+        {totalFeitas > 0 && desafio && (
+          <div
+            style={{
+              background: e ? "#1A2633" : "#FFF9E6",
+              border: `1.5px dashed ${e ? "#FFD70066" : "#FFD700"}`,
+              borderRadius: 16,
+              padding: "14px 16px",
+              display: "flex",
+              gap: 12,
+              alignItems: "center",
+            }}
+          >
+            <span
+              style={{
+                fontSize: "1.6rem",
+                animation: "edu-pulso-suave 2s ease-in-out infinite",
+              }}
+            >
+              {DISC[desafio.id].icone}
+            </span>
+            <div>
+              <p
+                style={{
+                  fontSize: "0.8rem",
+                  fontWeight: 800,
+                  color: c.texto,
+                  margin: "0 0 2px",
+                }}
+              >
+                Seu próximo desafio
+              </p>
+              <p
+                style={{
+                  fontSize: "0.75rem",
+                  color: c.textoSub,
+                  margin: 0,
+                  lineHeight: 1.5,
+                }}
+              >
+                {DISC[desafio.id].label} está esperando você desbravar. Grandes
+                exploradores vão onde poucos foram! 🚀
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* STATS */}
         <div
@@ -512,6 +1070,7 @@ export default function ConquistasPage() {
                 borderRadius: 12,
                 padding: "12px 8px",
                 textAlign: "center",
+                animation: `edu-surgir 0.5s ease ${i * 0.12}s backwards`,
               }}
             >
               <div style={{ fontSize: 20, marginBottom: 4 }}>{s.emoji}</div>
@@ -532,31 +1091,76 @@ export default function ConquistasPage() {
           ))}
         </div>
 
-        {/* FRASE DE INCENTIVO */}
+        {/* SECAO: MURAL DE CONQUISTAS */}
         <div
           style={{
             background: c.card,
             border: `1.5px solid ${c.borda}`,
             borderRadius: 16,
-            padding: "16px 18px",
-            display: "flex",
-            gap: 12,
-            alignItems: "flex-start",
+            overflow: "hidden",
           }}
         >
-          <span style={{ fontSize: "1.8rem", flexShrink: 0 }}>
-            {info.emoji}
-          </span>
-          <p
-            style={{
-              fontSize: "0.85rem",
-              color: c.texto,
-              lineHeight: 1.7,
-              margin: 0,
-            }}
-          >
-            {info.frase}
-          </p>
+          <SecHeader
+            titulo={`🏅 Mural de Conquistas · ${desbloqueadas}/${conquistas.length}`}
+            chave="conquistas"
+          />
+          {exp.conquistas && (
+            <div
+              style={{
+                padding: "12px 16px",
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(96px, 1fr))",
+                gap: 8,
+              }}
+            >
+              {conquistas.map((cq, i) => (
+                <div
+                  key={cq.id}
+                  title={cq.ok ? cq.desc : cq.req}
+                  style={{
+                    background: cq.ok ? (e ? "#0F6E5622" : "#E1F5EE") : c.bg,
+                    border: `1.5px solid ${cq.ok ? "#5DCAA5" : c.borda}`,
+                    borderRadius: 12,
+                    padding: "12px 6px",
+                    textAlign: "center",
+                    opacity: cq.ok ? 1 : 0.55,
+                    animation: cq.ok
+                      ? `edu-pop 0.4s ease ${i * 0.05}s backwards`
+                      : "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: "1.5rem",
+                      marginBottom: 4,
+                      filter: cq.ok ? "none" : "grayscale(1)",
+                    }}
+                  >
+                    {cq.ok ? cq.emoji : "🔒"}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.68rem",
+                      fontWeight: 800,
+                      color: c.texto,
+                      marginBottom: 2,
+                    }}
+                  >
+                    {cq.nome}
+                  </div>
+                  <div
+                    style={{
+                      fontSize: "0.6rem",
+                      color: cq.ok ? "#0F6E56" : c.textoSub,
+                      lineHeight: 1.3,
+                    }}
+                  >
+                    {cq.ok ? cq.desc : cq.req}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* SECAO: CONSISTENCIA */}
@@ -582,7 +1186,7 @@ export default function ConquistasPage() {
                 }}
               >
                 {dias > 0
-                  ? `Você está em ${dias} dias seguidos de estudo.`
+                  ? `Você está em ${dias} ${dias === 1 ? "dia" : "dias"} seguidos de estudo.`
                   : "Comece uma sequência de dias de estudo!"}{" "}
                 {progresso?.recordeDias > 0 &&
                   `Seu recorde é ${progresso.recordeDias} dias.`}
@@ -602,6 +1206,7 @@ export default function ConquistasPage() {
                       justifyContent: "center",
                       fontSize: "0.6rem",
                       fontWeight: 700,
+                      animation: `edu-pop 0.3s ease ${i * 0.04}s backwards`,
                     }}
                   >
                     ✓
@@ -623,7 +1228,7 @@ export default function ConquistasPage() {
           )}
         </div>
 
-        {/* SECAO: MISSOES */}
+        {/* SECAO: MISSOES POR DISCIPLINA */}
         <div
           style={{
             background: c.card,
@@ -706,70 +1311,7 @@ export default function ConquistasPage() {
           )}
         </div>
 
-        {/* SECAO: DISCIPLINAS */}
-        <div
-          style={{
-            background: c.card,
-            border: `1.5px solid ${c.borda}`,
-            borderRadius: 16,
-            overflow: "hidden",
-          }}
-        >
-          <SecHeader titulo="Disciplinas" chave="disciplinas" />
-          {exp.disciplinas && (
-            <div
-              style={{
-                padding: "12px 16px",
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-                gap: 8,
-              }}
-            >
-              {Object.entries(DISC).map(([id, info]) => {
-                const feitas = (missoesPorDisc[id] || []).filter(
-                  (m) => m.feita,
-                ).length;
-                return (
-                  <div
-                    key={id}
-                    style={{
-                      background:
-                        feitas > 0 ? (e ? "#0F6E5622" : "#E1F5EE") : c.bg,
-                      border: `1.5px solid ${feitas > 0 ? "#5DCAA5" : c.borda}`,
-                      borderRadius: 12,
-                      padding: "14px 10px",
-                      textAlign: "center",
-                    }}
-                  >
-                    <div style={{ fontSize: "1.5rem", marginBottom: 4 }}>
-                      {info.icone}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.78rem",
-                        fontWeight: 700,
-                        color: c.texto,
-                        marginBottom: 2,
-                      }}
-                    >
-                      {info.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "0.72rem",
-                        color: feitas > 0 ? "#0F6E56" : c.textoSub,
-                      }}
-                    >
-                      {feitas > 0 ? `${feitas} missões` : "Nenhuma ainda"}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* SECAO: ESTA SEMANA */}
+        {/* SECAO: ESTA SEMANA — corrigida para fuso de SP e semana corrente */}
         <div
           style={{
             background: c.card,
@@ -791,12 +1333,8 @@ export default function ConquistasPage() {
               >
                 {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map(
                   (dia, i) => {
-                    const hoje = new Date().getDay();
-                    const diaIdx = i === 6 ? 0 : i + 1;
-                    const isHoje = diaIdx === hoje;
-                    const feito = diasAtivos.some(
-                      (d) => new Date(d).getDay() === diaIdx,
-                    );
+                    const isHoje = i === idxHoje;
+                    const feito = diasAtivos.includes(semanaDias[i]);
                     return (
                       <div key={i} style={{ textAlign: "center" }}>
                         <div
@@ -828,6 +1366,9 @@ export default function ConquistasPage() {
                               : feito
                                 ? "#E1F5EE"
                                 : c.textoSub,
+                            animation: isHoje
+                              ? "edu-pulso-suave 2s ease-in-out infinite"
+                              : "none",
                           }}
                         >
                           {isHoje ? "🔥" : feito ? "✓" : "—"}
@@ -858,6 +1399,13 @@ export default function ConquistasPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+        @keyframes edu-surgir{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes edu-pop{0%{opacity:0;transform:scale(0.6)}70%{transform:scale(1.08)}100%{opacity:1;transform:scale(1)}}
+        @keyframes edu-pulso{0%,100%{transform:scale(1);opacity:0.6}50%{transform:scale(1.15);opacity:0.2}}
+        @keyframes edu-pulso-suave{0%,100%{transform:scale(1)}50%{transform:scale(1.12)}}
+        @keyframes edu-flutuar{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+        @keyframes edu-brilho{0%{background-position:200% 0}100%{background-position:-200% 0}}
+        @keyframes edu-trilha{to{stroke-dashoffset:0}}
       `}</style>
     </div>
   );
