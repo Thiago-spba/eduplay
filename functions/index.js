@@ -590,7 +590,45 @@ exports.webhookMP = onRequest(
     try {
       const { type, data } = req.body
 
-      // Só processa notificações de assinatura
+      // ── PIX: notificacao de pagamento avulso ──
+      if (type === 'payment') {
+        const paymentId = data?.id
+        if (!paymentId) { res.status(200).send('OK'); return; }
+
+        // Nunca confiar no corpo da notificacao — confere direto na API do MP
+        const payResp = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN.value()}` },
+        })
+        if (!payResp.ok) { res.status(200).send('OK'); return; }
+        const pagamento = await payResp.json()
+
+        const codigoPix = pagamento.external_reference
+        if (!codigoPix || typeof codigoPix !== 'string' || codigoPix.includes('/')) {
+          res.status(200).send('OK'); return;
+        }
+        const cleanPix = codigoPix.trim()
+
+        if (pagamento.status === 'approved') {
+          await db.collection('criancas').doc(cleanPix).set({
+            assinaturaAtiva: true,
+            plano: 'pix',
+            pixStatus: 'pago',
+            pixPaymentId: pagamento.id,
+            assinaturaInicio: admin.firestore.FieldValue.serverTimestamp(),
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          console.log(`✅ PIX aprovado — acesso liberado: ${cleanPix}`)
+        } else if (pagamento.status === 'cancelled' || pagamento.status === 'rejected' || pagamento.status === 'expired') {
+          await db.collection('criancas').doc(cleanPix).set({
+            pixStatus: pagamento.status,
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          console.log(`[pix] ${pagamento.status}: ${cleanPix}`)
+        }
+        res.status(200).send('OK'); return;
+      }
+
+      // Assinatura recorrente (cartao) — preapproval
       if (type !== 'preapproval') { res.status(200).send('OK'); return; }
 
       const preapprovalId = data?.id
@@ -865,14 +903,21 @@ exports.verificarTrialExpirado = onSchedule(
 
     // 1. Verifica trials gratuitos
     const snapTrial = await db.collection('criancas')
-      .where('assinaturaAtiva', '!=', true)
       .get()
 
     for (const doc of snapTrial.docs) {
       try {
         const dados = doc.data()
         if (dados.plano === 'expirado') continue
-        if (!dados.trialInicio) continue
+        if (dados.assinaturaAtiva === true) continue
+        if (!dados.trialInicio) {
+          await db.collection('criancas').doc(doc.id).set({
+            trialInicio: admin.firestore.FieldValue.serverTimestamp(),
+            atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true })
+          console.log(`[trial] iniciado retroativamente: ${doc.id}`)
+          continue
+        }
 
         const inicio = dados.trialInicio.toDate
           ? dados.trialInicio.toDate()

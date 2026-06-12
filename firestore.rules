@@ -21,9 +21,15 @@ service cloud.firestore {
     match /criancas/{codigoAcesso} {
       allow create: if request.auth != null && request.resource.data.parentId == request.auth.uid;
       allow read:   if request.auth != null;
-      allow update: if request.auth != null &&
-        (resource.data.parentId == request.auth.uid ||
-         request.resource.data.keys().hasOnly(['trialInicio', 'atualizadoEm', 'mpPreapprovalId', 'assinaturaStatus', 'assinaturaAtiva', 'assinaturaInicio']));
+      allow update: if request.auth != null && (
+        // Pai: edita dados gerais, NUNCA campos de pagamento/trial (so Cloud Functions)
+        (resource.data.parentId == request.auth.uid &&
+         !request.resource.data.diff(resource.data).affectedKeys()
+           .hasAny(['assinaturaAtiva', 'assinaturaInicio', 'assinaturaStatus', 'plano', 'pixStatus', 'pixPaymentId', 'mpPreapprovalId', 'trialInicio', 'trialExpiradoEm'])) ||
+        // Primeiro acesso da crianca: carimba trialInicio uma unica vez, com hora do servidor
+        (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialInicio', 'atualizadoEm']) &&
+         !('trialInicio' in resource.data) &&
+         request.resource.data.trialInicio == request.time));
       allow delete: if request.auth != null && request.auth.token.email == "thiago.rpba@gmail.com";
     }
 

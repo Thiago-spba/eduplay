@@ -7,6 +7,7 @@ import { auth } from "../services/firebase";
 import {
   getTodasMissoes,
   getProgresso,
+  verificarTrial,
 getCrianca, getResponsavel} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 
@@ -90,6 +91,15 @@ export default function HomePage({ playerName }) {
       try {
         // Garante autenticação anônima antes de qualquer leitura do Firestore
         await signInAnonymously(auth).catch(() => {});
+
+        // ── Portao de acesso: trial expirado redireciona para a tela de bloqueio ──
+        try {
+          const trial = await verificarTrial(codigoAcesso);
+          if (!trial.ativo) {
+            window.location.replace("/agente/" + codigoAcesso);
+            return;
+          }
+        } catch (_) { /* falha de rede nao trava a home */ }
 
         const [missoesFB, progressoFB] = await Promise.all([
           getTodasMissoes(codigoAcesso),

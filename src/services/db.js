@@ -488,13 +488,5 @@ export async function verificarTrial(codigoAcesso) {
   };
 }
 
-/** Ativa assinatura da criança */
-export async function ativarAssinatura(codigoAcesso, dados) {
-  await updateDoc(doc(db, "criancas", codigoAcesso), {
-    assinaturaAtiva: true,
-    assinaturaInicio: serverTimestamp(),
-    ...dados,
-  });
-}
 
 
