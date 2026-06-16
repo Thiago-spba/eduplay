@@ -317,7 +317,15 @@ exports.gerarAudio = onCall(
       )
       if (!response.ok) throw new HttpsError('internal', 'Erro ao gerar áudio.')
       const data = await response.json()
-      return { ok: true, audioBase64: data.audioContent }
+      // Salva no Storage e retorna URL publica
+      const buffer = Buffer.from(data.audioContent, 'base64')
+      const bucket = admin.storage().bucket()
+      const nomeArquivo = `audios/tts_${Date.now()}.mp3`
+      const file = bucket.file(nomeArquivo)
+      await file.save(buffer, { contentType: 'audio/mpeg', metadata: { cacheControl: 'public, max-age=3600' } })
+      await file.makePublic()
+      const audioUrl = `https://storage.googleapis.com/${bucket.name}/${nomeArquivo}`
+      return { ok: true, audioUrl }
     } catch (err) {
       throw new HttpsError('internal', 'Falha ao gerar áudio.')
     }
@@ -762,8 +770,9 @@ exports.autoGerarMissoes = onSchedule(
   { schedule: '0 7 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY] },
   async () => {
     const db = admin.firestore()
-    const hoje = new Date().toISOString().slice(0, 10)
-    const diaSemana = new Date().getDay() // 1-5 = seg-sex
+    const _agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
+    const hoje = _agora.getFullYear() + '-' + String(_agora.getMonth()+1).padStart(2,'0') + '-' + String(_agora.getDate()).padStart(2,'0')
+    const diaSemana = _agora.getDay() // 1-5 = seg-sex
 
     if (diaSemana === 0 || diaSemana === 6) return
 
@@ -818,9 +827,8 @@ exports.autoGerarMissoes = onSchedule(
           if (diasUteis >= 5) { console.log(`[auto] pulando ${criancaId} — trial expirado (${diasUteis} dias)`); continue }
         }
 
-        // Conta missoes geradas hoje
-        const missoesHoje = await db.collection('missoes')
-          .where('criancaId', '==', criancaId)
+        // Conta missoes geradas hoje (subcolecao geradas/{criancaId})
+        const missoesHoje = await db.collection('missoes').doc(criancaId).collection('geradas')
           .where('data', '==', hoje)
           .get()
 
@@ -834,8 +842,7 @@ exports.autoGerarMissoes = onSchedule(
         const disciplinas = ['matematica', 'portugues', 'geografia', 'ciencias']
 
         // Busca titulos ja gerados para evitar repeticao
-        const titulosSnap = await db.collection('missoes')
-          .where('criancaId', '==', criancaId)
+        const titulosSnap = await db.collection('missoes').doc(criancaId).collection('geradas')
           .orderBy('criadoEm', 'desc')
           .limit(20)
           .get()
@@ -845,13 +852,72 @@ exports.autoGerarMissoes = onSchedule(
           const disciplina = disciplinas[i % disciplinas.length]
           const tema = CURRICULO[disciplina]?.[serie]?.[bimestre] || disciplina
           try {
-            // Gera missao via Anthropic diretamente
+            // Gera missao via Anthropic com prompt completo
             const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
-            const prompt = `Crie uma missão educacional para ${disciplina}, ${serie}, ${bimestre}. Tema: ${tema}. Títulos já usados: ${titulosJaGerados.slice(0,5).join(', ')}. Retorne JSON com: titulo, perguntaCentral, topicos (array 3 itens), atividades.quiz (array 5 perguntas com pergunta/opcoes[4]/resposta).`
+            const curriculoTema = CURRICULO[disciplina]?.[serie]?.[bimestre] || tema
+            const antiRep = titulosJaGerados.length > 0
+              ? '\nTITULOS JA GERADOS — NAO REPITA: ' + titulosJaGerados.slice(0,5).join(', ') + '. Crie um angulo diferente.'
+              : ''
+            const prompt = `Voce e um especialista em educacao basica brasileira.
+Crie uma missao educacional gamificada para o EduPlay.
+
+DADOS:
+- Disciplina: ${NOMES.disciplina[disciplina] || disciplina}
+- Serie: ${NOMES.serie[serie] || serie}
+- Bimestre: ${NOMES.bimestre[bimestre] || bimestre}
+- Curriculo: ${curriculoTema}${antiRep}
+
+Faixa etaria: 11-13 anos. Tom: investigativo, desafiador, NAO infantilizado.
+A crianca e um "Agente Pesquisador" que investiga misterios.
+
+Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
+{
+  "titulo": "titulo investigativo max 50 chars",
+  "subtitulo": "subtitulo curto max 60 chars",
+  "perguntaCentral": "pergunta intrigante max 100 chars",
+  "icone": "emoji unico",
+  "xp": numero entre 80 e 200,
+  "video": {
+    "titulo": "titulo do podcast estilo investigacao max 60 chars",
+    "duracao": "X min"
+  },
+  "atividades": {
+    "quiz": [
+      {
+        "pergunta": "pergunta clara e contextualizada",
+        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
+        "correta": indice_correto_entre_0_e_3,
+        "explicacao": "explicacao de 1-2 frases"
+      },
+      {
+        "pergunta": "segunda pergunta nivel medio",
+        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
+        "correta": indice_correto_entre_0_e_3,
+        "explicacao": "explicacao com dado curioso"
+      },
+      {
+        "pergunta": "terceira pergunta conexao com realidade",
+        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
+        "correta": indice_correto_entre_0_e_3,
+        "explicacao": "explicacao que amplia visao"
+      }
+    ],
+    "forca": {
+      "palavra": "PALAVRA_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
+      "dicas": ["dica facil e generica max 40 chars", "dica media mais especifica max 50 chars", "dica forte quase entrega max 60 chars"]
+    }
+  },
+  "resumo": "explicacao do assunto em 3-4 frases simples para crianca de 12 anos",
+  "topicos": ["topico 1", "topico 2", "topico 3", "topico 4", "topico 5"],
+  "roteiroPodcast": "roteiro completo: 4-5 paragrafos, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
+}
+
+REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais. Forca letras A-Z sem acentos sem espacos. dicas e array com 3 strings progressivas. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
-              max_tokens: 1500,
+              max_tokens: 2500,
+              temperature: 0.7,
               messages: [{ role: 'user', content: prompt }]
             })
 
@@ -865,14 +931,16 @@ exports.autoGerarMissoes = onSchedule(
               continue
             }
 
-            await db.collection('missoes').add({
-              criancaId,
+            await db.collection('missoes').doc(criancaId).collection('geradas').add({
               disciplina,
               serie,
               bimestre,
               titulo: missao.titulo || 'Missão do Dia',
               perguntaCentral: missao.perguntaCentral || '',
+              resumo: missao.resumo || '',
               topicos: missao.topicos || [],
+              roteiroPodcast: missao.roteiroPodcast || '',
+              video: missao.video || {},
               atividades: missao.atividades || {},
               feita: false,
               autoGerada: true,
@@ -1025,13 +1093,20 @@ Topicos estudados: ${topicosTexto}
 Serie: ${serie || '6ano'}
 Desempenho: ${desempenho} (${percentual || 0}% de acertos)
 
-Gere um "Arquivo Secreto" motivacional. Responda APENAS com este JSON sem markdown:
+Gere um "Arquivo Secreto" motivacional.
+
+REGRAS OBRIGATORIAS:
+- Portugues brasileiro correto sem erros de conjugacao verbal
+- NUNCA escreva domino quando deve ser dominou
+- NUNCA mencione escolas de excelencia Pedro II Singapura ou rankings
+- Foque no crescimento pessoal nao em competicao
+
+Responda APENAS com este JSON sem markdown:
 {
   "titulo": "titulo misterioso e intrigante relacionado ao assunto — max 50 chars — nao use numeracao nem codigos",
   "mensagem": "mensagem motivacional de 3-4 linhas para a crianca. Tom: direto, que valoriza a inteligencia dela. Sem elogios vazios. Conecta o que ela aprendeu com o mundo real.",
   "curiosidade": "fato genuinamente surpreendente sobre o assunto — algo que a crianca vai querer contar para os amigos. Max 2 linhas.",
-  "escola": "uma frase sobre como esse conhecimento conecta a crianca a escolas de excelencia — varie entre: Institutos Federais, Colegios Pedro II, ETEC, escolas de referencia internacional como Finlandia e Singapura, escolas tecnicas de alto padrao. Max 1 linha."
-}`
+  }`
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
     const msg = await client.messages.create({
@@ -1050,7 +1125,7 @@ Gere um "Arquivo Secreto" motivacional. Responda APENAS com este JSON sem markdo
         titulo: 'O Segredo dos Que Chegaram Longe',
         mensagem: 'Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.',
         curiosidade: 'Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.',
-        escola: 'Esse conhecimento e estudado nas melhores escolas federais e institutos de excelencia do Brasil.'
+        escola: ''
       }
     }
 

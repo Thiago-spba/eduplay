@@ -136,6 +136,13 @@ function embaralhar(arr) {
   return [...arr].sort(() => Math.random() - 0.5);
 }
 
+// ── Normaliza qualquer valor para texto puro ──
+function textoOpcao(val) {
+  if (val == null) return "";
+  if (typeof val === "object") return val.texto || val.descricao || val.valor || val.label || val.resposta || JSON.stringify(val);
+  return String(val);
+}
+
 // ── Quiz com alternativas embaralhadas ──
 function Quiz({ perguntas, onConcluir, cor, c }) {
   const [indice, setIndice] = useState(0);
@@ -146,12 +153,19 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
   // Embaralha as opções uma vez ao montar, guardando o texto correto
   const [perguntasEmbaralhadas] = useState(() =>
     perguntas.map((q) => {
-      const textoCorreto = q.opcoes[q.correta];
-      const opcoesNovas = embaralhar(q.opcoes);
+      const textoCorreto = typeof q.correta === "number"
+        ? textoOpcao(q.opcoes[q.correta])
+        : textoOpcao(q.correta);
+      const opcoesTexto = q.opcoes.map(textoOpcao);
+      const opcoesNovas = embaralhar(opcoesTexto);
+      const novoIdx = opcoesNovas.findIndex(
+        (op) => op.trim().toLowerCase() === textoCorreto.trim().toLowerCase()
+      );
       return {
         ...q,
         opcoes: opcoesNovas,
-        correta: opcoesNovas.indexOf(textoCorreto),
+        correta: novoIdx >= 0 ? novoIdx : 0,
+        explicacao: textoOpcao(q.explicacao) || "Continue estudando!",
       };
     }),
   );
@@ -160,26 +174,32 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
   const q = perguntasEmbaralhadas[indice];
   const total = perguntasEmbaralhadas.length;
 
+  const verificarAcerto = (indiceClicado, questaoAtual) => {
+    return indiceClicado === questaoAtual.correta;
+  };
+
   const responder = (i) => {
     if (respondeu) return;
     setSel(i);
     setRespondeu(true);
-    if (i === q.correta) setAcertos((a) => a + 1);
+    // NAO incrementa acertos aqui — feito em proxima() para evitar dupla contagem
   };
 
   const proxima = () => {
-    // acertos já foi incrementado por setAcertos em responder()
-    // NÃO somar novamente aqui para evitar contagem dupla na última pergunta
+    const acertou = verificarAcerto(sel, q);
+    const novosAcertos = acertou ? acertos + 1 : acertos;
     if (indice + 1 >= total) {
-      onConcluir(acertos, total);
+      onConcluir(novosAcertos, total);
     } else {
+      if (acertou) setAcertos((a) => a + 1);
       setIndice((i) => i + 1);
       setSel(null);
       setRespondeu(false);
     }
   };
 
-  const acertou = respondeu && sel === q.correta;
+  // dados da questao ok
+  const acertou = respondeu && verificarAcerto(sel, q);
   const msgAcerto = [
     "Isso mesmo! Você entendeu! 🌟",
     "Ótimo raciocínio! Continue assim! 🎯",
@@ -294,7 +314,7 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
                     ? "💙"
                     : "○"}
               </span>
-              {op}
+              {typeof op === "object" ? textoOpcao(op) : op}
             </button>
           );
         })}
@@ -342,11 +362,37 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
 }
 
 function Forca({ dados, onConcluir, cor, c }) {
-  const palavra = (dados?.palavra || "APRENDER").toUpperCase();
-  const dica = dados?.dica || dados?.dicas?.[0] || "";
   const MAX_ERROS = 6;
   const [letrasUsadas, setLetrasUsadas] = useState(new Set());
   const [erros, setErros] = useState(0);
+
+  const extrairTexto = (dado) => {
+    if (dado == null) return "";
+    if (Array.isArray(dado)) return dado.map(d => extrairTexto(d)).join(", ");
+    if (typeof dado === "object") return dado.texto || dado.valor || dado.palavra || dado.label || dado.resposta || "";
+    return String(dado);
+  };
+  const dadosNorm = Array.isArray(dados) ? (dados[0] || {}) : (dados || {});
+  // dados da forca ok
+  const palavraRaw = dadosNorm.palavra || dadosNorm.palavra_chave || dadosNorm.resposta || dadosNorm.word || "APRENDER";
+  // Remove acentos para o teclado A-Z funcionar
+  const removerAcentos = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const palavra = removerAcentos(extrairTexto(palavraRaw).toUpperCase()).replace(/[^A-Z ]/g, "");
+  // Suporta dicas (array novo) e dica (string antigo)
+  let dicasArray = [];
+  if (Array.isArray(dadosNorm.dicas) && dadosNorm.dicas.length > 0) {
+    dicasArray = dadosNorm.dicas.map(d => extrairTexto(d)).filter(Boolean);
+  } else if (dadosNorm.dica) {
+    // Formato antigo: expande 1 dica em 3 progressivas
+    const dicaBase = extrairTexto(dadosNorm.dica);
+    dicasArray = [dicaBase, "Pense nas letras mais comuns da palavra.", "A palavra tem " + (palavra.replace(/ /g,"").length) + " letras."];
+  } else {
+    dicasArray = ["Pense bem sobre o conteudo estudado!", "Relembre o que voce leu.", "A palavra esta relacionada ao tema da missao."];
+  }
+
+  // Dica 1 sempre visivel, libera proxima a cada 2 erros
+  const dicasLiberadas = Math.min(Math.floor(erros / 2) + 1, dicasArray.length);
+  const dica = dicasArray.slice(0, dicasLiberadas).join(" | ");
 
   const completa = palavra
     .split("")
@@ -379,23 +425,29 @@ function Forca({ dados, onConcluir, cor, c }) {
         alignItems: "center",
       }}
     >
-      {dica && (
-        <div
-          style={{
-            background: `${cor}15`,
-            border: `1.5px solid ${cor}44`,
+      <div style={{ width: "100%", display: "flex", flexDirection: "column", gap: 6 }}>
+        {dicasArray.slice(0, dicasLiberadas).map((d, i) => (
+          <div key={i} style={{
+            background: i === dicasLiberadas - 1 ? `${cor}20` : `${cor}08`,
+            border: `1.5px solid ${i === dicasLiberadas - 1 ? cor : cor + "33"}`,
             borderRadius: 12,
             padding: "10px 16px",
-            fontSize: "0.85rem",
+            fontSize: i === dicasLiberadas - 1 ? "0.88rem" : "0.78rem",
             color: c.texto,
-            fontWeight: 600,
+            fontWeight: i === dicasLiberadas - 1 ? 700 : 500,
             width: "100%",
             textAlign: "center",
-          }}
-        >
-          💡 Dica: {dica}
-        </div>
-      )}
+            opacity: i === dicasLiberadas - 1 ? 1 : 0.6,
+          }}>
+            {i === 0 ? "💡" : i === 1 ? "🔍" : "🎯"} Dica {i + 1}: {d}
+          </div>
+        ))}
+        {dicasLiberadas < dicasArray.length && (
+          <div style={{ fontSize: "0.72rem", color: c.textoSub, textAlign: "center" }}>
+            +{dicasArray.length - dicasLiberadas} dica{dicasArray.length - dicasLiberadas > 1 ? "s" : ""} disponível a cada 2 erros
+          </div>
+        )}
+      </div>
       <div style={{ display: "flex", gap: 6 }}>
         {Array.from({ length: MAX_ERROS }, (_, i) => (
           <div
@@ -683,6 +735,10 @@ export default function SubjectPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatPergs, setChatPergs] = useState(5);
 
+  // Checklist: leitura + quiz + forca
+  const [etapasConcluidas, setEtapasConcluidas] = useState({ leitura: false, quiz: false, forca: false });
+  const todasEtapasConcluidas = etapasConcluidas.leitura && etapasConcluidas.quiz && etapasConcluidas.forca;
+
   const disciplinaBase = disciplinas[disciplinaId];
   const codigoAcesso = localStorage.getItem("eduplay_codigo_acesso");
 
@@ -782,7 +838,7 @@ export default function SubjectPage() {
         titulo: "O Segredo dos Que Chegaram Longe",
         mensagem: "Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.",
         curiosidade: "Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.",
-        escola: "Esse conhecimento e base para as melhores escolas federais e institutos de excelencia do Brasil."
+        escola: ""
       });
     } finally {
       setArquivoCarregando(false);
@@ -958,10 +1014,24 @@ export default function SubjectPage() {
                 {chatPergs <= 0 && (
                   <p style={{ fontSize: "0.72rem", color: c.textoSub, textAlign: "center", marginBottom: 10 }}>Perguntas esgotadas para essa missão.</p>
                 )}
-                <a href={`https://youtube.com/results?search_query=${encodeURIComponent((moduloSelecionado?.titulo || disciplinaId) + " para crianças")}`} target="_blank" rel="noreferrer"
-                  style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "10px", borderRadius: 10, border: `0.5px solid ${c.borda}`, background: "transparent", color: c.texto, fontSize: "0.82rem", textDecoration: "none", fontFamily: "'Nunito', sans-serif" }}>
-                  ▶️ Ver vídeos sobre esse assunto
-                </a>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <div style={{ background: "linear-gradient(135deg, #00D4AA15, #0099FF10)", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #00D4AA44" }}>
+                    <p style={{ fontSize: "0.72rem", color: "#00D4AA", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Ficou com dúvida?</p>
+                    <p style={{ fontSize: "0.82rem", color: c.texto, lineHeight: 1.6, margin: 0 }}>
+                      Aqui na página tem um <strong>assistente</strong> que pode te ajudar a entender melhor qualquer parte do assunto. É só tocar na plantinha verde!
+                    </p>
+                  </div>
+                  <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16213e)", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #FF000044" }}>
+                    <p style={{ fontSize: "0.72rem", color: "#FF4444", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Vá mais fundo no assunto!</p>
+                    <p style={{ fontSize: "0.78rem", color: "#E8F4F8", lineHeight: 1.5, margin: "0 0 10px" }}>
+                      Quem assiste vídeos aprende muito mais. Peça a um adulto para assistir junto com você!
+                    </p>
+                    <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent((moduloSelecionado?.titulo || disciplinaId) + " 6ano")}&sp=EgIQAQ%3D%3D`} target="_blank" rel="noreferrer"
+                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>
+                      Assistir vídeos sobre esse assunto
+                    </a>
+                  </div>
+                </div>
               </div>
 
               {/* Botoes */}
@@ -1005,7 +1075,20 @@ export default function SubjectPage() {
         {atividade === "quiz" && (
           <Quiz
             perguntas={moduloSelecionado.atividades?.quiz}
-            onConcluir={concluir}
+            onConcluir={(a, t) => {
+              setEtapasConcluidas(prev => ({ ...prev, quiz: true }));
+              // Se todas as etapas estao completas, conclui a missao inteira
+              if (etapasConcluidas.leitura && etapasConcluidas.forca) {
+                concluir(a, t);
+              } else {
+                // Mostra resultado parcial do quiz via alert e volta
+                const pct = t > 0 ? Math.round((a / t) * 100) : 0;
+                setTimeout(() => {
+                  alert("Quiz concluido! Voce acertou " + a + " de " + t + " (" + pct + "%)\n\nComplete as outras etapas para finalizar a missao.");
+                  setAtividade(null);
+                }, 300);
+              }
+            }}
             cor={cor}
             c={c}
           />
@@ -1013,7 +1096,17 @@ export default function SubjectPage() {
         {atividade === "forca" && (
           <Forca
             dados={moduloSelecionado.atividades?.forca}
-            onConcluir={concluir}
+            onConcluir={(a, t) => {
+              setEtapasConcluidas(prev => ({ ...prev, forca: true }));
+              if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
+                concluir(a, t);
+              } else {
+                setTimeout(() => {
+                  alert(a > 0 ? "Parabens! Voce descobriu a palavra!\n\nComplete as outras etapas para finalizar a missao." : "Boa tentativa!\n\nComplete as outras etapas para finalizar a missao.");
+                  setAtividade(null);
+                }, 300);
+              }
+            }}
             cor={cor}
             c={c}
           />
@@ -1124,7 +1217,10 @@ export default function SubjectPage() {
             disciplinaId={disciplinaId}
             moduloId={moduloAtivo}
             missao={moduloSelecionado}
-            onFechar={() => setAtividade(null)}
+            onFechar={() => {
+              setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
+              setAtividade(null);
+            }}
             tema={tema}
             c={c}
             alternarTema={alternarTema}
@@ -1179,7 +1275,7 @@ export default function SubjectPage() {
             </div>
           </div>
 
-          {moduloSelecionado.video && (
+          {true && (
             <div style={{ marginBottom: 14 }}>
               <p
                 style={{
@@ -1233,7 +1329,7 @@ export default function SubjectPage() {
                       marginBottom: 3,
                     }}
                   >
-                    {moduloSelecionado.video.titulo || "Ouça a explicação"}
+                    {moduloSelecionado.video?.titulo || "Ouça a explicação"}
                   </div>
                   <div style={{ color: c.textoSub, fontSize: "0.75rem" }}>
                     Ouça antes de iniciar as atividades
@@ -1243,75 +1339,65 @@ export default function SubjectPage() {
             </div>
           )}
 
-          <p
-            style={{
-              fontSize: "0.68rem",
-              color: c.textoSub,
-              fontWeight: 700,
-              marginBottom: 10,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-            }}
-          >
-            🎯 Escolha uma atividade
-          </p>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: 12,
-              marginBottom: 14,
-            }}
-          >
+          {/* Checklist clicavel */}
+          {!etapasConcluidas.leitura && (
+            <div style={{
+              background: "linear-gradient(135deg, #00D4AA15, #00D4AA05)",
+              border: "1.5px solid #00D4AA44",
+              borderRadius: 12, padding: "10px 14px", marginBottom: 10,
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <span style={{ fontSize: "1.2rem" }}>💡</span>
+              <p style={{ margin: 0, fontSize: "0.8rem", color: c.texto, lineHeight: 1.5 }}>
+                <strong style={{ color: "#00D4AA" }}>Dica:</strong> Comece pela leitura ou áudio para entender o assunto. Depois as atividades ficam muito mais fáceis!
+              </p>
+            </div>
+          )}
+          <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
             {[
-              {
-                id: "quiz",
-                icone: "❓",
-                titulo: "Perguntas",
-                sub: "Responder questões",
-                clr: "#0099FF",
-              },
-              {
-                id: "forca",
-                icone: "🔤",
-                titulo: "Palavras",
-                sub: "Descobrir palavras",
-                clr: "#FFB830",
-              },
-            ].map((at) => (
-              <button
-                key={at.id}
-                onClick={() => setAtividade(at.id)}
+              { id: "leitura", emoji: "📖", label: "Leitura", acao: "audio", clr: "#00D4AA" },
+              { id: "quiz", emoji: "❓", label: "Quiz", acao: "quiz", clr: "#0099FF" },
+              { id: "forca", emoji: "🔤", label: "Forca", acao: "forca", clr: "#FFB830" },
+            ].map((et) => {
+              const bloqueado = et.id !== "leitura" && !etapasConcluidas.leitura;
+              const destaque = et.id === "leitura" && !etapasConcluidas.leitura;
+              return (
+              <button key={et.id}
+                onClick={() => !bloqueado && setAtividade(et.acao)}
+                disabled={bloqueado}
                 style={{
-                  background: c.card,
-                  border: `2px solid ${at.clr}44`,
-                  borderRadius: 18,
-                  padding: "18px 14px",
-                  cursor: "pointer",
-                  textAlign: "center",
-                  transition: "all 0.2s",
-                }}
-              >
-                <div style={{ fontSize: "2.2rem", marginBottom: 8 }}>
-                  {at.icone}
+                flex: 1, padding: "14px 8px", borderRadius: 14, textAlign: "center",
+                cursor: bloqueado ? "not-allowed" : "pointer",
+                background: etapasConcluidas[et.id] ? "#0F6E5618" : c.card,
+                border: `2px solid ${etapasConcluidas[et.id] ? "#0F6E56" : et.clr + "66"}`,
+                transition: "all 0.2s",
+              }}>
+                <div style={{ fontSize: "1.5rem", marginBottom: 6 }}>
+                  {etapasConcluidas[et.id] ? "✅" : et.emoji}
                 </div>
-                <div
-                  style={{
-                    fontFamily: "'Fredoka', sans-serif",
-                    color: c.texto,
-                    fontSize: "0.95rem",
-                    marginBottom: 4,
-                    fontWeight: 600,
-                  }}
-                >
-                  {at.titulo}
+                <div style={{ fontSize: "0.75rem", fontWeight: 700, color: etapasConcluidas[et.id] ? "#0F6E56" : et.clr }}>
+                  {et.label}
                 </div>
-                <div style={{ fontSize: "0.72rem", color: c.textoSub }}>
-                  {at.sub}
+                <div style={{ fontSize: "0.65rem", color: c.textoSub, marginTop: 2 }}>
+                  {etapasConcluidas[et.id] ? "Concluído" : bloqueado ? "Faça a leitura primeiro" : destaque ? "Comece por aqui!" : "Toque para iniciar"}
                 </div>
               </button>
-            ))}
+              );
+            })}
           </div>
+
+          {todasEtapasConcluidas && (
+            <button onClick={() => concluir(0, 0)} style={{
+              width: "100%", padding: "14px", marginBottom: 12, borderRadius: 14, border: "none",
+              background: `linear-gradient(135deg, ${cor}, ${cor}CC)`, color: "#fff",
+              fontSize: "1rem", fontWeight: 700, cursor: "pointer",
+              fontFamily: "'Fredoka', sans-serif", boxShadow: `0 4px 16px ${cor}40`,
+            }}>
+              🏁 Concluir Missão
+            </button>
+          )}
+
+
           <div
             style={{
               textAlign: "center",
@@ -1323,7 +1409,7 @@ export default function SubjectPage() {
               color: c.textoSub,
             }}
           >
-            💡 Complete as atividades para marcar esta missão como concluída
+            💡 Complete leitura, quiz e forca para concluir a missão
           </div>
         </main>
         <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />

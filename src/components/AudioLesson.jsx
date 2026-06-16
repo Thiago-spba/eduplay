@@ -34,9 +34,9 @@ const VEL_OUVIR = [
   { label: "🐇 Rápido", rate: 1.3 },
 ];
 const VEL_LER = [
-  { label: "🐢 Devagar", ms: 600 },
-  { label: "▶ Normal", ms: 380 },
-  { label: "🐇 Rápido", ms: 200 },
+  { label: "🐢 Devagar", ms: 900 },
+  { label: "▶ Normal", ms: 600 },
+  { label: "🐇 Rápido", ms: 350 },
 ];
 
 const FRASES = [
@@ -332,7 +332,7 @@ function PlayerPodcast({ podcast, c, audioAtivo, setAudioAtivo }) {
             margin: 0,
           }}
         >
-          {podcast.descricao}
+          {typeof podcast.descricao==="object"?(podcast.descricao.descricao||podcast.descricao.nome||""):(podcast.descricao||"")}
         </p>
       </div>
       <div
@@ -500,17 +500,17 @@ function ModoOuvir({ texto, c, velIdx, setVelIdx, audioAtivo, setAudioAtivo }) {
       const palavraInicial = blocoMapRef.current[idx] || 0;
       const palavrasBloco = dividirEmPalavras(blocos[idx]);
       try {
-        let base64 = cacheRef.current[idx];
-        if (!base64) {
+        let audioUrl = cacheRef.current[idx];
+        if (!audioUrl) {
           const r = await httpsCallable(
             getFunctions(undefined, "us-central1"),
             "gerarAudio",
           )({ texto: blocos[idx] });
-          base64 = r.data.audioBase64;
-          cacheRef.current[idx] = base64;
+          audioUrl = r.data.audioUrl;
+          cacheRef.current[idx] = audioUrl;
         }
         setCarregando(false);
-        const audio = new Audio(`data:audio/mp3;base64,${base64}`);
+        const audio = new Audio(audioUrl);
         audio.playbackRate = VEL_OUVIR[velIdx].rate;
         audioRef.current = audio;
         pausadoRef.current = false;
@@ -716,11 +716,11 @@ function ModoLer({ texto, c, velIdx, setVelIdx, audioAtivo, setAudioAtivo }) {
     if (!containerRef.current || !palavraRef.current) return;
     const cont = containerRef.current;
     const p = palavraRef.current;
+    // Scroll suave para manter palavra destacada sempre visivel no centro
+    const topoRelativo = p.offsetTop - cont.offsetTop;
+    const centro = topoRelativo - (cont.clientHeight / 2) + (p.offsetHeight / 2);
     cont.scrollTo({
-      top: Math.max(
-        0,
-        p.offsetTop - cont.clientHeight / 2 + p.offsetHeight / 2,
-      ),
+      top: Math.max(0, centro),
       behavior: "smooth",
     });
   }, [idxPalavra]);
@@ -906,10 +906,24 @@ export default function AudioLesson({
   const [buscando, setBuscando] = useState(true);
   const e = tema === "escuro";
 
-  const resumo = missao?.resumo || "";
-  const topicos = missao?.topicos || [];
-  const roteiro = missao?.roteiroPodcast || "";
-  const tituloMissao = missao?.titulo || "Explicação";
+  // missao carregada
+  const m = missao || {};
+  const ativ = m.atividades || {};
+  const cont = m.conteudo || {};
+  const vid = m.video || {};
+  const extrairStr = (val) => {
+    if (!val) return "";
+    if (typeof val === "string") return val;
+    if (typeof val === "object") return val.texto || val.resumo || val.conteudo || val.descricao || "";
+    return String(val);
+  };
+  const resumo = extrairStr(cont.resumo) || extrairStr(m.resumo) || extrairStr(ativ.resumo) || extrairStr(vid.resumo) || "";
+  const topicos = (Array.isArray(cont.topicos) ? cont.topicos : null)
+    || (Array.isArray(m.topicos) ? m.topicos : null)
+    || (Array.isArray(ativ.topicos) ? ativ.topicos : null)
+    || [];
+  const roteiro = extrairStr(cont.roteiroPodcast) || extrairStr(m.roteiroPodcast) || extrairStr(ativ.roteiroPodcast) || extrairStr(vid.roteiro) || extrairStr(vid.texto) || "";
+  const tituloMissao = m.titulo || vid.titulo || "Explicação";
   const textoResumo = resumo || roteiro;
 
   useEffect(() => {
@@ -945,6 +959,8 @@ export default function AudioLesson({
     { id: "topicos", icone: "🔍", label: "Tópicos" },
     { id: "ouvir", icone: "🎙️", label: "Ouvir" },
   ];
+  // Abre direto na aba ouvir
+  // (mantendo as 3 abas para compatibilidade)
 
   return (
     <div
@@ -1364,69 +1380,10 @@ export default function AudioLesson({
               </div>
             )}
 
-            {/* Card Em Breve */}
+            {/* Ondas sonoras centralizadas no lugar do podcast */}
             {!buscando && !podcast && (
-              <div
-                style={{
-                  background: e
-                    ? "rgba(59,130,246,0.08)"
-                    : "rgba(59,130,246,0.06)",
-                  borderRadius: 12,
-                  padding: "12px 14px",
-                  border: "1.5px solid rgba(59,130,246,0.25)",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginBottom: 4,
-                  }}
-                >
-                  <div
-                    style={{ display: "flex", alignItems: "center", gap: 8 }}
-                  >
-                    <span style={{ fontSize: "1.1rem" }}>🎧</span>
-                    <div>
-                      <p
-                        style={{
-                          fontSize: "clamp(0.6rem, 1.5vw, 0.68rem)",
-                          fontWeight: 800,
-                          color: "#3B82F6",
-                          margin: 0,
-                          textTransform: "uppercase",
-                          letterSpacing: 1,
-                        }}
-                      >
-                        Em breve
-                      </p>
-                      <p
-                        style={{
-                          fontFamily: "'Fredoka', sans-serif",
-                          fontSize: "clamp(0.8rem, 2vw, 0.9rem)",
-                          color: c.texto,
-                          margin: 0,
-                          fontWeight: 700,
-                        }}
-                      >
-                        Podcast com Especialistas
-                      </p>
-                    </div>
-                  </div>
-                  <OndasSonoras />
-                </div>
-                <p
-                  style={{
-                    fontSize: "clamp(0.7rem, 2vw, 0.78rem)",
-                    color: c.textoSub,
-                    margin: 0,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Professores especialistas e pedagogos explicando cada tema de
-                  um jeito que você nunca vai esquecer.
-                </p>
+              <div style={{ display: "flex", justifyContent: "center", padding: "16px 0" }}>
+                <OndasSonoras />
               </div>
             )}
           </div>
