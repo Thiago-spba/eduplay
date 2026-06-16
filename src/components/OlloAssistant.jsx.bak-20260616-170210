@@ -129,71 +129,34 @@ export default function OlloAssistant({ missao, c, tema }) {
   const enviar = () => enviarTexto(pergunta);
 
   // ── Microfone (Web Speech API) ──
-  const toggleMicrofone = async () => {
-    // Parar se já está ouvindo
+  const toggleMicrofone = () => {
+    if (
+      !("webkitSpeechRecognition" in window || "SpeechRecognition" in window)
+    ) {
+      alert("Seu navegador não suporta reconhecimento de voz.");
+      return;
+    }
     if (ouvindo) {
       reconhRef.current?.stop();
       setOuvindo(false);
       return;
     }
 
-    // Verificar suporte
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) {
-      alert("Reconhecimento de voz não suportado. Use o Chrome.");
-      return;
-    }
-
-    // Forçar pedido de permissão de microfone antes de iniciar
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach((t) => t.stop()); // libera imediatamente
-    } catch (err) {
-      if (err.name === "NotAllowedError") {
-        alert("Permissão de microfone negada. Clique no cadeado na barra de endereço e permita o microfone.");
-      } else if (err.name === "NotFoundError") {
-        alert("Nenhum microfone encontrado neste dispositivo.");
-      } else {
-        alert("Erro ao acessar microfone: " + err.message);
-      }
-      return;
-    }
-
-    // Iniciar reconhecimento
     const r = new SR();
     r.lang = "pt-BR";
     r.interimResults = false;
-    r.continuous = false;
-
-    r.onstart = () => setOuvindo(true);
-
     r.onresult = (ev) => {
       const texto = ev.results[0][0].transcript;
       setPergunta(texto);
       setOuvindo(false);
-      setTimeout(() => enviarTexto(texto), 3000);
+      setTimeout(() => enviarTexto(texto), 100);
     };
-
-    r.onerror = (ev) => {
-      setOuvindo(false);
-      if (ev.error === "not-allowed") {
-        alert("Permissão de microfone bloqueada. Verifique as configurações do navegador.");
-      } else if (ev.error === "network") {
-        alert("Erro de rede no reconhecimento de voz. Verifique sua conexão.");
-      } else if (ev.error !== "aborted") {
-        console.error("[Microfone] Erro:", ev.error);
-      }
-    };
-
+    r.onerror = () => setOuvindo(false);
     r.onend = () => setOuvindo(false);
-
     reconhRef.current = r;
-    try {
-      r.start();
-    } catch (err) {
-      setOuvindo(false);
-      console.error("[Microfone] Falha ao iniciar:", err);
-    }
+    r.start();
+    setOuvindo(true);
   };
 
   // ── Ouvir resposta via TTS ──
@@ -565,5 +528,3 @@ export default function OlloAssistant({ missao, c, tema }) {
     </>
   );
 }
-
-

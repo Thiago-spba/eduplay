@@ -171,7 +171,7 @@ export default function OlloAssistant({ missao, c, tema }) {
       const texto = ev.results[0][0].transcript;
       setPergunta(texto);
       setOuvindo(false);
-      setTimeout(() => enviarTexto(texto), 3000);
+      setTimeout(() => enviarTexto(texto), 100);
     };
 
     r.onerror = (ev) => {
@@ -565,5 +565,3 @@ export default function OlloAssistant({ missao, c, tema }) {
     </>
   );
 }
-
-
