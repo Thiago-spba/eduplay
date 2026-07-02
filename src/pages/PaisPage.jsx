@@ -13,6 +13,7 @@ import {
   salvarResponsavel,
   getCriancaPorPai,
   criarCrianca,
+  atualizarCrianca,
   salvarMissao,
   getTodasMissoes,
   contarMissoesHoje,
@@ -5088,7 +5089,7 @@ export default function PaisPage({ userPai, timer }) {
                     }}
                   >
                     Envie este link para{" "}
-                    {filho?.nome?.split(" ")[0] || "seu filho"} acessar as
+                    {filho?.nome?.split(" ")[0] || "sua criança"} acessar as
                     missões
                   </p>
                 </div>
@@ -5121,7 +5122,7 @@ export default function PaisPage({ userPai, timer }) {
                     },
                     {
                       n: "2",
-                      txt: `${filho?.nome?.split(" ")[0] || "Seu filho"} abre o link no celular ou computador`,
+                      txt: `${filho?.nome?.split(" ")[0] || "sua criança"} abre o link no celular ou computador`,
                     },
                     {
                       n: "3",
@@ -5568,7 +5569,7 @@ export default function PaisPage({ userPai, timer }) {
                   <div style={{ fontSize: "1.2rem" }}>💪</div>
                   <p style={{ fontSize: "0.8rem", color: c.texto, margin: 0, lineHeight: 1.5 }}>
                     {mensagemIA ||
-                      `${filho?.nome?.split(" ")[0] || "Seu filho"} está com dificuldade na atividade mais recente — vale conversar sobre isso hoje.`}
+                      `${filho?.nome?.split(" ")[0] || "sua criança"} está com dificuldade na atividade mais recente — vale conversar sobre isso hoje.`}
                   </p>
                 </div>
               )}
@@ -8014,6 +8015,208 @@ export default function PaisPage({ userPai, timer }) {
                   ? "✅ Ativado — Todo dia útil às 7h o sistema gera missões automaticamente para seu filho."
                   : "⏸️ Desativado — Você gera as missões manualmente pela aba Missões."}
               </div>
+            </div>
+
+            {/* Aviso: pausado automaticamente por inatividade */}
+            {filho?.autoPausadaPorInatividade && (
+              <div
+                style={{
+                  background: "#EF444412",
+                  border: "1.5px solid #EF444444",
+                  borderRadius: 16,
+                  padding: "16px 18px",
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.85rem",
+                    fontWeight: 800,
+                    color: "#B91C1C",
+                    margin: "0 0 6px",
+                  }}
+                >
+                  🛑 Geração automática pausada por inatividade
+                </p>
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    color: c.textoSub,
+                    margin: "0 0 12px",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {filho?.nome?.split(" ")[0] || "Sua criança"} ficou 3 dias
+                  ou mais sem completar nenhuma missão, então o sistema parou
+                  de gerar novas automaticamente — pra não empilhar missões
+                  que ninguém está fazendo. Toque abaixo para retomar.
+                </p>
+                <button
+                  onClick={async () => {
+                    setFilho((prev) => ({
+                      ...prev,
+                      autoPausadaPorInatividade: false,
+                    }));
+                    try {
+                      await atualizarCrianca(filho.id, {
+                        autoPausadaPorInatividade: false,
+                      });
+                    } catch (_) {}
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "11px",
+                    borderRadius: 12,
+                    border: "none",
+                    background: "#DC2626",
+                    color: "#fff",
+                    fontWeight: 800,
+                    fontSize: "0.85rem",
+                    cursor: "pointer",
+                    fontFamily: "'Nunito', sans-serif",
+                  }}
+                >
+                  Retomar geração automática
+                </button>
+              </div>
+            )}
+
+            {/* Pausar missões */}
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "16px 18px",
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginBottom: 10,
+                  gap: 12,
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      fontSize: "0.85rem",
+                      fontWeight: 800,
+                      color: c.texto,
+                      margin: "0 0 4px",
+                    }}
+                  >
+                    ⏸️ Pausar missões
+                  </p>
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      color: c.textoSub,
+                      margin: 0,
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    Pausa temporariamente sem desativar a conta.{" "}
+                    {filho?.nome?.split(" ")[0] || "sua criança"} vê uma
+                    mensagem incentivando a aproveitar a pausa em vez das
+                    missões.
+                  </p>
+                </div>
+                <button
+                  onClick={async () => {
+                    const novo = !filho?.missoesPausadas;
+                    setFilho((prev) => ({ ...prev, missoesPausadas: novo }));
+                    try {
+                      await atualizarCrianca(filho.id, {
+                        missoesPausadas: novo,
+                      });
+                    } catch (_) {}
+                  }}
+                  style={{
+                    width: 50,
+                    height: 28,
+                    borderRadius: 14,
+                    border: "none",
+                    background: filho?.missoesPausadas ? "#F59E0B" : c.borda,
+                    cursor: "pointer",
+                    position: "relative",
+                    flexShrink: 0,
+                    transition: "background 0.25s",
+                  }}
+                  aria-label="pausar missões"
+                >
+                  <div
+                    style={{
+                      position: "absolute",
+                      top: 4,
+                      left: filho?.missoesPausadas ? 26 : 4,
+                      width: 20,
+                      height: 20,
+                      borderRadius: "50%",
+                      background: "#fff",
+                      transition: "left 0.25s",
+                    }}
+                  />
+                </button>
+              </div>
+              {filho?.missoesPausadas && (
+                <div
+                  style={{
+                    borderRadius: 10,
+                    padding: "10px 14px",
+                    fontSize: "0.78rem",
+                    lineHeight: 1.6,
+                    fontWeight: 600,
+                    background: "#F59E0B15",
+                    color: "#B45309",
+                    border: "1px solid #F59E0B44",
+                  }}
+                >
+                  ⏸️ Pausado — {filho?.nome?.split(" ")[0] || "sua criança"}{" "}
+                  não vê missões novas até você retomar.
+                </div>
+              )}
+              {filho?.missoesPausadas && (
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  {[
+                    { id: "descanso", label: "😌 Descanso" },
+                    { id: "ferias", label: "🏖️ Recesso / Férias" },
+                  ].map((op) => (
+                    <button
+                      key={op.id}
+                      onClick={async () => {
+                        setFilho((prev) => ({ ...prev, pausaMotivo: op.id }));
+                        try {
+                          await atualizarCrianca(filho.id, {
+                            pausaMotivo: op.id,
+                          });
+                        } catch (_) {}
+                      }}
+                      style={{
+                        flex: 1,
+                        padding: "8px 10px",
+                        borderRadius: 10,
+                        border: `1.5px solid ${(filho?.pausaMotivo || "descanso") === op.id ? "#F59E0B" : c.borda}`,
+                        background:
+                          (filho?.pausaMotivo || "descanso") === op.id
+                            ? "#F59E0B15"
+                            : "transparent",
+                        color:
+                          (filho?.pausaMotivo || "descanso") === op.id
+                            ? "#B45309"
+                            : c.textoSub,
+                        fontWeight: 700,
+                        fontSize: "0.75rem",
+                        cursor: "pointer",
+                        fontFamily: "'Nunito', sans-serif",
+                      }}
+                    >
+                      {op.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div

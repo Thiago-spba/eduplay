@@ -848,6 +848,42 @@ exports.autoGerarMissoes = onSchedule(
           if (diasUteis >= 5) { console.log(`[auto] pulando ${criancaId} — trial expirado (${diasUteis} dias)`); continue }
         }
 
+        // Respeita a pausa manual do responsavel (recurso "Pausar missoes")
+        if (criancaData.missoesPausadas) {
+          console.log(`[auto] pulando ${criancaId} — missoes pausadas manualmente pelo responsavel`)
+          continue
+        }
+
+        // Ja pausado automaticamente por inatividade — so volta quando o responsavel reativar
+        if (criancaData.autoPausadaPorInatividade) {
+          console.log(`[auto] pulando ${criancaId} — pausado por inatividade, aguardando reativacao manual`)
+          continue
+        }
+
+        // Pausa automatica: 3+ dias sem completar nenhuma missao
+        const ultimaFeitaSnap = await db.collection('missoes').doc(criancaId).collection('geradas')
+          .where('feita', '==', true)
+          .orderBy('feitaEm', 'desc')
+          .limit(1)
+          .get()
+
+        const referenciaAtividade = !ultimaFeitaSnap.empty
+          ? ultimaFeitaSnap.docs[0].data().feitaEm?.toDate?.()
+          : (criancaData.criadoEm?.toDate ? criancaData.criadoEm.toDate() : null)
+
+        if (referenciaAtividade) {
+          const diasSemAtividade = Math.floor((_agora - referenciaAtividade) / (1000 * 60 * 60 * 24))
+          if (diasSemAtividade >= 3) {
+            await db.collection('criancas').doc(criancaId).set({
+              autoPausadaPorInatividade: true,
+              autoPausadaEm: admin.firestore.FieldValue.serverTimestamp(),
+            }, { merge: true })
+            console.log(`[auto] ${criancaId} pausado automaticamente — ${diasSemAtividade} dias sem completar missao`)
+            continue
+          }
+        }
+
+
         // Conta missoes geradas hoje (subcolecao geradas/{criancaId})
         const missoesHoje = await db.collection('missoes').doc(criancaId).collection('geradas')
           .where('data', '==', hoje)
