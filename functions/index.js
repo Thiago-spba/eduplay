@@ -3,6 +3,7 @@ const { onSchedule } = require('firebase-functions/v2/scheduler')
 const { defineSecret } = require('firebase-functions/params')
 const Anthropic = require('@anthropic-ai/sdk')
 const admin = require('firebase-admin')
+const crypto = require('crypto')
 
 const ANTHROPIC_KEY = defineSecret('ANTHROPIC_API_KEY')
 const GOOGLE_TTS_KEY = defineSecret('GOOGLE_TTS_KEY')
@@ -315,14 +316,27 @@ exports.gerarAudio = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { texto } = request.data
     if (!texto || typeof texto !== 'string' || texto.length > 5000) throw new HttpsError('invalid-argument', 'Texto inválido.')
+    const textoLimpo = texto.trim().slice(0, 5000)
     try {
+      // Cache — mesmo texto ja convertido antes reaproveita o arquivo,
+      // sem pagar a API do Google de novo
+      const hashTexto = crypto.createHash('sha256').update(textoLimpo).digest('hex').slice(0, 24)
+      const nomeArquivo = `audios/tts_${hashTexto}.mp3`
+      const bucket = admin.storage().bucket()
+      const file = bucket.file(nomeArquivo)
+      const [jaExiste] = await file.exists()
+      if (jaExiste) {
+        const audioUrl = `https://storage.googleapis.com/${bucket.name}/${nomeArquivo}`
+        return { ok: true, audioUrl, cache: true }
+      }
+
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY.value()}`,
         { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' }, 
           body: JSON.stringify({ 
-            input: { text: texto.trim().slice(0, 5000) }, 
+            input: { text: textoLimpo }, 
             voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-A', ssmlGender: 'FEMALE' }, 
             audioConfig: { audioEncoding: 'MP3', speakingRate: 0.92, pitch: 1.0 } 
           }) 
@@ -332,9 +346,6 @@ exports.gerarAudio = onCall(
       const data = await response.json()
       // Salva no Storage e retorna URL publica
       const buffer = Buffer.from(data.audioContent, 'base64')
-      const bucket = admin.storage().bucket()
-      const nomeArquivo = `audios/tts_${Date.now()}.mp3`
-      const file = bucket.file(nomeArquivo)
       await file.save(buffer, { contentType: 'audio/mpeg', metadata: { cacheControl: 'public, max-age=3600' } })
       await file.makePublic()
       const audioUrl = `https://storage.googleapis.com/${bucket.name}/${nomeArquivo}`
@@ -354,14 +365,27 @@ exports.gerarAudioAssistente = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { texto } = request.data
     if (!texto || typeof texto !== 'string') throw new HttpsError('invalid-argument', 'Texto vazio.')
+    const textoLimpoAssist = texto.trim().slice(0, 1000)
     try {
+      // Cache — mesmo texto ja convertido antes reaproveita o arquivo,
+      // sem pagar a API do Google de novo
+      const hashAssist = crypto.createHash('sha256').update(textoLimpoAssist).digest('hex').slice(0, 24)
+      const nomeArquivoAssist = `audios/assistente_${hashAssist}.mp3`
+      const bucketAssist = admin.storage().bucket()
+      const fileAssist = bucketAssist.file(nomeArquivoAssist)
+      const [jaExisteAssist] = await fileAssist.exists()
+      if (jaExisteAssist) {
+        const [bufferCache] = await fileAssist.download()
+        return { ok: true, audioBase64: bufferCache.toString('base64'), cache: true }
+      }
+
       const response = await fetch(
         `https://texttospeech.googleapis.com/v1/text:synthesize?key=${GOOGLE_TTS_KEY.value()}`,
         { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' }, 
           body: JSON.stringify({ 
-            input: { text: texto.trim().slice(0, 1000) }, 
+            input: { text: textoLimpoAssist }, 
             voice: { languageCode: 'pt-BR', name: 'pt-BR-Wavenet-B', ssmlGender: 'MALE' }, 
             audioConfig: { audioEncoding: 'MP3', speakingRate: 0.95, pitch: 0.5 } 
           }) 
@@ -369,6 +393,9 @@ exports.gerarAudioAssistente = onCall(
       )
       if (!response.ok) throw new HttpsError('internal', 'Erro ao sintetizar áudio.')
       const data = await response.json()
+      // Salva no cache pra proxima vez, sem mudar o que a tela recebe de volta
+      const bufferAssist = Buffer.from(data.audioContent, 'base64')
+      await fileAssist.save(bufferAssist, { contentType: 'audio/mpeg', metadata: { cacheControl: 'public, max-age=3600' } })
       return { ok: true, audioBase64: data.audioContent }
     } catch {
       throw new HttpsError('internal', 'Erro ao gerar áudio.')
@@ -511,6 +538,17 @@ exports.criarAssinatura = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { codigoAcesso, emailResponsavel, nomeResponsavel } = request.data
+
+    // Rate limit — evita spam de cobrancas criadas no Mercado Pago
+    const uidPag = request.auth.uid
+    const hojePag = new Date().toISOString().slice(0, 10)
+    const rateRefPag = db.collection('rateLimits').doc(`criarAssinatura_${uidPag}_${hojePag}`)
+    const rateSnapPag = await rateRefPag.get()
+    const totalPagHoje = rateSnapPag.exists ? (rateSnapPag.data().total || 0) : 0
+    if (totalPagHoje >= 5) {
+      throw new HttpsError('resource-exhausted', 'Limite de tentativas atingido. Tente novamente amanhã ou contate o suporte.')
+    }
+    await rateRefPag.set({ total: totalPagHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
     
     // Sanitização e defesa NoSQL Injection contra o ID do documento Firestore
     if (!codigoAcesso || typeof codigoAcesso !== 'string' || codigoAcesso.includes('/') || codigoAcesso.trim() === '') {
@@ -570,6 +608,17 @@ exports.criarPagamentoPix = onCall(
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { codigoAcesso, emailResponsavel, nomeResponsavel } = request.data
+
+    // Rate limit — evita spam de cobrancas PIX criadas no Mercado Pago
+    const uidPix = request.auth.uid
+    const hojePix = new Date().toISOString().slice(0, 10)
+    const rateRefPix = db.collection('rateLimits').doc(`criarPagamentoPix_${uidPix}_${hojePix}`)
+    const rateSnapPix = await rateRefPix.get()
+    const totalPixHoje = rateSnapPix.exists ? (rateSnapPix.data().total || 0) : 0
+    if (totalPixHoje >= 5) {
+      throw new HttpsError('resource-exhausted', 'Limite de tentativas atingido. Tente novamente amanhã ou contate o suporte.')
+    }
+    await rateRefPix.set({ total: totalPixHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
 
     if (!codigoAcesso || typeof codigoAcesso !== 'string' || codigoAcesso.includes('/') || codigoAcesso.trim() === '') {
       throw new HttpsError('invalid-argument', 'Código de acesso obrigatório e válido.')
@@ -1088,7 +1137,7 @@ exports.autoGerarMissoes = onSchedule(
 // verificarTrialExpirado — roda todo dia meia-noite, marca trial expirado
 // ═══════════════════════════════════════════════════════════════════════
 exports.verificarTrialExpirado = onSchedule(
-  { schedule: '0 0 * * *', timeZone: 'America/Sao_Paulo', region: 'us-central1'},
+  { schedule: '0 0 * * *', timeZone: 'America/Sao_Paulo', region: 'us-central1', timeoutSeconds: 300 },
   async () => {
     const agora = new Date()
     let expirados = 0
