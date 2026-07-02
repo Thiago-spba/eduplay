@@ -5,8 +5,9 @@ import { Component } from "react";
  * e mostra uma mensagem amigável em vez de deixar a tela em branco.
  *
  * Caso especial: quando o erro é "arquivo desatualizado" (aconteceu um
- * deploy novo enquanto a pessoa estava com o app aberto), recarrega a
- * página sozinho, uma única vez, em vez de mostrar a tela de erro.
+ * deploy novo enquanto a pessoa estava com o app aberto), limpa o
+ * Service Worker e o cache do navegador, e recarrega a página sozinho,
+ * uma única vez, em vez de mostrar a tela de erro.
  */
 const CHAVE_RELOAD = "eduplay_auto_reload_tentado";
 
@@ -18,6 +19,28 @@ function ehErroDeArquivoDesatualizado(error) {
     msg.includes("error loading dynamically imported module") ||
     (msg.includes("Unexpected token") && msg.includes("<"))
   );
+}
+
+// Joga fora o "estoque velho" (Service Worker + Cache Storage) antes de
+// recarregar, garantindo que a página nova de verdade seja buscada do
+// servidor — sem isso, um reload comum pode continuar servindo arquivos
+// antigos guardados pelo Service Worker.
+async function limparCacheEForcarReload() {
+  try {
+    if ("serviceWorker" in navigator) {
+      const registros = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registros.map((r) => r.unregister()));
+    }
+    if ("caches" in window) {
+      const nomes = await caches.keys();
+      await Promise.all(nomes.map((n) => caches.delete(n)));
+    }
+  } catch (_) {
+    // Mesmo se a limpeza falhar, segue pro reload — melhor tentar do
+    // que ficar parado na tela de erro
+  } finally {
+    window.location.reload();
+  }
 }
 
 export default class ErrorBoundary extends Component {
@@ -43,7 +66,7 @@ export default class ErrorBoundary extends Component {
       const jaTentou = sessionStorage.getItem(CHAVE_RELOAD);
       if (!jaTentou) {
         sessionStorage.setItem(CHAVE_RELOAD, "1");
-        window.location.reload();
+        limparCacheEForcarReload();
       }
     }
   }
@@ -74,7 +97,7 @@ export default class ErrorBoundary extends Component {
             Isso já foi registrado. Tenta recarregar a página.
           </div>
           <button
-            onClick={() => window.location.reload()}
+            onClick={limparCacheEForcarReload}
             style={{
               marginTop: 8,
               padding: "10px 20px",
