@@ -1850,163 +1850,257 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
         </div>
       )}
 
-      {/* Tabela de histórico (filtrada) */}
-      <div
-        style={{
-          background: c.card,
-          border: `1.5px solid ${c.borda}`,
-          borderRadius: 16,
-          overflow: "hidden",
-        }}
-      >
-        <div
-          style={{
-            padding: "14px 16px",
-            borderBottom: `1.5px solid ${c.borda}`,
-          }}
-        >
-          <p
-            style={{
-              fontSize: "0.75rem",
-              fontWeight: 800,
-              color: c.textoSub,
-              textTransform: "uppercase",
-              letterSpacing: 1,
-              margin: 0,
-            }}
-          >
-            Histórico de missões{" "}
-            {periodo !== "todo" &&
-              `(${periodo === "7dias" ? "últimos 7 dias" : "últimos 30 dias"})`}
-          </p>
-        </div>
-        {sessoesFiltradas.length === 0 ? (
-          <div
-            style={{
-              padding: "32px 16px",
-              textAlign: "center",
-              color: c.textoSub,
-            }}
-          >
-            <div style={{ fontSize: "2rem", marginBottom: 8 }}>📭</div>
-            <p style={{ margin: 0, fontSize: "0.85rem", fontWeight: 700 }}>
-              Nenhuma missão no período selecionado
-            </p>
-          </div>
-        ) : (
-          <div style={{ overflowX: "auto" }}>
-            {sessoesFiltradas.map((s, i) => {
-              const disc = DISC_INFO[s.disciplina] || {
-                label: s.disciplina,
-                icone: "📚",
-                cor: "#888",
-              };
-              const data = s.criadoEm?.toDate
-                ? s.criadoEm.toDate().toLocaleDateString("pt-BR")
-                : "—";
-              const aprovado = (s.percentual || 0) >= 70;
-              return (
+      {/* Recentes (hoje/ontem) + Histórico agrupado por mês */}
+      {(() => {
+        const diaZero = (data) => {
+          const d = new Date(data);
+          d.setHours(0, 0, 0, 0);
+          return d;
+        };
+        const hoje = diaZero(new Date());
+        const ontem = diaZero(new Date());
+        ontem.setDate(ontem.getDate() - 1);
+
+        const getData = (s) =>
+          s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
+
+        const recentes = sessoesFiltradas.filter((s) => {
+          const dd = diaZero(getData(s));
+          return dd.getTime() === hoje.getTime() || dd.getTime() === ontem.getTime();
+        });
+        const antigas = sessoesFiltradas.filter((s) => !recentes.includes(s));
+
+        const porMes = antigas.reduce((acc, s) => {
+          const chave = getData(s).toLocaleDateString("pt-BR", {
+            month: "long",
+            year: "numeric",
+          });
+          if (!acc[chave]) acc[chave] = [];
+          acc[chave].push(s);
+          return acc;
+        }, {});
+
+        const LinhaMissao = (s, i, total) => {
+          const disc = DISC_INFO[s.disciplina] || {
+            label: s.disciplina,
+            icone: "📚",
+            cor: "#888",
+          };
+          const data = getData(s).toLocaleDateString("pt-BR");
+          const aprovado = (s.percentual || 0) >= 70;
+          const topicoPrincipal =
+            Array.isArray(s.topicos) && s.topicos.length > 0
+              ? typeof s.topicos[0] === "object"
+                ? s.topicos[0].nome || s.topicos[0].descricao || ""
+                : s.topicos[0]
+              : "";
+          return (
+            <div
+              key={s.id || i}
+              style={{
+                padding: "10px 16px",
+                borderBottom: i < total - 1 ? `1px solid ${c.borda}` : "none",
+                display: "flex",
+                flexDirection: "column",
+                gap: 3,
+              }}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
                 <div
-                  key={s.id || i}
                   style={{
-                    padding: "12px 16px",
-                    borderBottom:
-                      i < sessoesFiltradas.length - 1
-                        ? `1px solid ${c.borda}`
-                        : "none",
                     display: "flex",
-                    flexDirection: "column",
+                    alignItems: "center",
                     gap: 6,
+                    minWidth: 0,
                   }}
                 >
-                  <div
+                  <span style={{ fontSize: "1rem", flexShrink: 0 }}>
+                    {disc.icone}
+                  </span>
+                  <span
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "space-between",
+                      fontSize: "0.82rem",
+                      fontWeight: 700,
+                      color: c.texto,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
                     }}
                   >
-                    <div
-                      style={{ display: "flex", alignItems: "center", gap: 8 }}
+                    {s.tituloMissao || disc.label}
+                  </span>
+                </div>
+                <span
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
+                    color: aprovado ? "#2E8B57" : "#C0392B",
+                    flexShrink: 0,
+                  }}
+                >
+                  {s.acertos}/{s.total} — {s.percentual}%
+                </span>
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 8,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "0.68rem",
+                    color: c.textoSub,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {topicoPrincipal}
+                </span>
+                <span
+                  style={{
+                    fontSize: "0.68rem",
+                    color: c.textoSub,
+                    flexShrink: 0,
+                  }}
+                >
+                  {data}
+                </span>
+              </div>
+            </div>
+          );
+        };
+
+        return (
+          <>
+            {/* Recentes — sempre visível */}
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                overflow: "hidden",
+              }}
+            >
+              <div
+                style={{
+                  padding: "14px 16px",
+                  borderBottom: `1.5px solid ${c.borda}`,
+                }}
+              >
+                <p
+                  style={{
+                    fontSize: "0.75rem",
+                    fontWeight: 800,
+                    color: c.textoSub,
+                    textTransform: "uppercase",
+                    letterSpacing: 1,
+                    margin: 0,
+                  }}
+                >
+                  Recentes (hoje e ontem)
+                </p>
+              </div>
+              {recentes.length === 0 ? (
+                <div
+                  style={{
+                    padding: "24px 16px",
+                    textAlign: "center",
+                    color: c.textoSub,
+                  }}
+                >
+                  <div style={{ fontSize: "1.6rem", marginBottom: 6 }}>📭</div>
+                  <p style={{ margin: 0, fontSize: "0.82rem", fontWeight: 700 }}>
+                    Nenhuma missão feita hoje ou ontem
+                  </p>
+                </div>
+              ) : (
+                recentes.map((s, i) => LinhaMissao(s, i, recentes.length))
+              )}
+            </div>
+
+            {/* Histórico agrupado por mês — recolhido por padrão */}
+            {Object.keys(porMes).length > 0 && (
+              <div
+                style={{
+                  background: c.card,
+                  border: `1.5px solid ${c.borda}`,
+                  borderRadius: 16,
+                  overflow: "hidden",
+                }}
+              >
+                <div
+                  style={{
+                    padding: "14px 16px",
+                    borderBottom: `1.5px solid ${c.borda}`,
+                  }}
+                >
+                  <p
+                    style={{
+                      fontSize: "0.75rem",
+                      fontWeight: 800,
+                      color: c.textoSub,
+                      textTransform: "uppercase",
+                      letterSpacing: 1,
+                      margin: 0,
+                    }}
+                  >
+                    Histórico por mês
+                  </p>
+                </div>
+                {Object.entries(porMes).map(([chave, grupo]) => (
+                  <details key={chave} style={{ borderBottom: `1px solid ${c.borda}` }}>
+                    <summary
+                      style={{
+                        padding: "12px 16px",
+                        cursor: "pointer",
+                        listStyle: "none",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
                     >
-                      <span style={{ fontSize: "1.1rem" }}>{disc.icone}</span>
                       <span
                         style={{
-                          fontSize: "0.85rem",
-                          fontWeight: 700,
+                          fontSize: "0.82rem",
+                          fontWeight: 800,
                           color: c.texto,
+                          textTransform: "capitalize",
                         }}
                       >
-                        {s.tituloMissao || disc.label}
+                        ▸ {chave}
                       </span>
+                      <span
+                        style={{
+                          fontSize: "0.7rem",
+                          color: c.textoSub,
+                          fontWeight: 700,
+                        }}
+                      >
+                        {grupo.length}{" "}
+                        {grupo.length === 1 ? "missão" : "missões"}
+                      </span>
+                    </summary>
+                    <div>
+                      {grupo.map((s, i) => LinhaMissao(s, i, grupo.length))}
                     </div>
-                    <span
-                      style={{
-                        fontSize: "0.78rem",
-                        fontWeight: 800,
-                        color: aprovado ? "#2E8B57" : "#C0392B",
-                        background: aprovado ? "#2E8B5715" : "#C0392B15",
-                        padding: "3px 8px",
-                        borderRadius: 8,
-                      }}
-                    >
-                      {s.acertos}/{s.total} — {s.percentual}%
-                    </span>
-                  </div>
-                  {Array.isArray(s.topicos) && s.topicos.length > 0 && (
-                    <div
-                      style={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 4,
-                        marginTop: 4,
-                      }}
-                    >
-                      {s.topicos.map((t, ti) => (
-                        <div
-                          key={ti}
-                          style={{
-                            display: "flex",
-                            alignItems: "flex-start",
-                            gap: 6,
-                          }}
-                        >
-                          <span
-                            style={{
-                              fontSize: "0.65rem",
-                              color: disc.cor,
-                              fontWeight: 800,
-                              flexShrink: 0,
-                              marginTop: 2,
-                            }}
-                          >
-                            •
-                          </span>
-                          <span
-                            style={{
-                              fontSize: "0.72rem",
-                              color: c.textoSub,
-                              fontWeight: 600,
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            {typeof t === "object"
-                              ? t.nome || t.descricao || ""
-                              : t}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div style={{ fontSize: "0.7rem", color: c.textoSub }}>
-                    {data}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+                  </details>
+                ))}
+              </div>
+            )}
+          </>
+        );
+      })()}
 
       {/* Botão exportar PDF */}
       <button
@@ -3780,7 +3874,7 @@ export default function PaisPage({ userPai, timer }) {
   };
   const compartilharOrgulhoWhatsApp = () => {
     const nome = filho?.nome?.split(" ")[0] || "meu filho";
-    const dias = progresso?.diasAtivos?.length || 0;
+    const dias = progresso?.diasSeguidos || 0;
     const total = Object.values(missoesPorDisc).reduce((a, arr) => a + (arr?.length || 0), 0);
     const link = `https://eduplay.olloapp.com.br/agente/${gerarSlug(filho?.nome, filho?.id)}`;
     const msg = dias >= 3
@@ -5322,7 +5416,7 @@ export default function PaisPage({ userPai, timer }) {
                       margin: 0,
                     }}
                   >
-                    {(progresso?.diasAtivos?.length || 0) >= 2 ? `${progresso.diasAtivos.length}  dias seguidos! 🔥` : "Agente Ativo"}
+                    {(progresso?.diasSeguidos || 0) >= 2 ? `${progresso.diasSeguidos}  dias seguidos! 🔥` : "Agente Ativo"}
                   </p>
                   <h2
                     style={{
