@@ -162,6 +162,19 @@ exports.gerarMissao = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 60 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso Negado: Agente não identificado.')
+
+    // Rate limit de seguranca — teto generoso, acima do maximo que a
+    // configuracao do responsavel permite (7/dia), so pra barrar abuso
+    const uidMissao = request.auth.uid
+    const hojeMissao = new Date().toISOString().slice(0, 10)
+    const rateRefMissao = db.collection('rateLimits').doc(`gerarMissao_${uidMissao}_${hojeMissao}`)
+    const rateSnapMissao = await rateRefMissao.get()
+    const totalMissaoHoje = rateSnapMissao.exists ? (rateSnapMissao.data().total || 0) : 0
+    if (totalMissaoHoje >= 10) {
+      throw new HttpsError('resource-exhausted', 'Limite diário de geração atingido.')
+    }
+    await rateRefMissao.set({ total: totalMissaoHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+
     const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo, titulosJaGerados } = request.data
     if (isDemo === true) {
       const uid = request.auth.uid
@@ -410,6 +423,18 @@ exports.gerarMetadadosPodcast = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    // Rate limit de seguranca — teto generoso (acompanha o ritmo de geracao de missoes)
+    const uidPod = request.auth.uid
+    const hojePod = new Date().toISOString().slice(0, 10)
+    const rateRefPod = db.collection('rateLimits').doc(`gerarMetadadosPodcast_${uidPod}_${hojePod}`)
+    const rateSnapPod = await rateRefPod.get()
+    const totalPodHoje = rateSnapPod.exists ? (rateSnapPod.data().total || 0) : 0
+    if (totalPodHoje >= 15) {
+      throw new HttpsError('resource-exhausted', 'Limite diário atingido.')
+    }
+    await rateRefPod.set({ total: totalPodHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+
     const { disciplina, bimestre, serie } = request.data
     if (!disciplina || !bimestre || !serie) throw new HttpsError('invalid-argument', 'Dados inválidos.')
     const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
@@ -478,6 +503,19 @@ exports.gerarMensagemMotivacional = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    // Rate limit de seguranca — teto generoso, o pai normalmente ve isso
+    // poucas vezes por dia ao abrir o painel
+    const uidMot = request.auth.uid
+    const hojeMot = new Date().toISOString().slice(0, 10)
+    const rateRefMot = db.collection('rateLimits').doc(`gerarMensagemMotivacional_${uidMot}_${hojeMot}`)
+    const rateSnapMot = await rateRefMot.get()
+    const totalMotHoje = rateSnapMot.exists ? (rateSnapMot.data().total || 0) : 0
+    if (totalMotHoje >= 20) {
+      throw new HttpsError('resource-exhausted', 'Limite diário atingido.')
+    }
+    await rateRefMot.set({ total: totalMotHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+
     const { nomeFilho, serie, totalMissoes, ultimoPercentual, diasAtivos, tituloMissao, topicos } = request.data
     if (!nomeFilho || typeof nomeFilho !== 'string') throw new HttpsError('invalid-argument', 'Nome do filho obrigatorio.')
 
@@ -1250,6 +1288,17 @@ exports.gerarArquivoSecreto = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    // Rate limit de seguranca — acompanha o ritmo de missoes concluidas por dia
+    const uidSeg = request.auth.uid
+    const hojeSeg = new Date().toISOString().slice(0, 10)
+    const rateRefSeg = db.collection('rateLimits').doc(`gerarArquivoSecreto_${uidSeg}_${hojeSeg}`)
+    const rateSnapSeg = await rateRefSeg.get()
+    const totalSegHoje = rateSnapSeg.exists ? (rateSnapSeg.data().total || 0) : 0
+    if (totalSegHoje >= 10) {
+      throw new HttpsError('resource-exhausted', 'Limite diário atingido.')
+    }
+    await rateRefSeg.set({ total: totalSegHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
 
     const { disciplina, tituloMissao, topicos, serie, percentual } = request.data
 
