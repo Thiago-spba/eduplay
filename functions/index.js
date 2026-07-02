@@ -253,9 +253,10 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
 }
 
 REGRAS INVIOLÁVEIS:
-- Conteúdo 100% alinhado ao currículo
+- Conteúdo 100% alinhado ao currículo e factualmente correto — nunca invente datas, nomes ou dados que você não tenha certeza absoluta
 - Palavras da forca: apenas letras maiúsculas A-Z, sem acentos, sem espaços
-- 4 opções no quiz sempre, apenas uma correta
+- 4 opções no quiz sempre, apenas uma correta — antes de responder, confira mentalmente se o índice marcado como "correta" é REALMENTE a resposta certa, e se a explicação não contradiz a opção marcada
+- Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa
 - Responda APENAS o JSON puro, sem marcação markdown como \`\`\`json`
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
@@ -263,7 +264,7 @@ REGRAS INVIOLÁVEIS:
     try {
       // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
       const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 2500, temperature: 0.7,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 2500, temperature: 0.5,
         messages: [{ role: 'user', content: prompt }],
       })
       resposta = msg.content[0].text
@@ -281,6 +282,18 @@ REGRAS INVIOLÁVEIS:
     }
     if (!missao.titulo || !missao.perguntaCentral || !Array.isArray(missao.atividades?.quiz) || missao.atividades.quiz.length < 3 || !missao.atividades?.forca?.palavra || !missao.roteiroPodcast) {
       throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade.')
+    }
+    // Validacao de conteudo — garante que cada pergunta do quiz faz sentido
+    // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
+    const quizValidoManual = missao.atividades.quiz.every(q =>
+      q && typeof q.pergunta === 'string' && q.pergunta.trim() &&
+      Array.isArray(q.opcoes) && q.opcoes.length === 4 &&
+      q.opcoes.every(o => typeof o === 'string' && o.trim()) &&
+      Number.isInteger(q.correta) && q.correta >= 0 && q.correta <= 3
+    )
+    if (!quizValidoManual) {
+      console.warn('[gerarMissao] quiz invalido descartado:', JSON.stringify(missao.atividades.quiz))
+      throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade. Tente novamente.')
     }
     if (isDemo === true) {
       const uid = request.auth.uid
@@ -415,7 +428,7 @@ exports.perguntarAssistente = onCall(
     // 🛠️ MODELO ATUALIZADO
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 300,
-      system: `Você é um assistente educacional para crianças de 11-12 anos. Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Use linguagem simples, direta e encorajadora. Máximo 3 frases.`,
+      system: `Você é um assistente educacional para crianças de 11-12 anos. Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Se você não tiver certeza absoluta de um fato, diga que não sabe ao certo em vez de inventar uma resposta. Use linguagem simples, direta e encorajadora. Máximo 3 frases.`,
       messages: [{ role: 'user', content: pergunta.slice(0, 500) }]
     })
 
@@ -757,7 +770,7 @@ exports.orientacaoFamiliar = onCall(
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
       max_tokens: 1000,
-      system: 'Voce e um assistente educacional do EduPlay, com formacao em pedagogia e psicologia educacional. Seu papel e orientar responsaveis sobre como apoiar o desenvolvimento escolar e emocional de criancas e adolescentes do 6 ao 9 ano do Ensino Fundamental. Responda em portugues brasileiro de forma empatica e pratica. Use linguagem acessivel. De orientacoes concretas com exemplos do dia a dia. Nunca faca diagnosticos clinicos. Nunca substitua a avaliacao de um profissional. Se o assunto for grave oriente a buscar profissional especializado. Seja objetivo com respostas entre 3 e 6 paragrafos curtos. Finalize com uma dica pratica e acolhedora. IMPORTANTE: nao use markdown, asteriscos, hashtags, negrito, italico ou qualquer formatacao especial. Escreva apenas texto simples e corrido.',
+      system: 'Voce e um assistente educacional do EduPlay, com formacao em pedagogia e psicologia educacional. Seu papel e orientar responsaveis sobre como apoiar o desenvolvimento escolar e emocional de criancas e adolescentes do 6 ao 9 ano do Ensino Fundamental. Responda em portugues brasileiro de forma empatica e pratica. Use linguagem acessivel. De orientacoes concretas com exemplos do dia a dia. Se voce nao tiver certeza absoluta de uma informacao factual, diga isso claramente em vez de inventar. Nunca faca diagnosticos clinicos. Nunca substitua a avaliacao de um profissional. Se o assunto for grave oriente a buscar profissional especializado. Seja objetivo com respostas entre 3 e 6 paragrafos curtos. Finalize com uma dica pratica e acolhedora. IMPORTANTE: nao use markdown, asteriscos, hashtags, negrito, italico ou qualquer formatacao especial. Escreva apenas texto simples e corrido.',
       messages: messagesSanitizadas,
     })
 
@@ -977,12 +990,12 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
-REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais. Forca letras A-Z sem acentos sem espacos. dicas e array com 3 strings progressivas. Responda APENAS JSON puro sem markdown.`
+REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. Antes de responder, confira se o indice marcado como correta é REALMENTE certo e se a explicacao nao contradiz a opcao marcada. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. Forca letras A-Z sem acentos sem espacos. dicas e array com 3 strings progressivas. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
               max_tokens: 2500,
-              temperature: 0.7,
+              temperature: 0.5,
               messages: [{ role: 'user', content: prompt }]
             })
 
