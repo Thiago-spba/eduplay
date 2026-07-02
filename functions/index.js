@@ -896,14 +896,17 @@ exports.autoGerarMissoes = onSchedule(
         }
 
         const faltam = limiteDia - qtdHoje
-        const disciplinas = ['matematica', 'portugues', 'geografia', 'ciencias']
+        const disciplinas = ['matematica', 'portugues', 'geografia', 'ciencias', 'historia']
 
-        // Busca titulos ja gerados para evitar repeticao
+        // Busca titulos ja gerados (com a materia de cada um) para evitar repeticao
         const titulosSnap = await db.collection('missoes').doc(criancaId).collection('geradas')
           .orderBy('criadoEm', 'desc')
-          .limit(20)
+          .limit(40)
           .get()
-        const titulosJaGerados = titulosSnap.docs.map(d => d.data().titulo || '').filter(Boolean)
+        const historicoTitulos = titulosSnap.docs.map(d => ({
+          titulo: d.data().titulo || '',
+          disciplina: d.data().disciplina || '',
+        })).filter(t => t.titulo)
 
         for (let i = 0; i < faltam; i++) {
           const disciplina = disciplinas[i % disciplinas.length]
@@ -912,8 +915,13 @@ exports.autoGerarMissoes = onSchedule(
             // Gera missao via Anthropic com prompt completo
             const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
             const curriculoTema = CURRICULO[disciplina]?.[serie]?.[bimestre] || tema
-            const antiRep = titulosJaGerados.length > 0
-              ? '\nTITULOS JA GERADOS — NAO REPITA: ' + titulosJaGerados.slice(0,5).join(', ') + '. Crie um angulo diferente.'
+            // Anti-repeticao especifica da MESMA materia (nao mistura com outras disciplinas)
+            const titulosMesmaMateria = historicoTitulos
+              .filter(t => t.disciplina === disciplina)
+              .slice(0, 8)
+              .map(t => t.titulo)
+            const antiRep = titulosMesmaMateria.length > 0
+              ? '\nTITULOS JA GERADOS PARA ESSA MATERIA — NAO REPITA: ' + titulosMesmaMateria.join(', ') + '. Crie um angulo diferente.'
               : ''
             const prompt = `Voce e um especialista em educacao basica brasileira.
 Crie uma missao educacional gamificada para o EduPlay.
@@ -1025,6 +1033,7 @@ REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com respost
               data: hoje,
               criadoEm: admin.firestore.FieldValue.serverTimestamp()
             })
+            historicoTitulos.unshift({ titulo: missao.titulo, disciplina })
             console.log(`[auto] missao gerada: ${disciplina} para ${criancaId}`)
           } catch (err) {
             console.error(`[auto] erro gerando ${disciplina}:`, err.message)
