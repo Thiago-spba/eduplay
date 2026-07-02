@@ -20,7 +20,11 @@ service cloud.firestore {
     // ── Crianças ──
     match /criancas/{codigoAcesso} {
       allow create: if request.auth != null && request.resource.data.parentId == request.auth.uid;
-      allow read:   if request.auth != null;
+      // get = buscar 1 criança sabendo o codigoAcesso exato (login do pai OU da criança, ambos precisam)
+      allow get:    if request.auth != null;
+      // list = varrer a coleção inteira — só o próprio pai pode listar OS FILHOS DELE.
+      // Sem isso, qualquer conta logada conseguia rodar 1 consulta e baixar TODAS as crianças de TODAS as famílias.
+      allow list:   if request.auth != null && resource.data.parentId == request.auth.uid;
       allow update: if request.auth != null && (
         // Pai: edita dados gerais, NUNCA campos de pagamento/trial (so Cloud Functions)
         (resource.data.parentId == request.auth.uid &&

@@ -325,12 +325,10 @@ export async function contarMissoesHoje(codigoAcesso) {
   hoje.setHours(0, 0, 0, 0);
 
   const ref = collection(db, "missoes", codigoAcesso, "geradas");
-  const snap = await getDocs(ref);
+  const q = query(ref, where("criadoEm", ">=", hoje));
+  const snap = await getDocs(q);
 
-  return snap.docs.filter((d) => {
-    const criadoEm = d.data().criadoEm?.toDate?.();
-    return criadoEm && criadoEm >= hoje;
-  }).length;
+  return snap.size;
 }
 
 // ─────────────────────────────────────────────────────────────

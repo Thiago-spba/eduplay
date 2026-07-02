@@ -396,8 +396,20 @@ exports.perguntarAssistente = onCall(
   { secrets: [ANTHROPIC_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 30 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+
+    // Rate limit — mesma logica do orientacaoFamiliar, evita custo inesperado na API
+    const uid = request.auth.uid
+    const hoje = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+    const rateRef = db.collection('rateLimits').doc(`perguntarAssistente_${uid}_${hoje}`)
+    const rateSnap = await rateRef.get()
+    const totalHoje = rateSnap.exists ? (rateSnap.data().total || 0) : 0
+    if (totalHoje >= 15) {
+      throw new HttpsError('resource-exhausted', 'LIMITE_DIARIO')
+    }
+
     const { pergunta, tema, disciplina, resumo } = request.data
     if (!pergunta || typeof pergunta !== 'string') throw new HttpsError('invalid-argument', 'Pergunta vazia.')
+    if (pergunta.length > 500) throw new HttpsError('invalid-argument', 'Pergunta muito longa.')
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
     
     // 🛠️ MODELO ATUALIZADO
@@ -406,7 +418,16 @@ exports.perguntarAssistente = onCall(
       system: `Você é um assistente educacional para crianças de 11-12 anos. Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Use linguagem simples, direta e encorajadora. Máximo 3 frases.`,
       messages: [{ role: 'user', content: pergunta.slice(0, 500) }]
     })
-    return { resposta: msg.content[0].text }
+
+    // Incrementa contador de rate limit
+    await rateRef.set({
+      total: totalHoje + 1,
+      uid,
+      data: hoje,
+      atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true })
+
+    return { resposta: msg.content[0].text, restantes: 15 - (totalHoje + 1) }
   }
 )
 
@@ -729,7 +750,7 @@ exports.orientacaoFamiliar = onCall(
     // Sanitizacao — remove caracteres de controle
     const messagesSanitizadas = messages.map(msg => ({
       role: msg.role,
-      content: msg.content.replace(/[ --]/g, '').trim().slice(0, 2000),
+      content: msg.content.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F]/g, '').trim().slice(0, 2000),
     }))
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
@@ -928,6 +949,27 @@ REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com respost
               missao = JSON.parse(json)
             } catch {
               console.warn('[auto] parse falhou para', disciplina)
+              continue
+            }
+
+            // Validacao de conteudo — garante que o quiz gerado faz sentido
+            // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
+            const quiz = missao?.atividades?.quiz
+            const quizValido = Array.isArray(quiz) && quiz.length > 0 && quiz.every(q =>
+              q && typeof q.pergunta === 'string' && q.pergunta.trim() &&
+              Array.isArray(q.opcoes) && q.opcoes.length === 4 &&
+              q.opcoes.every(o => typeof o === 'string' && o.trim()) &&
+              Number.isInteger(q.correta) && q.correta >= 0 && q.correta <= 3
+            )
+            const forca = missao?.atividades?.forca
+            const forcaValida = forca && typeof forca.palavra === 'string' &&
+              /^[A-Z0-9]+$/.test(forca.palavra) &&
+              Array.isArray(forca.dicas) && forca.dicas.length === 3
+
+            if (!missao?.titulo || !quizValido || !forcaValida) {
+              console.warn(`[auto] missao invalida gerada para ${disciplina} (${criancaId}) — descartada`, {
+                temTitulo: !!missao?.titulo, quizValido, forcaValida,
+              })
               continue
             }
 

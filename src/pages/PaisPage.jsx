@@ -3342,6 +3342,8 @@ export default function PaisPage({ userPai, timer }) {
   const [mostrarAvatares, setMostrarAvatares] = useState(false);
 
   const [secao, setSecao] = useState("visao");
+  const [verDetalhesFilho, setVerDetalhesFilho] = useState(false);
+  const [missoesExpandidas, setMissoesExpandidas] = useState({});
   const [config, setConfig] = useState({
     serie: localStorage.getItem("eduplay_config_serie") || "6ano",
     bimestre: localStorage.getItem("eduplay_config_bimestre") || "1bimestre",
@@ -3557,9 +3559,8 @@ export default function PaisPage({ userPai, timer }) {
           setMissoesPorDisc(porDisc);
           const hoje = new Date().toLocaleDateString("pt-BR");
           const qtdHoje = todas.filter((m) => {
-            const data = m.criadoEm?.toDate
-              ? m.criadoEm.toDate().toLocaleDateString("pt-BR")
-              : null;
+            if (!m.criadoEm) return false;
+            const data = new Date(m.criadoEm).toLocaleDateString("pt-BR");
             return data === hoje;
           }).length;
           setMissoesHoje(qtdHoje);
@@ -5400,6 +5401,109 @@ export default function PaisPage({ userPai, timer }) {
               </div>
             </div>
 
+            {/* Resumo rápido — sempre visível, sem precisar clicar em nada */}
+            <div
+              style={{
+                background: c.card,
+                border: `1.5px solid ${c.borda}`,
+                borderRadius: 16,
+                padding: "14px 16px",
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+              }}
+            >
+              {(() => {
+                const sessoesOrd = [
+                  ...(Array.isArray(sessoesQuiz) ? sessoesQuiz : []),
+                ].sort((a, b) => {
+                  const dataA = a.criadoEm?.toDate
+                    ? a.criadoEm.toDate().getTime()
+                    : new Date(a.criadoEm).getTime();
+                  const dataB = b.criadoEm?.toDate
+                    ? b.criadoEm.toDate().getTime()
+                    : new Date(b.criadoEm).getTime();
+                  return dataB - dataA;
+                });
+                const semana = sessoesOrd.slice(0, 7);
+                const mediaSemana =
+                  semana.length > 0
+                    ? Math.round(
+                        semana.reduce((a, s) => a + (s.percentual || 0), 0) /
+                          semana.length,
+                      )
+                    : null;
+                return (
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <div style={{ fontSize: "1.4rem" }}>🎯</div>
+                    <div style={{ flex: 1 }}>
+                      <p
+                        style={{
+                          fontSize: "0.72rem",
+                          fontWeight: 800,
+                          color: c.textoSub,
+                          textTransform: "uppercase",
+                          letterSpacing: 1,
+                          margin: "0 0 2px",
+                        }}
+                      >
+                        Placar da semana
+                      </p>
+                      <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: 0 }}>
+                        {mediaSemana !== null
+                          ? `${semana.length} atividade${semana.length !== 1 ? "s" : ""} — média de ${mediaSemana}% de acertos`
+                          : "Ainda sem atividades essa semana"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {nivelDesempenho === "ruim" && (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 10,
+                    padding: "10px 12px",
+                    borderRadius: 12,
+                    background: "#EF444415",
+                    border: "1.5px solid #EF444433",
+                  }}
+                >
+                  <div style={{ fontSize: "1.2rem" }}>💪</div>
+                  <p style={{ fontSize: "0.8rem", color: c.texto, margin: 0, lineHeight: 1.5 }}>
+                    {mensagemIA ||
+                      `${filho?.nome?.split(" ")[0] || "Seu filho"} está com dificuldade na atividade mais recente — vale conversar sobre isso hoje.`}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            <button
+              onClick={() => setVerDetalhesFilho((v) => !v)}
+              style={{
+                width: "100%",
+                padding: "11px 16px",
+                borderRadius: 12,
+                border: `1.5px solid ${c.borda}`,
+                background: "transparent",
+                color: c.accent,
+                fontWeight: 800,
+                fontSize: "0.82rem",
+                cursor: "pointer",
+                fontFamily: "'Nunito', sans-serif",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 6,
+              }}
+            >
+              {verDetalhesFilho ? "▲ Ver menos" : "▼ Ver detalhes"}
+            </button>
+
+            {verDetalhesFilho && (
+              <>
             {totalMissoes > 0 && (
               <button
                 onClick={compartilharOrgulhoWhatsApp}
@@ -6221,6 +6325,8 @@ export default function PaisPage({ userPai, timer }) {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         )}
 
@@ -6555,12 +6661,17 @@ export default function PaisPage({ userPai, timer }) {
                         </span>
                       </div>
                       <style>{`details[open] .seta-missao{transform:rotate(90deg)}`}</style>
-                      {lista.map((m, i) => (
+                      {(() => {
+                        const expandido = !!missoesExpandidas[d.id];
+                        const visiveis = expandido ? lista : lista.slice(0, 1);
+                        return (
+                          <>
+                            {visiveis.map((m, i) => (
                         <details
                           key={m.id || i}
                           style={{
                             borderBottom:
-                              i < lista.length - 1
+                              i < visiveis.length - 1
                                 ? `1px solid ${c.borda}`
                                 : "none",
                           }}
@@ -6710,7 +6821,36 @@ export default function PaisPage({ userPai, timer }) {
                             </p>
                           </div>
                         </details>
-                      ))}
+                            ))}
+                          </>
+                        );
+                      })()}
+                      {lista.length > 1 && (
+                        <button
+                          onClick={() =>
+                            setMissoesExpandidas((prev) => ({
+                              ...prev,
+                              [d.id]: !prev[d.id],
+                            }))
+                          }
+                          style={{
+                            width: "100%",
+                            padding: "10px 16px",
+                            background: "transparent",
+                            border: "none",
+                            borderTop: `1px solid ${c.borda}`,
+                            color: d.cor,
+                            fontWeight: 800,
+                            fontSize: "0.75rem",
+                            cursor: "pointer",
+                            fontFamily: "'Nunito', sans-serif",
+                          }}
+                        >
+                          {missoesExpandidas[d.id]
+                            ? "▲ Ver menos"
+                            : `▼ Ver as outras ${lista.length - 1} missões`}
+                        </button>
+                      )}
                     </div>
                   );
                 })}
