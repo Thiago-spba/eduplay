@@ -798,11 +798,13 @@ exports.orientacaoFamiliar = onCall(
 
 
 // ═══════════════════════════════════════════════════════════════════════
-// autoGerarMissoes — roda todo dia util as 07h (America/Sao_Paulo)
+// autoGerarMissoes — roda a cada 20 minutos, entre 01h e 07h, e a cada
+// execucao calcula sozinha "em que vaga de horario" esta pra atender so
+// uma fatia das familias — 18 vagas no total (America/Sao_Paulo)
 // ═══════════════════════════════════════════════════════════════════════
-exports.autoGerarMissoes = onSchedule(
-  { schedule: '0 7 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY], timeoutSeconds: 540 },
-  async () => {
+const TOTAL_VAGAS_AUTO = 18 // 6 horas (01h-07h) x 3 vagas de 20min por hora
+
+async function processarLoteAutoMissoes() {
     const db = admin.firestore()
     const _agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
     const hoje = _agora.getFullYear() + '-' + String(_agora.getMonth()+1).padStart(2,'0') + '-' + String(_agora.getDate()).padStart(2,'0')
@@ -810,15 +812,30 @@ exports.autoGerarMissoes = onSchedule(
 
     if (diaSemana === 0 || diaSemana === 6) return
 
+    // Qual vaga de 20min é esta execucao (0 = 01h00, 1 = 01h20, ... 17 = 06h40)
+    const vagaAtual = (_agora.getHours() - 1) * 3 + Math.floor(_agora.getMinutes() / 20)
+    if (vagaAtual < 0 || vagaAtual >= TOTAL_VAGAS_AUTO) return
+
     // Busca todos os responsaveis com autoMissoes=true
     const respSnap = await db.collection('responsaveis')
       .where('autoMissoes', '==', true)
       .get()
 
     if (respSnap.empty) return
-    console.log(`[autoGerarMissoes] ${respSnap.size} responsaveis com auto ativo`)
 
-    for (const respDoc of respSnap.docs) {
+    // Distribui as familias entre as 18 vagas de forma automatica e estavel,
+    // baseado no proprio ID da familia — nao precisa guardar campo nenhum
+    const hashVaga = (id) => {
+      let soma = 0
+      for (let i = 0; i < id.length; i++) soma += id.charCodeAt(i)
+      return soma % TOTAL_VAGAS_AUTO
+    }
+    const docsDaVaga = respSnap.docs.filter(d => hashVaga(d.id) === vagaAtual)
+
+    if (docsDaVaga.length === 0) return
+    console.log(`[autoGerarMissoes] vaga ${vagaAtual}/${TOTAL_VAGAS_AUTO}: ${docsDaVaga.length} responsaveis`)
+
+    for (const respDoc of docsDaVaga) {
       try {
         const resp = respDoc.data()
         const paiId = respDoc.id
@@ -1056,7 +1073,14 @@ REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com respost
         console.error('[auto] erro no responsavel', respDoc.id, err.message)
       }
     }
-  }
+}
+
+// 1 gatilho só, rodando a cada 20 minutos entre 01h e 06h59 — a propria
+// funcao calcula em qual das 18 "vagas" esta e atende so a fatia certa,
+// pra nao esbarrar no tempo limite conforme a base de usuarios cresce
+exports.autoGerarMissoes = onSchedule(
+  { schedule: '*/20 1-6 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY], timeoutSeconds: 540 },
+  async () => processarLoteAutoMissoes()
 )
 
 
