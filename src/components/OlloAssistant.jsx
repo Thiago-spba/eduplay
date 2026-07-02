@@ -43,6 +43,8 @@ export default function OlloAssistant({ missao, c, tema }) {
   const [carregando, setCarregando] = useState(false);
   const [ouvindo, setOuvindo] = useState(false);
   const [tocandoAudio, setTocandoAudio] = useState(false);
+  const [carregandoAudio, setCarregandoAudio] = useState(false);
+  const [iniciandoMic, setIniciandoMic] = useState(false);
   const [posicao, setPosicao] = useState({ bottom: 80, right: 16 });
   const [arrastando, setArrastando] = useState(false);
 
@@ -130,16 +132,20 @@ export default function OlloAssistant({ missao, c, tema }) {
 
   // ── Microfone (Web Speech API) ──
   const toggleMicrofone = async () => {
-    // Parar se já está ouvindo
-    if (ouvindo) {
+    // Parar se já está ouvindo ou ainda conectando
+    if (ouvindo || iniciandoMic) {
       reconhRef.current?.stop();
       setOuvindo(false);
+      setIniciandoMic(false);
       return;
     }
+
+    setIniciandoMic(true); // feedback visual imediato — "conectando microfone..."
 
     // Verificar suporte
     const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SR) {
+      setIniciandoMic(false);
       alert("Reconhecimento de voz não suportado. Use o Chrome.");
       return;
     }
@@ -149,6 +155,7 @@ export default function OlloAssistant({ missao, c, tema }) {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       stream.getTracks().forEach((t) => t.stop()); // libera imediatamente
     } catch (err) {
+      setIniciandoMic(false);
       if (err.name === "NotAllowedError") {
         alert("Permissão de microfone negada. Clique no cadeado na barra de endereço e permita o microfone.");
       } else if (err.name === "NotFoundError") {
@@ -165,7 +172,10 @@ export default function OlloAssistant({ missao, c, tema }) {
     r.interimResults = false;
     r.continuous = false;
 
-    r.onstart = () => setOuvindo(true);
+    r.onstart = () => {
+      setIniciandoMic(false);
+      setOuvindo(true);
+    };
 
     r.onresult = (ev) => {
       const texto = ev.results[0][0].transcript;
@@ -176,6 +186,7 @@ export default function OlloAssistant({ missao, c, tema }) {
 
     r.onerror = (ev) => {
       setOuvindo(false);
+      setIniciandoMic(false);
       if (ev.error === "not-allowed") {
         alert("Permissão de microfone bloqueada. Verifique as configurações do navegador.");
       } else if (ev.error === "network") {
@@ -185,13 +196,17 @@ export default function OlloAssistant({ missao, c, tema }) {
       }
     };
 
-    r.onend = () => setOuvindo(false);
+    r.onend = () => {
+      setOuvindo(false);
+      setIniciandoMic(false);
+    };
 
     reconhRef.current = r;
     try {
       r.start();
     } catch (err) {
       setOuvindo(false);
+      setIniciandoMic(false);
       console.error("[Microfone] Falha ao iniciar:", err);
     }
   };
@@ -203,7 +218,9 @@ export default function OlloAssistant({ missao, c, tema }) {
       setTocandoAudio(false);
       return;
     }
+    if (carregandoAudio) return; // trava cliques repetidos enquanto carrega
     if (!resposta) return;
+    setCarregandoAudio(true);
     try {
       const fn = httpsCallable(
         getFunctions(undefined, "us-central1"),
@@ -217,6 +234,8 @@ export default function OlloAssistant({ missao, c, tema }) {
       setTocandoAudio(true);
     } catch {
       /* silencia */
+    } finally {
+      setCarregandoAudio(false);
     }
   };
 
@@ -336,6 +355,7 @@ export default function OlloAssistant({ missao, c, tema }) {
                 <>
                   <button
                     onClick={ouvirResposta}
+                    disabled={carregandoAudio}
                     style={{
                       display: "flex",
                       alignItems: "center",
@@ -347,12 +367,25 @@ export default function OlloAssistant({ missao, c, tema }) {
                       color: cor,
                       fontSize: "0.72rem",
                       fontWeight: 700,
-                      cursor: "pointer",
+                      cursor: carregandoAudio ? "wait" : "pointer",
+                      opacity: carregandoAudio ? 0.7 : 1,
                       fontFamily: "'Nunito', sans-serif",
                       marginBottom: 8,
                     }}
                   >
-                    {tocandoAudio ? (
+                    {carregandoAudio ? (
+                      <span
+                        style={{
+                          display: "inline-block",
+                          width: 12,
+                          height: 12,
+                          borderRadius: "50%",
+                          border: `2px solid ${cor}44`,
+                          borderTopColor: cor,
+                          animation: "girarLento 0.7s linear infinite",
+                        }}
+                      />
+                    ) : tocandoAudio ? (
                       <span
                         style={{
                           display: "flex",
@@ -383,7 +416,7 @@ export default function OlloAssistant({ missao, c, tema }) {
                     ) : (
                       <span style={{ fontSize: "0.85rem" }}>🔊</span>
                     )}
-                    {tocandoAudio ? "Pausar" : "Ouvir resposta"}
+                    {carregandoAudio ? "Carregando..." : tocandoAudio ? "Pausar" : "Ouvir resposta"}
                   </button>
                   <p
                     style={{
@@ -442,17 +475,18 @@ export default function OlloAssistant({ missao, c, tema }) {
                   width: 36,
                   height: 36,
                   borderRadius: "50%",
-                  border: `1.5px solid ${ouvindo ? "#EF4444" : cardBorda}`,
-                  background: ouvindo ? "#EF444415" : "transparent",
-                  color: ouvindo ? "#EF4444" : subColor,
+                  border: `1.5px solid ${ouvindo ? "#EF4444" : iniciandoMic ? "#F59E0B" : cardBorda}`,
+                  background: ouvindo ? "#EF444415" : iniciandoMic ? "#F59E0B15" : "transparent",
+                  color: ouvindo ? "#EF4444" : iniciandoMic ? "#F59E0B" : subColor,
                   fontSize: "0.95rem",
                   cursor: "pointer",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
+                  animation: iniciandoMic ? "piscar 0.8s ease-in-out infinite" : "none",
                 }}
               >
-                {ouvindo ? "⏹" : "🎤"}
+                {ouvindo ? "⏹" : iniciandoMic ? "🎙️" : "🎤"}
               </button>
               <button
                 onClick={enviar}

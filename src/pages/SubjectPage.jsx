@@ -1026,10 +1026,22 @@ export default function SubjectPage() {
                     <p style={{ fontSize: "0.78rem", color: "#E8F4F8", lineHeight: 1.5, margin: "0 0 10px" }}>
                       Quem assiste vídeos aprende muito mais. Peça a um adulto para assistir junto com você!
                     </p>
-                    <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent((moduloSelecionado?.titulo || disciplinaId) + " 6ano")}&sp=EgIQAQ%3D%3D`} target="_blank" rel="noreferrer"
-                      style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>
-                      Assistir vídeos sobre esse assunto
-                    </a>
+                    {(() => {
+                      const serieAtual = localStorage.getItem("eduplay_serie") || "6ano";
+                      const topico =
+                        Array.isArray(moduloSelecionado?.topicos) && moduloSelecionado.topicos.length > 0
+                          ? (typeof moduloSelecionado.topicos[0] === "object"
+                              ? (moduloSelecionado.topicos[0].nome || moduloSelecionado.topicos[0].descricao || "")
+                              : moduloSelecionado.topicos[0])
+                          : (moduloSelecionado?.tema || disciplinaBase.label);
+                      const busca = `${topico} ${disciplinaBase.label} aula ${serieAtual}`;
+                      return (
+                        <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(busca)}&sp=EgIQAQ%3D%3D`} target="_blank" rel="noreferrer"
+                          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>
+                          Assistir vídeos sobre esse assunto
+                        </a>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
