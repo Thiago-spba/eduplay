@@ -801,7 +801,7 @@ exports.orientacaoFamiliar = onCall(
 // autoGerarMissoes — roda todo dia util as 07h (America/Sao_Paulo)
 // ═══════════════════════════════════════════════════════════════════════
 exports.autoGerarMissoes = onSchedule(
-  { schedule: '0 7 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY] },
+  { schedule: '0 7 * * 1-5', timeZone: 'America/Sao_Paulo', region: 'us-central1', secrets: [ANTHROPIC_KEY], timeoutSeconds: 540 },
   async () => {
     const db = admin.firestore()
     const _agora = new Date(new Date().toLocaleString('en-US', { timeZone: 'America/Sao_Paulo' }))
