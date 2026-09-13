@@ -3009,29 +3009,54 @@ function CardAssinaturaCompacto({ c, e, filho, functions, userPai }) {
   const [carregando, setCarregando] = useState(false);
   const [pixData, setPixData] = useState(null);
   const [pixCopiado, setPixCopiado] = useState(false);
+  const [erro, setErro] = useState("");
+  const [emailManual, setEmailManual] = useState("");
+
+  const emailFinal = userPai?.email || emailManual.trim();
 
   const pagar = async () => {
     if (!filho?.id) return;
+    setErro("");
+    if (!emailFinal) {
+      setErro("Informe um e-mail para continuar — o recibo e a confirmação do pagamento são enviados para ele.");
+      return;
+    }
     setCarregando(true);
     try {
       if (metodo === "pix") {
         const fn = httpsCallable(functions, "criarPagamentoPix");
         const r = await fn({
           codigoAcesso: filho.id,
-          emailResponsavel: userPai?.email,
+          emailResponsavel: emailFinal,
           nomeResponsavel: userPai?.displayName || "Responsavel",
         });
-        if (r.data?.qrCode) setPixData(r.data);
+        if (r.data?.qrCode) {
+          setPixData(r.data);
+        } else {
+          setErro("Não foi possível gerar o PIX agora. Tente novamente em instantes.");
+        }
       } else {
         const fn = httpsCallable(functions, "criarAssinatura");
         const r = await fn({
           codigoAcesso: filho.id,
-          emailResponsavel: userPai?.email,
+          emailResponsavel: emailFinal,
           nomeResponsavel: userPai?.displayName || "Responsavel",
         });
-        if (r.data?.checkoutUrl) window.open(r.data.checkoutUrl, "_blank");
+        if (r.data?.checkoutUrl) {
+          window.open(r.data.checkoutUrl, "_blank");
+        } else {
+          setErro("Não foi possível abrir o checkout agora. Tente novamente em instantes.");
+        }
       }
-    } catch (_) {
+    } catch (err) {
+      console.error("[CardAssinaturaCompacto] falha no pagamento:", err);
+      if (err?.code === "resource-exhausted") {
+        setErro("Muitas tentativas seguidas. Aguarde um pouco antes de tentar de novo, ou fale com o suporte.");
+      } else if (err?.code === "invalid-argument") {
+        setErro("Não foi possível identificar o perfil do seu filho. Recarregue a página e tente de novo.");
+      } else {
+        setErro("Não foi possível processar o pagamento agora. Tente novamente em instantes ou fale com contato@olloapp.com.br.");
+      }
     } finally {
       setCarregando(false);
     }
@@ -3236,6 +3261,46 @@ function CardAssinaturaCompacto({ c, e, filho, functions, userPai }) {
             {pixCopiado ? "✅ Copiado!" : "📋 Copiar código PIX"}
           </button>
         </div>
+      )}
+
+      {/* E-mail — só pede se a conta nao tiver um (ex.: login anonimo) */}
+      {!userPai?.email && !pixData && (
+        <input
+          type="email"
+          inputMode="email"
+          placeholder="seu-email@exemplo.com"
+          value={emailManual}
+          onChange={(ev) => setEmailManual(ev.target.value)}
+          style={{
+            width: "100%",
+            padding: "10px 12px",
+            borderRadius: 10,
+            border: `1.5px solid ${erro && !emailFinal ? "#DC2626" : c.borda}`,
+            marginBottom: 10,
+            fontSize: "0.85rem",
+            fontFamily: "'Nunito', sans-serif",
+            boxSizing: "border-box",
+            background: c.card,
+            color: c.texto,
+          }}
+        />
+      )}
+
+      {erro && (
+        <p
+          style={{
+            fontSize: "0.75rem",
+            color: "#DC2626",
+            background: "#FEF2F2",
+            border: "1px solid #FCA5A5",
+            borderRadius: 8,
+            padding: "8px 10px",
+            margin: "0 0 10px",
+            lineHeight: 1.5,
+          }}
+        >
+          ⚠️ {erro}
+        </p>
       )}
 
       {/* Botao CTA */}
@@ -3795,6 +3860,7 @@ export default function PaisPage({ userPai, timer }) {
         bimestre: config.bimestre,
         tema: temaAtual,
         titulosJaGerados,
+        codigoAcesso: filho.id,
       });
       await salvarMissao(
         filho.id,
@@ -3821,7 +3887,10 @@ export default function PaisPage({ userPai, timer }) {
     } catch (err) {
       setMensagem({
         tipo: "erro",
-        titulo: "Erro ao gerar missao.",
+        titulo:
+          err?.message === "ASSINATURA_EXPIRADA"
+            ? "Seu período de teste ou assinatura expirou. Assine na aba Assinar para continuar gerando missões."
+            : "Erro ao gerar missao.",
         topicos: [],
       });
     } finally {

@@ -156,6 +156,57 @@ const NOMES = {
 }
 
 // ═══════════════════════════════════════════════════════════════════════
+// Controle de acesso pago — usado por toda função que consome IA/TTS
+// (gerarMissao, gerarAudio, orientacaoFamiliar, etc). Sem isso, qualquer
+// conta anônima autenticada conseguia gerar conteúdo pago para sempre,
+// mesmo com o trial marcado como expirado — o campo `plano` já existia
+// no Firestore (verificarTrialExpirado escreve nele), só não era lido
+// em nenhum outro lugar. Ver relatório de auditoria, item B1.
+// ═══════════════════════════════════════════════════════════════════════
+function planoValido(dadosCrianca) {
+  if (!dadosCrianca) return false
+  if (dadosCrianca.assinaturaAtiva === true) return true
+  return dadosCrianca.plano !== 'expirado'
+}
+
+/**
+ * Busca a criança pelo código de acesso e garante que ela pertence ao
+ * responsável autenticado (mesma regra do firestore.rules) antes de
+ * conferir se o trial/assinatura ainda está válido.
+ */
+async function exigirAcessoValido(uid, codigoAcesso) {
+  if (!codigoAcesso || typeof codigoAcesso !== 'string' || codigoAcesso.trim() === '') {
+    throw new HttpsError('invalid-argument', 'Código de acesso obrigatório.')
+  }
+  const snap = await db.collection('criancas').doc(codigoAcesso.trim()).get()
+  if (!snap.exists) {
+    throw new HttpsError('not-found', 'Perfil não encontrado.')
+  }
+  const dados = snap.data()
+  if (dados.parentId !== uid) {
+    throw new HttpsError('permission-denied', 'Este perfil não pertence a esta conta.')
+  }
+  if (!planoValido(dados)) {
+    throw new HttpsError('permission-denied', 'ASSINATURA_EXPIRADA')
+  }
+  return dados
+}
+
+/**
+ * Mesma checagem, mas para funções que atuam em nome do responsável sem
+ * um código de acesso específico (ex.: assistente da aba Família) —
+ * libera se PELO MENOS UM dos filhos do responsável estiver com o
+ * trial/assinatura válidos.
+ */
+async function exigirResponsavelComAcessoValido(uid) {
+  const snap = await db.collection('criancas').where('parentId', '==', uid).get()
+  const algumValido = snap.docs.some(doc => planoValido(doc.data()))
+  if (!algumValido) {
+    throw new HttpsError('permission-denied', 'ASSINATURA_EXPIRADA')
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
 // gerarMissao
 // ═══════════════════════════════════════════════════════════════════════
 exports.gerarMissao = onCall(
@@ -175,12 +226,16 @@ exports.gerarMissao = onCall(
     }
     await rateRefMissao.set({ total: totalMissaoHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
 
-    const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo, titulosJaGerados } = request.data
+    const { disciplina, serie, bimestre, tema, contextoTemporal, isDemo, titulosJaGerados, codigoAcesso } = request.data
     if (isDemo === true) {
       const uid = request.auth.uid
       const demoRef = db.collection('demos').doc(uid)
       const demoSnap = await demoRef.get()
       if (demoSnap.exists && demoSnap.data().usada === true) throw new HttpsError('already-exists', 'Demo já utilizada.')
+    } else {
+      // Fora da demo gratuita, só gera missão pra quem tem um filho com
+      // trial ativo ou assinatura em dia — ver planoValido() acima.
+      await exigirAcessoValido(uidMissao, codigoAcesso)
     }
     if (!DISCIPLINAS_PERMITIDAS.includes(disciplina)) throw new HttpsError('invalid-argument', 'Disciplina inválida.')
     if (!SERIES_PERMITIDAS.includes(serie))           throw new HttpsError('invalid-argument', 'Série inválida.')
@@ -820,6 +875,8 @@ exports.orientacaoFamiliar = onCall(
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
 
     const uid = request.auth.uid
+    await exigirResponsavelComAcessoValido(uid)
+
     const hoje = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
     const rateRef = db.collection('rateLimits').doc(`orientacao_${uid}_${hoje}`)
     const rateSnap = await rateRef.get()

@@ -14,10 +14,15 @@ const gerarMissaoFn = httpsCallable(functions, "gerarMissao");
  * @param {boolean} [params.isDemo] - Se true, aplica verificação e bloqueio de demo única no servidor.
  * @returns {Promise<Object>} O dossiê completo da missão gerada.
  */
-export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo, titulosJaGerados }) {
+export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo, titulosJaGerados, codigoAcesso }) {
   // 1. BLINDAGEM DE CUSTOS (Frontend Security)
   // Evita que o sistema faça chamadas vazias à nuvem e gere custos de API.
   if (!disciplina || !serie) {
+    throw new Error("Parâmetros de missão incompletos. Conexão abortada por segurança.");
+  }
+  // Fora da demo gratuita, o servidor exige saber de qual filho é a
+  // missão (pra checar dono + assinatura/trial) — ver functions/index.js.
+  if (isDemo !== true && !codigoAcesso) {
     throw new Error("Parâmetros de missão incompletos. Conexão abortada por segurança.");
   }
 
@@ -41,6 +46,7 @@ export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo,
       contextoTemporal,
       isDemo: isDemo === true,
       titulosJaGerados: titulosJaGerados || [],
+      codigoAcesso: codigoAcesso || null,
     });
 
     // 4. VERIFICAÇÃO DE INTEGRIDADE
@@ -65,6 +71,14 @@ export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo,
     // Demo já utilizada — servidor bloqueou
     if (error?.code === 'already-exists') {
       throw new Error("DEMO_JA_USADA");
+    }
+
+    // Trial expirado ou sem assinatura ativa — servidor bloqueou
+    if (error?.code === 'permission-denied') {
+      if (error?.message?.includes('ASSINATURA_EXPIRADA')) {
+        throw new Error("ASSINATURA_EXPIRADA");
+      }
+      throw new Error("Este perfil não pertence a esta conta.");
     }
 
     if (error?.code === 'internal') {
