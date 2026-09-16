@@ -199,12 +199,13 @@ export default function HomePage({ playerName }) {
   }, [missoes, premioConfig, festaVista]);
 
   // ── Trocar usuário (Correção de Importação) ──
-  const trocarUsuario = async () => {
+  const trocarUsuario = () => {
+    const confirmou = window.confirm(
+      "Trocar de usuario? O progresso fica salvo pelo codigo de acesso -- quando quiser voltar, e so entrar de novo com o mesmo codigo."
+    );
+    if (!confirmou) return;
     localStorage.removeItem("eduplay_player_name");
     localStorage.removeItem("eduplay_codigo_acesso");
-    try {
-      await signOut(auth);
-    } catch {}
     window.location.replace("/");
   };
 
