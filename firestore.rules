@@ -2,7 +2,24 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── Responsáveis ──
+    // Acesso liberado (B12 fix): confirma que quem esta pedindo e o responsavel
+    // dono do codigo de acesso, OU que existe uma liberacao de acesso ativa
+    // (dada pelo responsavel) e ainda nao expirada. Usado por progresso,
+    // missoes/geradas e quizSessions -- nenhuma dessas colecoes pode mais ser
+    // lida/escrita so por estar autenticado (esse era o bug B12).
+    function acessoAtivoParaCrianca(codigoAcesso) {
+      let crianca = get(/databases/$(database)/documents/criancas/$(codigoAcesso)).data;
+      return request.auth != null && (
+        crianca.parentId == request.auth.uid ||
+        (
+          'acessoLiberado' in crianca &&
+          'expiraEm' in crianca.acessoLiberado &&
+          crianca.acessoLiberado.expiraEm > request.time
+        )
+      );
+    }
+
+    // -- Responsaveis --
     match /responsaveis/{uid} {
       allow read: if request.auth != null &&
         (request.auth.uid == uid ||
@@ -10,20 +27,20 @@ service cloud.firestore {
       allow write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // ── Log ECA — imutável por lei ──
+    // -- Log ECA - imutavel por lei --
     match /eca_logs/{logId} {
       allow create: if request.auth != null;
       allow read:   if request.auth != null && resource.data.userId == request.auth.uid;
       allow update, delete: if false;
     }
 
-    // ── Crianças ──
+    // -- Criancas --
     match /criancas/{codigoAcesso} {
       allow create: if request.auth != null && request.resource.data.parentId == request.auth.uid;
-      // get = buscar 1 criança sabendo o codigoAcesso exato (login do pai OU da criança, ambos precisam)
+      // get = buscar 1 crianca sabendo o codigoAcesso exato (login do pai OU da crianca, ambos precisam)
       allow get:    if request.auth != null;
-      // list = varrer a coleção inteira — só o próprio pai pode listar OS FILHOS DELE.
-      // Sem isso, qualquer conta logada conseguia rodar 1 consulta e baixar TODAS as crianças de TODAS as famílias.
+      // list = varrer a colecao inteira -- so o proprio pai pode listar OS FILHOS DELE.
+      // Sem isso, qualquer conta logada conseguia rodar 1 consulta e baixar TODAS as criancas de TODAS as familias.
       allow list:   if request.auth != null && resource.data.parentId == request.auth.uid;
       allow update: if request.auth != null && (
         // Pai: edita dados gerais, NUNCA campos de pagamento/trial (so Cloud Functions)
@@ -33,38 +50,51 @@ service cloud.firestore {
         // Primeiro acesso da crianca: carimba trialInicio uma unica vez, com hora do servidor
         (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['trialInicio', 'atualizadoEm']) &&
          !('trialInicio' in resource.data) &&
-         request.resource.data.trialInicio == request.time));
+         request.resource.data.trialInicio == request.time) ||
+        // B12/B3: o proprio pai cria, renova ou revoga a liberacao de acesso.
+        // Teto de 180 dias, carimbado pelo relogio do servidor -- nunca uma liberacao eterna.
+        (resource.data.parentId == request.auth.uid &&
+         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['acessoLiberado', 'atualizadoEm']) &&
+         (
+           !('acessoLiberado' in request.resource.data) ||
+           (
+             request.resource.data.acessoLiberado.liberadoPor == request.auth.uid &&
+             request.resource.data.acessoLiberado.expiraEm is timestamp &&
+             request.resource.data.acessoLiberado.expiraEm <= request.time + duration.value(180, 'd')
+           )
+         ))
+      );
       allow delete: if request.auth != null && request.auth.token.email == "thiago.rpba@gmail.com";
     }
 
-    // ── Progresso ──
+    // -- Progresso --
     match /progresso/{codigoAcesso} {
-      allow read, write: if request.auth != null;
+      allow read, write: if acessoAtivoParaCrianca(codigoAcesso);
     }
 
-    // ── Missões ──
+    // -- Missoes --
     match /missoes/{codigoAcesso}/geradas/{missaoId} {
-      allow create: if request.auth != null;
-      allow read:   if request.auth != null;
-      allow update: if request.auth != null &&
+      allow create: if acessoAtivoParaCrianca(codigoAcesso);
+      allow read:   if acessoAtivoParaCrianca(codigoAcesso);
+      allow update: if acessoAtivoParaCrianca(codigoAcesso) &&
         request.resource.data.diff(resource.data).affectedKeys()
           .hasOnly(['feita', 'feitaEm']);
       allow delete: if false;
     }
 
-    // ── Sessões de quiz ──
+    // -- Sessoes de quiz --
     match /quizSessions/{sessionId} {
-      allow create: if request.auth != null;
-      allow read:   if request.auth != null;
+      allow create: if acessoAtivoParaCrianca(request.resource.data.codigoAcesso);
+      allow read:   if acessoAtivoParaCrianca(resource.data.codigoAcesso);
       allow update, delete: if false;
     }
 
-    // ── Demos ──
+    // -- Demos --
     match /demos/{uid} {
       allow read, write: if request.auth != null && request.auth.uid == uid;
     }
 
-    // ── Podcasts — leitura pública autenticada, escrita só admin ──
+    // -- Podcasts -- leitura publica autenticada, escrita so admin --
     match /podcasts/{podcastId} {
       allow read:   if request.auth != null;
       allow create, update, delete: if request.auth != null &&

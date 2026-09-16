@@ -132,14 +132,36 @@ export async function getCriancaPorPai(uidPai) {
   const snap = await getDocs(q);
   if (snap.empty) return null;
   const d = snap.docs[0];
+  renovarAcessoLiberado(d.id, uidPai).catch(() => {});
   return { id: d.id, ...d.data() };
+}
+
+/** Renova a liberacao de acesso por mais 180 dias (chamada toda vez que o Painel carrega os dados da crianca) */
+export async function renovarAcessoLiberado(codigoAcesso, uidPai) {
+  const agora = new Date();
+  const expiraEm = new Date(agora.getTime() + 180 * 24 * 60 * 60 * 1000);
+  await updateDoc(doc(db, "criancas", codigoAcesso), {
+    acessoLiberado: {
+      liberadoPor: uidPai,
+      liberadoEm: agora,
+      expiraEm: expiraEm,
+    },
+    atualizadoEm: serverTimestamp(),
+  });
 }
 
 /** Cria perfil da criança */
 export async function criarCrianca(codigoAcesso, dados) {
+  const agora = new Date();
+  const expiraEm = new Date(agora.getTime() + 180 * 24 * 60 * 60 * 1000);
   await setDoc(doc(db, "criancas", codigoAcesso), {
     status: "ativo",
     ...dados,
+    acessoLiberado: {
+      liberadoPor: dados.parentId,
+      liberadoEm: agora,
+      expiraEm: expiraEm,
+    },
     criadoEm: serverTimestamp(),
     atualizadoEm: serverTimestamp(),
   });
