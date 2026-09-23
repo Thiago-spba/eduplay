@@ -16,6 +16,23 @@ const SERIES_PERMITIDAS     = ['6ano', '7ano', '8ano', '9ano']
 const BIMESTRES_PERMITIDOS  = ['1bimestre', '2bimestre', '3bimestre', '4bimestre']
 const TEMA_MAX_CHARS        = 120
 
+// Validacao do quiz gerado pela IA. O gabarito e verificavel: a IA escreve a
+// resposta certa em "respostaCorreta", ela DEVE ser a opcao 0 e as 4 opcoes
+// devem ser diferentes. O app embaralha as opcoes ao exibir para a crianca.
+const normQuiz = (t) => String(t).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim()
+function validarQuiz(quiz) {
+  return Array.isArray(quiz) && quiz.length > 0 && quiz.every(q => {
+    if (!q || typeof q.pergunta !== 'string' || !q.pergunta.trim()) return false
+    if (typeof q.explicacao !== 'string' || !q.explicacao.trim()) return false
+    if (typeof q.respostaCorreta !== 'string' || !q.respostaCorreta.trim()) return false
+    if (!Array.isArray(q.opcoes) || q.opcoes.length !== 4) return false
+    if (!q.opcoes.every(o => typeof o === 'string' && o.trim())) return false
+    if (q.correta !== 0) return false
+    if (normQuiz(q.opcoes[0]) !== normQuiz(q.respostaCorreta)) return false
+    return new Set(q.opcoes.map(normQuiz)).size === 4
+  })
+}
+
 const CURRICULO = {
   historia: {
     '6ano': {
@@ -291,21 +308,24 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
     "quiz": [
       {
         "pergunta": "pergunta clara, contextualizada, sem pegadinha",
-        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
-        "correta": índice_correto_entre_0_e_3,
-        "explicacao": "explicação que revela o porquê, não só o quê — 1-2 frases instigantes"
+        "explicacao": "PRIMEIRO resolva: explique o porquê da resposta certa em 1-2 frases instigantes (em conta de matemática, mostre o cálculo)",
+        "respostaCorreta": "o texto EXATO da resposta certa, conforme a explicação acima",
+        "opcoes": ["repita aqui o texto exato de respostaCorreta", "erro plausível 1", "erro plausível 2", "erro plausível 3"],
+        "correta": 0
       },
       {
         "pergunta": "segunda pergunta — nível ligeiramente maior",
-        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
-        "correta": índice_correto_entre_0_e_3,
-        "explicacao": "explicação com dado curioso ou conexão com o presente"
+        "explicacao": "explicação com dado curioso ou conexão com o presente (resolva antes de escolher a resposta)",
+        "respostaCorreta": "texto exato da resposta certa",
+        "opcoes": ["repita o texto exato de respostaCorreta", "erro plausível 1", "erro plausível 2", "erro plausível 3"],
+        "correta": 0
       },
       {
         "pergunta": "terceira pergunta — conexão com realidade do aluno",
-        "opcoes": ["opção A", "opção B", "opção C", "opção D"],
-        "correta": índice_correto_entre_0_e_3,
-        "explicacao": "explicação que amplia a visão de mundo do aluno"
+        "explicacao": "explicação que amplia a visão de mundo do aluno (resolva antes de escolher a resposta)",
+        "respostaCorreta": "texto exato da resposta certa",
+        "opcoes": ["repita o texto exato de respostaCorreta", "erro plausível 1", "erro plausível 2", "erro plausível 3"],
+        "correta": 0
       }
     ],
     "forca": {
@@ -326,7 +346,7 @@ REGRAS INVIOLÁVEIS:
 - Conteúdo 100% alinhado ao currículo e factualmente correto — nunca invente datas, nomes ou dados que você não tenha certeza absoluta
 - Palavras da forca: "palavra" apenas letras maiúsculas A-Z, sem acentos, sem espaços; "palavraAcentuada" é a mesma palavra com a grafia correta em português
 - Dicas da forca: 3 dicas progressivas em linguagem que um aluno da série indicada entende sem consultar nada; nunca use a própria palavra (nem parte dela) na dica; evite metáforas e termos mais difíceis que a própria palavra
-- 4 opções no quiz sempre, apenas uma correta — antes de responder, confira mentalmente se o índice marcado como "correta" é REALMENTE a resposta certa, e se a explicação não contradiz a opção marcada
+- Quiz: escreva a "explicacao" ANTES (resolvendo a questão passo a passo), depois "respostaCorreta" coerente com ela. A opção 0 é SEMPRE a resposta correta (igual a "respostaCorreta") e "correta" é SEMPRE 0; as opções 1, 2 e 3 são erros plausíveis, todos DIFERENTES entre si e diferentes da correta (o app embaralha as opções depois). Nunca deixe a explicação apontar para uma opção diferente da correta
 - Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa
 - O título deve dizer o tema em palavras que o aluno da série conhece; metáfora só se o tema continuar evidente
 - Temas sensíveis (guerras, Holocausto, ditadura, escravidão, sexualidade e saúde): trate com respeito, sem detalhes gráficos, com linguagem adequada à idade e foco em compreender, não em chocar
@@ -337,7 +357,7 @@ REGRAS INVIOLÁVEIS:
     try {
       // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
       const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 2500, temperature: 0.5,
+        model: 'claude-haiku-4-5-20251001', max_tokens: 3200, temperature: 0.5,
         messages: [{ role: 'user', content: prompt }],
       })
       resposta = msg.content[0].text
@@ -358,12 +378,7 @@ REGRAS INVIOLÁVEIS:
     }
     // Validacao de conteudo — garante que cada pergunta do quiz faz sentido
     // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
-    const quizValidoManual = missao.atividades.quiz.every(q =>
-      q && typeof q.pergunta === 'string' && q.pergunta.trim() &&
-      Array.isArray(q.opcoes) && q.opcoes.length === 4 &&
-      q.opcoes.every(o => typeof o === 'string' && o.trim()) &&
-      Number.isInteger(q.correta) && q.correta >= 0 && q.correta <= 3
-    )
+    const quizValidoManual = validarQuiz(missao.atividades.quiz)
     if (!quizValidoManual) {
       console.warn('[gerarMissao] quiz invalido descartado:', JSON.stringify(missao.atividades.quiz))
       throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade. Tente novamente.')
@@ -1128,21 +1143,24 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
     "quiz": [
       {
         "pergunta": "pergunta clara e contextualizada",
-        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
-        "correta": indice_correto_entre_0_e_3,
-        "explicacao": "explicacao de 1-2 frases"
+        "explicacao": "PRIMEIRO resolva: explicacao de 1-2 frases (em conta de matematica mostre o calculo)",
+        "respostaCorreta": "texto EXATO da resposta certa, conforme a explicacao",
+        "opcoes": ["repita o texto exato de respostaCorreta", "erro plausivel 1", "erro plausivel 2", "erro plausivel 3"],
+        "correta": 0
       },
       {
         "pergunta": "segunda pergunta nivel medio",
-        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
-        "correta": indice_correto_entre_0_e_3,
-        "explicacao": "explicacao com dado curioso"
+        "explicacao": "explicacao com dado curioso (resolva antes de escolher a resposta)",
+        "respostaCorreta": "texto exato da resposta certa",
+        "opcoes": ["repita o texto exato de respostaCorreta", "erro plausivel 1", "erro plausivel 2", "erro plausivel 3"],
+        "correta": 0
       },
       {
         "pergunta": "terceira pergunta conexao com realidade",
-        "opcoes": ["opcao A", "opcao B", "opcao C", "opcao D"],
-        "correta": indice_correto_entre_0_e_3,
-        "explicacao": "explicacao que amplia visao"
+        "explicacao": "explicacao que amplia visao (resolva antes de escolher a resposta)",
+        "respostaCorreta": "texto exato da resposta certa",
+        "opcoes": ["repita o texto exato de respostaCorreta", "erro plausivel 1", "erro plausivel 2", "erro plausivel 3"],
+        "correta": 0
       }
     ],
     "forca": {
@@ -1156,11 +1174,11 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
-REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. Antes de responder, confira se o indice marcado como correta é REALMENTE certo e se a explicacao nao contradiz a opcao marcada. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra com letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas. Responda APENAS JSON puro sem markdown.`
+REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo), depois respostaCorreta coerente com ela. A opcao 0 e SEMPRE a resposta correta (igual a respostaCorreta) e correta e SEMPRE 0; as opcoes 1, 2 e 3 sao erros plausiveis, todos diferentes entre si e da correta (o app embaralha depois). Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. A explicacao nunca pode apontar para uma opcao diferente da correta. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra com letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
-              max_tokens: 2500,
+              max_tokens: 3200,
               temperature: 0.5,
               messages: [{ role: 'user', content: prompt }]
             })
@@ -1178,12 +1196,7 @@ REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com respost
             // Validacao de conteudo — garante que o quiz gerado faz sentido
             // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
             const quiz = missao?.atividades?.quiz
-            const quizValido = Array.isArray(quiz) && quiz.length > 0 && quiz.every(q =>
-              q && typeof q.pergunta === 'string' && q.pergunta.trim() &&
-              Array.isArray(q.opcoes) && q.opcoes.length === 4 &&
-              q.opcoes.every(o => typeof o === 'string' && o.trim()) &&
-              Number.isInteger(q.correta) && q.correta >= 0 && q.correta <= 3
-            )
+            const quizValido = validarQuiz(quiz)
             const forca = missao?.atividades?.forca
             const forcaValida = forca && typeof forca.palavra === 'string' &&
               /^[A-Z0-9]+$/.test(forca.palavra) &&

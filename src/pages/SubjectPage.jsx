@@ -148,6 +148,13 @@ function textoOpcao(val) {
   return String(val);
 }
 
+// ── Soma as notas das atividades (quiz + forca) para a nota final da missão ──
+// Antes, a nota final era a da ÚLTIMA atividade concluída (ex.: quiz 1/3 e forca 1/1 mostrava 100%).
+function somarNotas(notas) {
+  const partes = [notas?.quiz, notas?.forca].filter(Boolean);
+  return [partes.reduce((s, p) => s + p.a, 0), partes.reduce((s, p) => s + p.t, 0)];
+}
+
 const normalizarTexto = (t) =>
   String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -863,6 +870,7 @@ export default function SubjectPage() {
   const [atividade, setAtividade] = useState(null);
   const [resultado, setResultado] = useState(null);
   const [missaoConcluida, setMissaoConcluida] = useState(null);
+  const [notas, setNotas] = useState({ quiz: null, forca: null });
   const [bloqueioSaida, setBloqueioSaida] = useState(false);
   const [arquivoSecreto, setArquivoSecreto] = useState(null);
   const [arquivoAberto, setArquivoAberto] = useState(false);
@@ -1238,10 +1246,12 @@ export default function SubjectPage() {
           <Quiz
             perguntas={moduloSelecionado.atividades?.quiz}
             onConcluir={(a, t) => {
+              const notasAtuais = { ...notas, quiz: { a, t } };
+              setNotas(notasAtuais);
               setEtapasConcluidas(prev => ({ ...prev, quiz: true }));
-              // Se todas as etapas estao completas, conclui a missao inteira
+              // Se todas as etapas estao completas, conclui a missao inteira com a nota SOMADA
               if (etapasConcluidas.leitura && etapasConcluidas.forca) {
-                concluir(a, t);
+                concluir(...somarNotas(notasAtuais));
               } else {
                 // Mostra resultado parcial do quiz via alert e volta
                 const pct = t > 0 ? Math.round((a / t) * 100) : 0;
@@ -1259,9 +1269,11 @@ export default function SubjectPage() {
           <Forca
             dados={moduloSelecionado.atividades?.forca}
             onConcluir={(a, t) => {
+              const notasAtuais = { ...notas, forca: { a, t } };
+              setNotas(notasAtuais);
               setEtapasConcluidas(prev => ({ ...prev, forca: true }));
               if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
-                concluir(a, t);
+                concluir(...somarNotas(notasAtuais));
               } else {
                 setTimeout(() => {
                   alert(a > 0 ? "Parabéns! Você descobriu a palavra!\n\nComplete as outras etapas para finalizar a missão." : "Boa tentativa!\n\nComplete as outras etapas para finalizar a missão.");
@@ -1871,7 +1883,11 @@ export default function SubjectPage() {
             {missoes.map((m, idx) => (
               <button
                 key={m.id || idx}
-                onClick={() => setModuloAtivo(idx)}
+                onClick={() => {
+                  setEtapasConcluidas({ leitura: false, quiz: false, forca: false });
+                  setNotas({ quiz: null, forca: null });
+                  setModuloAtivo(idx);
+                }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.transform = "translateY(-3px)";
                   e.currentTarget.style.borderColor = cor;
