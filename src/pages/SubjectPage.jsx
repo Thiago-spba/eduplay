@@ -131,9 +131,14 @@ function PageHeader({
   );
 }
 
-// ── Embaralha array sem mutar o original ──
+// ── Embaralha array sem mutar o original (Fisher-Yates: sem viés) ──
 function embaralhar(arr) {
-  return [...arr].sort(() => Math.random() - 0.5);
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
 }
 
 // ── Normaliza qualquer valor para texto puro ──
@@ -143,6 +148,43 @@ function textoOpcao(val) {
   return String(val);
 }
 
+const normalizarTexto = (t) =>
+  String(t ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase().replace(/\s+/g, " ");
+
+// ── Descobre, com segurança, QUAL alternativa é a correta ──
+// Devolve o índice (0..n-1) ou -1 se não for possível ter certeza.
+// Antes, quando o texto da resposta não batia com nenhuma alternativa, o app assumia a posição 0
+// DEPOIS de embaralhar — ou seja, a "correta" mudava a cada vez que o quiz abria (bug reportado).
+function indiceCorreto(q) {
+  const opcoes = Array.isArray(q?.opcoes) ? q.opcoes : [];
+  const n = opcoes.length;
+  if (n < 2) return -1;
+  const bruto = q?.correta;
+  // 1) número inteiro = índice
+  if (typeof bruto === "number" && Number.isInteger(bruto)) {
+    return bruto >= 0 && bruto < n ? bruto : -1;
+  }
+  const txt = textoOpcao(bruto).trim();
+  if (!txt) return -1;
+  // 2) texto igual a UMA alternativa (sem considerar acento/maiúscula)
+  const alvo = normalizarTexto(txt);
+  const iguais = opcoes.map((o, i) => (normalizarTexto(textoOpcao(o)) === alvo ? i : -1)).filter((i) => i >= 0);
+  if (iguais.length === 1) return iguais[0];
+  if (iguais.length > 1) return -1; // alternativas repetidas: ambíguo
+  // 3) letra: "B", "b)", "Opção C"
+  const letra = txt.match(/^(?:op[cç][aã]o\s*)?([A-Da-d])\s*[).:\-]?$/i);
+  if (letra) {
+    const k = letra[1].toUpperCase().charCodeAt(0) - 65;
+    return k < n ? k : -1;
+  }
+  // 4) número em texto: "2"
+  if (/^\d+$/.test(txt)) {
+    const k = parseInt(txt, 10);
+    return k >= 0 && k < n ? k : -1;
+  }
+  return -1;
+}
+
 // ── Quiz com alternativas embaralhadas ──
 function Quiz({ perguntas, onConcluir, cor, c }) {
   const [indice, setIndice] = useState(0);
@@ -150,27 +192,35 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
   const [respondeu, setRespondeu] = useState(false);
   const [acertos, setAcertos] = useState(0);
 
-  // Embaralha as opções uma vez ao montar, guardando o texto correto
+  // Embaralha as alternativas UMA vez ao montar. Embaralhamos os ÍNDICES (não os textos), então a
+  // alternativa correta é sempre rastreada pela posição original. Perguntas cuja resposta correta
+  // não pode ser identificada com segurança são ignoradas (melhor pular do que "corrigir" errado).
   const [perguntasEmbaralhadas] = useState(() =>
-    perguntas.map((q) => {
-      const textoCorreto = typeof q.correta === "number"
-        ? textoOpcao(q.opcoes[q.correta])
-        : textoOpcao(q.correta);
-      const opcoesTexto = q.opcoes.map(textoOpcao);
-      const opcoesNovas = embaralhar(opcoesTexto);
-      const novoIdx = opcoesNovas.findIndex(
-        (op) => op.trim().toLowerCase() === textoCorreto.trim().toLowerCase()
-      );
-      return {
-        ...q,
-        opcoes: opcoesNovas,
-        correta: novoIdx >= 0 ? novoIdx : 0,
-        explicacao: textoOpcao(q.explicacao) || "Continue estudando!",
-      };
-    }),
+    (Array.isArray(perguntas) ? perguntas : [])
+      .map((q) => {
+        const idxCerto = indiceCorreto(q);
+        if (idxCerto < 0) {
+          console.warn("[Quiz] pergunta ignorada: não foi possível identificar a alternativa correta:", q?.pergunta);
+          return null;
+        }
+        const ordem = embaralhar(q.opcoes.map((_, i) => i));
+        return {
+          ...q,
+          opcoes: ordem.map((i) => textoOpcao(q.opcoes[i])),
+          correta: ordem.indexOf(idxCerto),
+          explicacao: textoOpcao(q.explicacao) || "Continue estudando!",
+        };
+      })
+      .filter(Boolean),
   );
 
-  if (!perguntasEmbaralhadas?.length) return null;
+  if (!perguntasEmbaralhadas.length) {
+    return (
+      <div style={{ padding: "32px 20px", textAlign: "center", color: c.textoSub, fontSize: "0.95rem", lineHeight: 1.5 }}>
+        Ops! As perguntas desta missão estão com problema. Volte e escolha outra missão. 🙏
+      </div>
+    );
+  }
   const q = perguntasEmbaralhadas[indice];
   const total = perguntasEmbaralhadas.length;
 
@@ -363,8 +413,10 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
 
 function Forca({ dados, onConcluir, cor, c }) {
   const MAX_ERROS = 6;
+  const GAP_LETRA = 4;
   const [letrasUsadas, setLetrasUsadas] = useState(new Set());
   const [erros, setErros] = useState(0);
+  const [dicasPedidas, setDicasPedidas] = useState(0);
 
   const extrairTexto = (dado) => {
     if (dado == null) return "";
@@ -373,11 +425,49 @@ function Forca({ dados, onConcluir, cor, c }) {
     return String(dado);
   };
   const dadosNorm = Array.isArray(dados) ? (dados[0] || {}) : (dados || {});
-  // dados da forca ok
   const palavraRaw = dadosNorm.palavra || dadosNorm.palavra_chave || dadosNorm.resposta || dadosNorm.word || "APRENDER";
-  // Remove acentos para o teclado A-Z funcionar
-  const removerAcentos = (str) => str.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const removerAcentos = (str) => str.normalize("NFD").replace(/[̀-ͯ]/g, "");
+
+  // Palavra "base" (A-Z, sem acento): é ela que o teclado compara.
   const palavra = removerAcentos(extrairTexto(palavraRaw).toUpperCase()).replace(/[^A-Z ]/g, "");
+
+  // Forma para EXIBIR, com acentos/cedilha/hífen (ex.: TRANSPIRAÇÃO).
+  // Só é usada se, sem acentos, for exatamente a mesma palavra base.
+  const exibRaw = extrairTexto(dadosNorm.palavraAcentuada || dadosNorm.palavra_acentuada || "").toUpperCase().trim();
+  const exibValida =
+    exibRaw !== "" &&
+    /^[A-ZÀ-ÖØ-Þ\- ]+$/.test(exibRaw) &&
+    removerAcentos(exibRaw).replace(/[^A-Z ]/g, "") === palavra;
+  const textoExibicao = exibValida ? exibRaw : palavra;
+
+  // Cada caractere vira um "slot": letra (adivinhável), espaço ou fixo (hífen etc.)
+  const slots = textoExibicao.split("").map((ch) => {
+    if (ch === " ") return { tipo: "espaco" };
+    const base = removerAcentos(ch);
+    if (/^[A-Z]$/.test(base)) return { tipo: "letra", base, ch };
+    return { tipo: "fixo", ch };
+  });
+
+  // Agrupa por palavra: uma palavra NUNCA quebra no meio da linha
+  const grupos = [];
+  let atual = [];
+  slots.forEach((s) => {
+    if (s.tipo === "espaco") {
+      if (atual.length) grupos.push(atual);
+      atual = [];
+    } else {
+      atual.push(s);
+    }
+  });
+  if (atual.length) grupos.push(atual);
+
+  const letrasDaPalavra = slots.filter((s) => s.tipo === "letra");
+  const totalLetras = letrasDaPalavra.length;
+  const maiorGrupo = Math.max(1, ...grupos.map((g) => g.length));
+  // Encolhe as letras para a palavra mais longa caber inteira na largura disponível
+  const larguraSlot = `min(36px, calc((min(100vw, 480px) - 32px - ${(maiorGrupo - 1) * GAP_LETRA}px) / ${maiorGrupo}))`;
+  const fonteSlot = maiorGrupo > 11 ? "1.15rem" : maiorGrupo > 8 ? "1.3rem" : "1.5rem";
+
   // Suporta dicas (array novo) e dica (string antigo)
   let dicasArray = [];
   if (Array.isArray(dadosNorm.dicas) && dadosNorm.dicas.length > 0) {
@@ -385,19 +475,15 @@ function Forca({ dados, onConcluir, cor, c }) {
   } else if (dadosNorm.dica) {
     // Formato antigo: expande 1 dica em 3 progressivas
     const dicaBase = extrairTexto(dadosNorm.dica);
-    dicasArray = [dicaBase, "Pense nas letras mais comuns da palavra.", "A palavra tem " + (palavra.replace(/ /g,"").length) + " letras."];
+    dicasArray = [dicaBase, "Pense nas letras mais comuns da palavra.", "A palavra tem " + totalLetras + " letras."];
   } else {
-    dicasArray = ["Pense bem sobre o conteudo estudado!", "Relembre o que voce leu.", "A palavra esta relacionada ao tema da missao."];
+    dicasArray = ["Pense bem sobre o conteúdo estudado!", "Relembre o que você leu.", "A palavra está relacionada ao tema da missão."];
   }
 
-  // Dica 1 sempre visivel, libera proxima a cada 2 erros
-  const dicasLiberadas = Math.min(Math.floor(erros / 2) + 1, dicasArray.length);
-  const dica = dicasArray.slice(0, dicasLiberadas).join(" | ");
+  // Dica 1 sempre visível. Novas dicas: a cada 2 erros OU quando a criança pedir.
+  const dicasLiberadas = Math.min(1 + Math.max(Math.floor(erros / 2), dicasPedidas), dicasArray.length);
 
-  const completa = palavra
-    .split("")
-    .filter((l) => l !== " ")
-    .every((l) => letrasUsadas.has(l));
+  const completa = letrasDaPalavra.every((s) => letrasUsadas.has(s.base));
   const perdeu = erros >= MAX_ERROS;
 
   useEffect(() => {
@@ -412,6 +498,19 @@ function Forca({ dados, onConcluir, cor, c }) {
     setLetrasUsadas(novas);
     if (!palavra.includes(letra)) setErros((e) => e + 1);
   };
+
+  // Teclado físico (computador): digitar a letra também funciona
+  useEffect(() => {
+    const aoTeclar = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const tag = (e.target && e.target.tagName) || "";
+      if (tag === "INPUT" || tag === "TEXTAREA") return;
+      const k = removerAcentos(String(e.key || "").toUpperCase());
+      if (/^[A-Z]$/.test(k)) tentarLetra(k);
+    };
+    window.addEventListener("keydown", aoTeclar);
+    return () => window.removeEventListener("keydown", aoTeclar);
+  });
 
   return (
     <div
@@ -432,23 +531,44 @@ function Forca({ dados, onConcluir, cor, c }) {
             border: `1.5px solid ${i === dicasLiberadas - 1 ? cor : cor + "33"}`,
             borderRadius: 12,
             padding: "10px 16px",
-            fontSize: i === dicasLiberadas - 1 ? "0.88rem" : "0.78rem",
+            fontSize: i === dicasLiberadas - 1 ? "0.95rem" : "0.85rem",
+            lineHeight: 1.4,
             color: c.texto,
             fontWeight: i === dicasLiberadas - 1 ? 700 : 500,
             width: "100%",
             textAlign: "center",
-            opacity: i === dicasLiberadas - 1 ? 1 : 0.6,
+            opacity: i === dicasLiberadas - 1 ? 1 : 0.7,
           }}>
             {i === 0 ? "💡" : i === 1 ? "🔍" : "🎯"} Dica {i + 1}: {d}
           </div>
         ))}
-        {dicasLiberadas < dicasArray.length && (
-          <div style={{ fontSize: "0.72rem", color: c.textoSub, textAlign: "center" }}>
-            +{dicasArray.length - dicasLiberadas} dica{dicasArray.length - dicasLiberadas > 1 ? "s" : ""} disponível a cada 2 erros
-          </div>
+        {!completa && !perdeu && dicasLiberadas < dicasArray.length && (
+          <button
+            onClick={() => setDicasPedidas(dicasLiberadas)}
+            style={{
+              alignSelf: "center",
+              minHeight: 44,
+              padding: "8px 18px",
+              borderRadius: 12,
+              border: `1.5px dashed ${cor}`,
+              background: "transparent",
+              color: cor,
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              cursor: "pointer",
+              fontFamily: "'Nunito', sans-serif",
+            }}
+          >
+            💡 Preciso de outra dica
+          </button>
         )}
       </div>
-      <div style={{ display: "flex", gap: 6 }}>
+
+      <div
+        role="img"
+        aria-label={`${MAX_ERROS - erros} vidas restantes de ${MAX_ERROS}`}
+        style={{ display: "flex", gap: 6 }}
+      >
         {Array.from({ length: MAX_ERROS }, (_, i) => (
           <div
             key={i}
@@ -468,51 +588,64 @@ function Forca({ dados, onConcluir, cor, c }) {
           </div>
         ))}
       </div>
+
+      <div style={{ fontSize: "0.78rem", color: c.textoSub, fontWeight: 600 }}>
+        {grupos.length > 1
+          ? `${grupos.length} palavras • ${totalLetras} letras`
+          : `Palavra com ${totalLetras} letras`}
+      </div>
+
       <div
+        aria-label={`Palavra com ${totalLetras} letras`}
         style={{
           display: "flex",
-          gap: 8,
           flexWrap: "wrap",
           justifyContent: "center",
+          columnGap: 18,
+          rowGap: 12,
+          width: "100%",
         }}
       >
-        {palavra.split("").map((letra, i) =>
-          letra === " " ? (
-            <div key={i} style={{ width: 20 }} />
-          ) : (
-            <div
-              key={i}
-              style={{
-                width: 34,
-                height: 42,
-                borderBottom: `3px solid ${cor}`,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                fontSize: "1.4rem",
-                fontWeight: 700,
-                color: c.texto,
-                fontFamily: "'Fredoka', sans-serif",
-              }}
-            >
-              {letrasUsadas.has(letra) ? (
-                letra
-              ) : perdeu ? (
-                <span style={{ color: "#FF6B6B" }}>{letra}</span>
-              ) : (
-                ""
-              )}
-            </div>
-          ),
-        )}
+        {grupos.map((grupo, gi) => (
+          <div key={gi} style={{ display: "flex", flexWrap: "nowrap", gap: GAP_LETRA }}>
+            {grupo.map((s, i) => (
+              <div
+                key={i}
+                style={{
+                  width: larguraSlot,
+                  height: 44,
+                  borderBottom: s.tipo === "fixo" ? "3px solid transparent" : `3px solid ${cor}`,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  fontSize: fonteSlot,
+                  fontWeight: 700,
+                  color: s.tipo === "fixo" ? c.textoSub : c.texto,
+                  fontFamily: "'Fredoka', sans-serif",
+                }}
+              >
+                {s.tipo === "fixo" ? (
+                  s.ch
+                ) : letrasUsadas.has(s.base) ? (
+                  s.ch
+                ) : perdeu ? (
+                  <span style={{ color: "#FF6B6B" }}>{s.ch}</span>
+                ) : (
+                  ""
+                )}
+              </div>
+            ))}
+          </div>
+        ))}
       </div>
+
       <div
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: 5,
+          gap: 6,
           justifyContent: "center",
-          maxWidth: 320,
+          maxWidth: 440,
         }}
       >
         {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((l) => {
@@ -524,14 +657,15 @@ function Forca({ dados, onConcluir, cor, c }) {
               key={l}
               onClick={() => tentarLetra(l)}
               disabled={usada || completa || perdeu}
+              aria-label={`Letra ${l}`}
               style={{
-                width: 36,
-                height: 36,
-                borderRadius: 9,
+                width: 42,
+                height: 42,
+                borderRadius: 10,
                 border: `2px solid ${certa ? cor : errada ? "#FF6B6B44" : c.borda}`,
                 background: certa ? `${cor}22` : errada ? "#FF6B6B11" : c.card,
                 color: certa ? cor : errada ? "#FF6B6B" : c.texto,
-                fontSize: "0.82rem",
+                fontSize: "1rem",
                 fontWeight: 700,
                 cursor: usada ? "default" : "pointer",
                 opacity: usada ? 0.5 : 1,
@@ -543,6 +677,7 @@ function Forca({ dados, onConcluir, cor, c }) {
           );
         })}
       </div>
+
       {(completa || perdeu) && (
         <div
           style={{
@@ -563,13 +698,13 @@ function Forca({ dados, onConcluir, cor, c }) {
             }}
           >
             {completa
-              ? "🌟 Você descobriu a palavra!"
-              : `💪 A palavra era: ${palavra}`}
+              ? `🌟 Você descobriu: ${textoExibicao}!`
+              : `💪 A palavra era: ${textoExibicao}`}
           </p>
           {perdeu && (
             <p
               style={{
-                fontSize: "0.78rem",
+                fontSize: "0.85rem",
                 color: c.textoSub,
                 margin: "6px 0 0",
               }}
@@ -727,6 +862,7 @@ export default function SubjectPage() {
   const [moduloAtivo, setModuloAtivo] = useState(null);
   const [atividade, setAtividade] = useState(null);
   const [resultado, setResultado] = useState(null);
+  const [missaoConcluida, setMissaoConcluida] = useState(null);
   const [bloqueioSaida, setBloqueioSaida] = useState(false);
   const [arquivoSecreto, setArquivoSecreto] = useState(null);
   const [arquivoAberto, setArquivoAberto] = useState(false);
@@ -811,24 +947,62 @@ export default function SubjectPage() {
   }
 
   const cor = disciplinaBase.cor;
-  const moduloSelecionado = moduloAtivo !== null ? missoes[moduloAtivo] : null;
+  // Na tela de resultado usamos a missão "congelada": assim que a conclusão é salva, a missão sai da lista
+  // (listener em tempo real) e o índice passaria a apontar para OUTRA missão.
+  const moduloSelecionado = resultado && missaoConcluida
+    ? missaoConcluida
+    : moduloAtivo !== null ? missoes[moduloAtivo] : null;
 
   // ── Concluir missão ──
   const concluir = async (acertos, total) => {
+    const missaoFeita = moduloSelecionado;
+    setMissaoConcluida(missaoFeita);
     setResultado({ acertos, total });
     setAtividade(null);
     setArquivoAberto(false);
     setArquivoSecreto(null);
     setChatMsgs([]);
     setChatPergs(5);
-    // Gera arquivo secreto em paralelo
+
+    // 1) SALVA A CONCLUSÃO IMEDIATAMENTE (não espera a IA).
+    //    Antes isso só acontecia depois da chamada de IA do "arquivo secreto": se a criança voltasse
+    //    para a home (ou fechasse o app) nesse intervalo, a missão continuava "pendente" e, ao clicar,
+    //    aparecia como já concluída.
+    const salvando = (async () => {
+      if (!(missaoFeita?.id && codigoAcesso)) return;
+      try {
+        await Promise.all([
+          marcarMissaoFeita(codigoAcesso, missaoFeita.id),
+          registrarMissaoConcluida(
+            codigoAcesso,
+            `${disciplinaId}_${missaoFeita.id}`,
+            total > 0 ? Math.round((acertos / total) * 100) : 0,
+          ),
+          // ── Salva resultado para o painel dos pais ──
+          registrarAcessoDiario(codigoAcesso),
+          salvarSessaoQuiz(codigoAcesso, {
+            disciplina: disciplinaId,
+            tituloMissao: missaoFeita.titulo || "",
+            topicos: missaoFeita.topicos || [],
+            acertos,
+            total,
+            percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
+          }),
+        ]);
+        setMissoes((prev) => prev.filter((m) => m.id !== missaoFeita.id));
+      } catch (err) {
+        console.error("Erro ao salvar conclusao:", err);
+      }
+    })();
+
+    // 2) Em paralelo, gera o arquivo secreto (IA)
     setArquivoCarregando(true);
     try {
       const fn = httpsCallable(functions, "gerarArquivoSecreto");
       const r = await fn({
         disciplina: disciplinaId,
-        tituloMissao: moduloSelecionado?.titulo || "",
-        topicos: moduloSelecionado?.topicos || [],
+        tituloMissao: missaoFeita?.titulo || "",
+        topicos: missaoFeita?.topicos || [],
         serie: localStorage.getItem("eduplay_serie") || "6ano",
         percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
       });
@@ -836,38 +1010,14 @@ export default function SubjectPage() {
     } catch(e) {
       setArquivoSecreto({
         titulo: "O Segredo dos Que Chegaram Longe",
-        mensagem: "Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.",
-        curiosidade: "Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.",
+        mensagem: "Você acaba de aprender algo novo. Cada missão concluída é um passo na construção do seu futuro.",
+        curiosidade: "Aprender um pouco a cada dia, com constância, funciona melhor do que estudar tudo de uma vez — uma missão de cada vez.",
         escola: ""
       });
     } finally {
       setArquivoCarregando(false);
     }
-    if (moduloSelecionado?.id && codigoAcesso) {
-      try {
-        await Promise.all([
-          marcarMissaoFeita(codigoAcesso, moduloSelecionado.id),
-          registrarMissaoConcluida(
-            codigoAcesso,
-            `${disciplinaId}_${moduloSelecionado.id}`,
-            total > 0 ? Math.round((acertos / total) * 100) : 0,
-          ),
-          // ── Salva resultado para o painel dos pais ──
-          registrarAcessoDiario(codigoAcesso),
-          salvarSessaoQuiz(codigoAcesso, {
-            disciplina: disciplinaId,
-            tituloMissao: moduloSelecionado.titulo || "",
-            topicos: moduloSelecionado.topicos || [],
-            acertos,
-            total,
-            percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
-          }),
-        ]);
-        setMissoes((prev) => prev.filter((m) => m.id !== moduloSelecionado.id));
-      } catch (err) {
-        console.error("Erro ao salvar conclusao:", err);
-      }
-    }
+    await salvando;
   };
 
   const fecharArquivo = () => {
@@ -1096,7 +1246,7 @@ export default function SubjectPage() {
                 // Mostra resultado parcial do quiz via alert e volta
                 const pct = t > 0 ? Math.round((a / t) * 100) : 0;
                 setTimeout(() => {
-                  alert("Quiz concluido! Voce acertou " + a + " de " + t + " (" + pct + "%)\n\nComplete as outras etapas para finalizar a missao.");
+                  alert("Quiz concluído! Você acertou " + a + " de " + t + " (" + pct + "%)\n\nComplete as outras etapas para finalizar a missão.");
                   setAtividade(null);
                 }, 300);
               }
@@ -1114,7 +1264,7 @@ export default function SubjectPage() {
                 concluir(a, t);
               } else {
                 setTimeout(() => {
-                  alert(a > 0 ? "Parabens! Voce descobriu a palavra!\n\nComplete as outras etapas para finalizar a missao." : "Boa tentativa!\n\nComplete as outras etapas para finalizar a missao.");
+                  alert(a > 0 ? "Parabéns! Você descobriu a palavra!\n\nComplete as outras etapas para finalizar a missão." : "Boa tentativa!\n\nComplete as outras etapas para finalizar a missão.");
                   setAtividade(null);
                 }, 300);
               }

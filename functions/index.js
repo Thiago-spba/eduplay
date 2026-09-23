@@ -27,7 +27,7 @@ const CURRICULO = {
     '7ano': {
       '1bimestre': 'Idade Média: feudalismo, Igreja Católica, Cruzadas, vida no feudo, servos e senhores',
       '2bimestre': 'Povos da África e América antes da colonização: impérios africanos, astecas, maias, incas',
-      '3bimestre': 'Grandes Navegações: Portugal, Espanha, rotas marítimas, chegada ao Brasil in 1500',
+      '3bimestre': 'Grandes Navegações: Portugal, Espanha, rotas marítimas, chegada ao Brasil em 1500',
       '4bimestre': 'Colonização do Brasil: pau-brasil, capitanias hereditárias, escravidão indígena e africana',
     },
     '8ano': {
@@ -110,7 +110,7 @@ const CURRICULO = {
     },
     '8ano': {
       '1bimestre': 'Reprodução humana: sistema reprodutor, puberdade, métodos contraceptivos, ISTs',
-      '2bimestre': 'Genética: DNA, cromossomos, heredity, Mendel, biotecnologia',
+      '2bimestre': 'Genética: DNA, cromossomos, hereditariedade, Mendel, biotecnologia',
       '3bimestre': 'Ondas: som, luz, espectro eletromagnético, óptica',
       '4bimestre': 'Eletricidade: cargas elétricas, circuitos, energia elétrica, segurança',
     },
@@ -257,7 +257,7 @@ const antiRepeticao = titulosJaGerados && titulosJaGerados.length > 0
 Crie uma missão educacional para o EduPlay — Instituto do Saber.
 
 CONTEXTO PEDAGÓGICO:
-- Faixa etária: 11-13 anos (Ensino Fundamental II)
+- Faixa etária: 11-14 anos (6º ao 9º ano do Ensino Fundamental II). Ajuste vocabulário e profundidade à série indicada: 6º ano = frases curtas e exemplos do cotidiano; 9º ano = mais abstração e conexões entre conceitos
 - Fase do desenvolvimento: identidade em construção (Erikson)
 - A criança é um "Agente Pesquisador" que investiga mistérios
 - Tom: investigativo, desafiador, respeitoso — NÃO infantilizado
@@ -310,22 +310,26 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
     ],
     "forca": {
       "palavra": "PALAVRA_CHAVE_EM_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
-      "dica": "dica que instiga sem entregar — max 60 chars"
+      "palavraAcentuada": "A MESMA PALAVRA em maiúsculas COM os acentos e o cedilha corretos (ex.: TRANSPIRAÇÃO)",
+      "dicas": ["1ª dica: contexto geral, sem citar a palavra (max 70 chars)", "2ª dica: descrição concreta ou exemplo do dia a dia, em linguagem simples (max 80 chars)", "3ª dica: quase entrega, como uma definição curta (max 80 chars)"]
     },
     "caca": {
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "resumo": "explicação do assunto in 3-4 frases simples e diretas, como um professor falaria para um aluno de 12 anos — sem termos técnicos, sem enrolação",
+  "resumo": "explicação do assunto in 3-4 frases simples e diretas, como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
   "topicos": ["tópico 1 — conceito central", "tópico 2 — curiosidade real", "tópico 3 — conexão com o presente", "tópico 4 — impacto na vida", "tópico 5 — gancho para ir além"],
-  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-13 anos. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
+  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-14 anos, adequada à série indicada. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
 
 REGRAS INVIOLÁVEIS:
 - Conteúdo 100% alinhado ao currículo e factualmente correto — nunca invente datas, nomes ou dados que você não tenha certeza absoluta
-- Palavras da forca: apenas letras maiúsculas A-Z, sem acentos, sem espaços
+- Palavras da forca: "palavra" apenas letras maiúsculas A-Z, sem acentos, sem espaços; "palavraAcentuada" é a mesma palavra com a grafia correta em português
+- Dicas da forca: 3 dicas progressivas em linguagem que um aluno da série indicada entende sem consultar nada; nunca use a própria palavra (nem parte dela) na dica; evite metáforas e termos mais difíceis que a própria palavra
 - 4 opções no quiz sempre, apenas uma correta — antes de responder, confira mentalmente se o índice marcado como "correta" é REALMENTE a resposta certa, e se a explicação não contradiz a opção marcada
 - Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa
+- O título deve dizer o tema em palavras que o aluno da série conhece; metáfora só se o tema continuar evidente
+- Temas sensíveis (guerras, Holocausto, ditadura, escravidão, sexualidade e saúde): trate com respeito, sem detalhes gráficos, com linguagem adequada à idade e foco em compreender, não em chocar
 - Responda APENAS o JSON puro, sem marcação markdown como \`\`\`json`
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
@@ -1106,7 +1110,7 @@ DADOS:
 - Bimestre: ${NOMES.bimestre[bimestre] || bimestre}
 - Curriculo: ${curriculoTema}${antiRep}
 
-Faixa etaria: 11-13 anos. Tom: investigativo, desafiador, NAO infantilizado.
+Faixa etaria: 11-14 anos (6o ao 9o ano). Ajuste vocabulario e profundidade a serie indicada: 6o ano = frases curtas e exemplos do cotidiano; 9o ano = mais abstracao e conexoes entre conceitos. Tom: investigativo, desafiador, NAO infantilizado.
 A crianca e um "Agente Pesquisador" que investiga misterios.
 
 Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
@@ -1143,15 +1147,16 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
     ],
     "forca": {
       "palavra": "PALAVRA_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
-      "dicas": ["dica facil e generica max 40 chars", "dica media mais especifica max 50 chars", "dica forte quase entrega max 60 chars"]
+      "palavraAcentuada": "A MESMA PALAVRA em maiusculas COM acentos e cedilha corretos (ex.: TRANSPIRAÇÃO)",
+      "dicas": ["1a dica: contexto geral sem citar a palavra max 70 chars", "2a dica: descricao concreta ou exemplo do dia a dia em linguagem simples max 80 chars", "3a dica: quase entrega, como definicao curta max 80 chars"]
     }
   },
-  "resumo": "explicacao do assunto em 3-4 frases simples para crianca de 12 anos",
+  "resumo": "explicacao do assunto em 3-4 frases simples para um aluno da serie indicada",
   "topicos": ["topico 1", "topico 2", "topico 3", "topico 4", "topico 5"],
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
-REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. Antes de responder, confira se o indice marcado como correta é REALMENTE certo e se a explicacao nao contradiz a opcao marcada. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. Forca letras A-Z sem acentos sem espacos. dicas e array com 3 strings progressivas. Responda APENAS JSON puro sem markdown.`
+REGRAS: quiz 4 opcoes reais apenas uma correta indice 0-3. Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. Antes de responder, confira se o indice marcado como correta é REALMENTE certo e se a explicacao nao contradiz a opcao marcada. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra com letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
