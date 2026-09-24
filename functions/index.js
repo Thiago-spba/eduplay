@@ -29,8 +29,29 @@ function validarQuiz(quiz) {
     if (!q.opcoes.every(o => typeof o === 'string' && o.trim())) return false
     if (q.correta !== 0) return false
     if (normQuiz(q.opcoes[0]) !== normQuiz(q.respostaCorreta)) return false
-    return new Set(q.opcoes.map(normQuiz)).size === 4
+    if (new Set(q.opcoes.map(normQuiz)).size !== 4) return false
+    // Duas opcoes numericamente equivalentes (ex.: 6 : 5 e 36 : 30, 1/2 e 0,5 e 50%)
+    // deixam a pergunta com mais de uma resposta certa
+    const canon = q.opcoes.map(valorCanonico).filter(v => v !== null)
+    return new Set(canon).size === canon.length
   })
+}
+// Forma canonica de uma opcao puramente numerica: razao reduzida (a : b) ou
+// valor decimal (fracao, decimal, porcentagem). Retorna null se nao for numerica.
+function valorCanonico(opcao) {
+  let s = String(opcao).toLowerCase().replace(/r\$/g, '').replace(/\s+/g, '')
+  if (/^\d{1,3}(\.\d{3})+(,\d+)?$/.test(s)) s = s.replace(/\./g, '')
+  s = s.replace(',', '.')
+  let m
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a)
+  if ((m = s.match(/^(\d+):(\d+)$/))) {
+    const a = Number(m[1]), b = Number(m[2]), g = gcd(a, b) || 1
+    return `r${a / g}:${b / g}`
+  }
+  if ((m = s.match(/^(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)$/)) && Number(m[2]) !== 0) return `v${(Number(m[1]) / Number(m[2])).toFixed(6)}`
+  if ((m = s.match(/^(-?\d+(?:\.\d+)?)%$/))) return `v${(Number(m[1]) / 100).toFixed(6)}`
+  if (/^-?\d+(?:\.\d+)?$/.test(s)) return `v${Number(s).toFixed(6)}`
+  return null
 }
 
 // Limites da palavra da forca por serie: o prompt pede ate LIMITE_FORCA_PROMPT
@@ -398,6 +419,9 @@ REGRAS INVIOLÁVEIS:
 - Quiz: escreva a "explicacao" ANTES (resolvendo a questão passo a passo), depois "respostaCorreta" coerente com ela. A opção 0 é SEMPRE a resposta correta (igual a "respostaCorreta") e "correta" é SEMPRE 0; as opções 1, 2 e 3 são erros plausíveis, todos DIFERENTES entre si e diferentes da correta (o app embaralha as opções depois). Nunca deixe a explicação apontar para uma opção diferente da correta
 - Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa: as opções erradas devem ser claramente erradas para quem estudou, e nunca use como erro um valor que também poderia estar certo conforme a interpretação (ex.: o mesmo número com sinal diferente quando o contexto admite os dois). Se o contexto admitir duas leituras, reescreva a pergunta
 - Tudo que o quiz pergunta precisa estar explicado no "resumo", nos "topicos" ou no "roteiroPodcast" — não cobre o que o aluno não leu
+- Opções erradas NUNCA podem ser formas equivalentes da resposta certa: 6 : 5 e 36 : 30 são a mesma razão; 1/2, 0,5 e 50% são o mesmo valor; 3/4 e 75% também. Use sempre valores realmente diferentes
+- Perguntas de porcentagem (lucro, desconto, aumento) devem dizer na própria pergunta sobre qual base calcular (ex.: "em relação ao custo" ou "sobre o preço de venda"), pois 120 de lucro sobre 240 de custo é 50%, mas sobre 360 de venda é 33%
+- O resumo e o roteiro devem ensinar a MESMA definição que o quiz cobra (se o quiz calcula o lucro sobre o custo, o texto não pode calcular sobre a venda)
 - O "roteiroPodcast" deve ter de 4 a 5 parágrafos separados por linha em branco (\\n\\n), cada um com 3 a 5 frases, desenvolvendo TODO o conteúdo do resumo e dos tópicos — não pare na introdução
 - O título deve dizer o tema em palavras que o aluno da série conhece; metáfora só se o tema continuar evidente
 - Temas sensíveis (guerras, Holocausto, ditadura, escravidão, sexualidade e saúde): trate com respeito, sem detalhes gráficos, com linguagem adequada à idade e foco em compreender, não em chocar
@@ -1243,7 +1267,7 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
-REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo), depois respostaCorreta coerente com ela. A opcao 0 e SEMPRE a resposta correta (igual a respostaCorreta) e correta e SEMPRE 0; as opcoes 1, 2 e 3 sao erros plausiveis, todos diferentes entre si e da correta (o app embaralha depois). Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. A explicacao nunca pode apontar para uma opcao diferente da correta. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa: as opcoes erradas devem ser claramente erradas para quem estudou, e nunca use como erro um valor que tambem poderia estar certo conforme a interpretacao (ex.: o mesmo numero com sinal diferente quando o contexto admite os dois); se o contexto admitir duas leituras, reescreva a pergunta. Tudo que o quiz pergunta precisa estar explicado no resumo, nos topicos ou no roteiro — nao cobre o que o aluno nao leu. NUNCA escreva a data de hoje, o ano atual ou frases como "hoje e dia" em nenhum campo; so cite datas que sejam fatos historicos do curriculo (ex.: 1822). O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra e UMA unica palavra real do dicionario (nunca duas palavras coladas como NUMEROSINTEIROS), com no maximo ${LIMITE_FORCA_PROMPT[serie] || 12} letras, comum ao vocabulario da serie; letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas; a 1a dica deve ser concreta e especifica (nunca vaga como "conceito importante da materia"). O roteiroPodcast deve ter de 4 a 5 paragrafos separados por linha em branco (\\n\\n), cada um com 3 a 5 frases, desenvolvendo TODO o conteudo do resumo e dos topicos — nao pare na introducao. Responda APENAS JSON puro sem markdown.`
+REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo), depois respostaCorreta coerente com ela. A opcao 0 e SEMPRE a resposta correta (igual a respostaCorreta) e correta e SEMPRE 0; as opcoes 1, 2 e 3 sao erros plausiveis, todos diferentes entre si e da correta (o app embaralha depois). Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. A explicacao nunca pode apontar para uma opcao diferente da correta. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa: as opcoes erradas devem ser claramente erradas para quem estudou, e nunca use como erro um valor que tambem poderia estar certo conforme a interpretacao (ex.: o mesmo numero com sinal diferente quando o contexto admite os dois); se o contexto admitir duas leituras, reescreva a pergunta. Tudo que o quiz pergunta precisa estar explicado no resumo, nos topicos ou no roteiro — nao cobre o que o aluno nao leu. Opcoes erradas NUNCA podem ser formas equivalentes da resposta certa (6 : 5 e 36 : 30 sao a mesma razao; 1/2, 0,5 e 50% sao o mesmo valor). Perguntas de porcentagem (lucro, desconto, aumento) devem dizer na propria pergunta sobre qual base calcular (ex.: "em relacao ao custo"). O resumo e o roteiro devem ensinar a MESMA definicao que o quiz cobra. NUNCA escreva a data de hoje, o ano atual ou frases como "hoje e dia" em nenhum campo; so cite datas que sejam fatos historicos do curriculo (ex.: 1822). O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra e UMA unica palavra real do dicionario (nunca duas palavras coladas como NUMEROSINTEIROS), com no maximo ${LIMITE_FORCA_PROMPT[serie] || 12} letras, comum ao vocabulario da serie; letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas; a 1a dica deve ser concreta e especifica (nunca vaga como "conceito importante da materia"). O roteiroPodcast deve ter de 4 a 5 paragrafos separados por linha em branco (\\n\\n), cada um com 3 a 5 frases, desenvolvendo TODO o conteudo do resumo e dos topicos — nao pare na introducao. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
