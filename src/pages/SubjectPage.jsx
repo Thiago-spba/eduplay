@@ -148,6 +148,9 @@ function textoOpcao(val) {
   return String(val);
 }
 
+// Nota mínima (em %) para concluir a missão. Abaixo disso a criança refaz Quiz e Forca.
+const NOTA_MINIMA = 60;
+
 // ── Soma as notas das atividades (quiz + forca) para a nota final da missão ──
 // Antes, a nota final era a da ÚLTIMA atividade concluída (ex.: quiz 1/3 e forca 1/1 mostrava 100%).
 function somarNotas(notas) {
@@ -874,7 +877,8 @@ export default function SubjectPage() {
   // Aviso na tela (substitui os alert() nativos do navegador)
   const [aviso, setAviso] = useState(null);
   useEffect(() => {
-    if (!aviso) return;
+    // O aviso de "refazer" fica na tela até a criança fechar ou iniciar outra etapa
+    if (!aviso || aviso.tipo === "refazer") return;
     const t = setTimeout(() => setAviso(null), 12000);
     return () => clearTimeout(t);
   }, [aviso]);
@@ -969,6 +973,27 @@ export default function SubjectPage() {
     : moduloAtivo !== null ? missoes[moduloAtivo] : null;
 
   // ── Concluir missão ──
+  // Só conclui a missão se a nota somada (Quiz + Forca) for >= NOTA_MINIMA.
+  // Caso contrário a missão continua pendente e a criança refaz o Quiz e a Forca
+  // (a Leitura continua concluída).
+  const finalizarOuRefazer = (notasAtuais) => {
+    const [a, t] = somarNotas(notasAtuais);
+    const pct = t > 0 ? Math.round((a / t) * 100) : 100;
+    if (t === 0 || pct >= NOTA_MINIMA) {
+      concluir(a, t);
+      return;
+    }
+    setEtapasConcluidas((prev) => ({ ...prev, quiz: false, forca: false }));
+    setNotas({ quiz: null, forca: null });
+    setAtividade(null);
+    setAviso({
+      tipo: "refazer",
+      emoji: "💪",
+      titulo: "Quase lá! Vamos tentar de novo",
+      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e a Forca — você consegue!`,
+    });
+  };
+
   const concluir = async (acertos, total) => {
     const missaoFeita = moduloSelecionado;
     setMissaoConcluida(missaoFeita);
@@ -1258,7 +1283,7 @@ export default function SubjectPage() {
               setEtapasConcluidas(prev => ({ ...prev, quiz: true }));
               // Se todas as etapas estao completas, conclui a missao inteira com a nota SOMADA
               if (etapasConcluidas.leitura && etapasConcluidas.forca) {
-                concluir(...somarNotas(notasAtuais));
+                finalizarOuRefazer(notasAtuais);
               } else {
                 // Mostra resultado parcial do quiz via alert e volta
                 const pct = t > 0 ? Math.round((a / t) * 100) : 0;
@@ -1280,7 +1305,7 @@ export default function SubjectPage() {
               setNotas(notasAtuais);
               setEtapasConcluidas(prev => ({ ...prev, forca: true }));
               if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
-                concluir(...somarNotas(notasAtuais));
+                finalizarOuRefazer(notasAtuais);
               } else {
                 setTimeout(() => {
                   setAviso(a > 0
@@ -1430,7 +1455,8 @@ export default function SubjectPage() {
               role="status"
               style={{
                 display: "flex", alignItems: "flex-start", gap: 10,
-                background: `${cor}18`, border: `2px solid ${cor}66`,
+                background: aviso.tipo === "refazer" ? "#F59E0B18" : `${cor}18`,
+                border: `2px solid ${aviso.tipo === "refazer" ? "#F59E0B" : cor + "66"}`,
                 borderRadius: 14, padding: "12px 14px", marginBottom: 14,
               }}
             >
@@ -1598,7 +1624,7 @@ export default function SubjectPage() {
           </div>
 
           {todasEtapasConcluidas && (
-            <button onClick={() => concluir(...somarNotas(notas))} style={{
+            <button onClick={() => finalizarOuRefazer(notas)} style={{
               width: "100%", padding: "14px", marginBottom: 12, borderRadius: 14, border: "none",
               background: `linear-gradient(135deg, ${cor}, ${cor}CC)`, color: "#fff",
               fontSize: "1rem", fontWeight: 700, cursor: "pointer",

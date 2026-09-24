@@ -210,6 +210,23 @@ async function exigirAcessoValido(uid, codigoAcesso) {
 }
 
 /**
+ * Regra de negócio: só pode gerar missão nova se as PENDENTES (feita == false)
+ * forem menos que a quantidade escolhida pelo responsável (limiteMissoes, 3 a 7).
+ * Missão só deixa de ser pendente quando a criança conclui com nota >= 60%
+ * (regra aplicada no app). Conferido aqui no servidor para não depender do app.
+ */
+async function exigirVagaDeMissao(uid, codigoAcesso) {
+  const [respSnap, pendSnap] = await Promise.all([
+    db.collection('responsaveis').doc(uid).get(),
+    db.collection('missoes').doc(codigoAcesso).collection('geradas').where('feita', '==', false).select().get(),
+  ])
+  const limite = (respSnap.exists && Number(respSnap.data().limiteMissoes)) || 3
+  if (pendSnap.size >= limite) {
+    throw new HttpsError('failed-precondition', 'LIMITE_PENDENTES')
+  }
+}
+
+/**
  * Mesma checagem, mas para funções que atuam em nome do responsável sem
  * um código de acesso específico (ex.: assistente da aba Família) —
  * libera se PELO MENOS UM dos filhos do responsável estiver com o
@@ -253,6 +270,7 @@ exports.gerarMissao = onCall(
       // Fora da demo gratuita, só gera missão pra quem tem um filho com
       // trial ativo ou assinatura em dia — ver planoValido() acima.
       await exigirAcessoValido(uidMissao, codigoAcesso)
+      await exigirVagaDeMissao(uidMissao, codigoAcesso.trim())
     }
     if (!DISCIPLINAS_PERMITIDAS.includes(disciplina)) throw new HttpsError('invalid-argument', 'Disciplina inválida.')
     if (!SERIES_PERMITIDAS.includes(serie))           throw new HttpsError('invalid-argument', 'Série inválida.')
@@ -1088,7 +1106,19 @@ async function processarLoteAutoMissoes() {
           continue
         }
 
-        const faltam = limiteDia - qtdHoje
+        // Vagas pelo teto de pendentes: nunca deixa acumular mais missoes nao
+        // concluidas do que a quantidade escolhida pelo responsavel
+        const pendentesSnap = await db.collection('missoes').doc(criancaId).collection('geradas')
+          .where('feita', '==', false)
+          .select()
+          .get()
+        const vagasPendentes = limiteDia - pendentesSnap.size
+        if (vagasPendentes <= 0) {
+          console.log(`[auto] ${criancaId} ja tem ${pendentesSnap.size} missoes pendentes (limite ${limiteDia})`)
+          continue
+        }
+
+        const faltam = Math.min(limiteDia - qtdHoje, vagasPendentes)
         const disciplinas = ['matematica', 'portugues', 'geografia', 'ciencias', 'historia']
 
         // Busca titulos ja gerados (com a materia de cada um) para evitar repeticao

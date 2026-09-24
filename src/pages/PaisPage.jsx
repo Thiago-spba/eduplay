@@ -3481,6 +3481,7 @@ export default function PaisPage({ userPai, timer }) {
   ];
   const [missoesPorDisc, setMissoesPorDisc] = useState({});
   const [missoesHoje, setMissoesHoje] = useState(0);
+  const [pendentes, setPendentes] = useState(0);
   const [limiteMissoes, setLimiteMissoes] = useState(MAX_MISSOES_DIA_DEFAULT);
   const [sessoesQuiz, setSessoesQuiz] = useState([]);
   const [progresso, setProgresso] = useState(null);
@@ -3524,7 +3525,11 @@ export default function PaisPage({ userPai, timer }) {
   const [mostrarModalExcluir, setMostrarModalExcluir] = useState(false);
   const [desativando, setDesativando] = useState(false);
 
-  const limiteAtingido = missoesHoje >= limiteMissoes;
+  // Regra: só gera missão nova enquanto as pendentes (não concluídas com >= 60%)
+  // forem menos que a quantidade escolhida — e nunca acima do limite diário.
+  const limiteDiarioAtingido = missoesHoje >= limiteMissoes;
+  const pendentesAtingido = pendentes >= limiteMissoes;
+  const limiteAtingido = limiteDiarioAtingido || pendentesAtingido;
 
   const c = {
     bg: e ? "#0F1923" : "#F0F7FF",
@@ -3724,6 +3729,7 @@ export default function PaisPage({ userPai, timer }) {
             return data === hoje;
           }).length;
           setMissoesHoje(qtdHoje);
+          setPendentes(todas.filter((m) => !m.feita).length);
         });
       } catch (err) {
         console.error("Erro ao iniciar PaisPage:", err);
@@ -3890,7 +3896,9 @@ export default function PaisPage({ userPai, timer }) {
         titulo:
           err?.message === "ASSINATURA_EXPIRADA"
             ? "Seu período de teste ou assinatura expirou. Assine na aba Assinar para continuar gerando missões."
-            : "Erro ao gerar missao.",
+            : err?.message === "LIMITE_PENDENTES"
+              ? "Seu filho ainda tem missões pendentes. Novas missões são liberadas quando ele concluir as atuais com pelo menos 60% de acertos."
+              : "Erro ao gerar missao.",
         topicos: [],
       });
     } finally {
@@ -6642,8 +6650,10 @@ export default function PaisPage({ userPai, timer }) {
                   }}
                 >
                   {limiteAtingido
-                    ? "Limite diário atingido"
-                    : `${limiteMissoes - missoesHoje} missões disponíveis hoje`}
+                    ? pendentesAtingido
+                      ? "Aguardando seu filho concluir as missões"
+                      : "Limite diário atingido"
+                    : `${Math.min(limiteMissoes - missoesHoje, limiteMissoes - pendentes)} missões disponíveis hoje`}
                 </p>
                 <p
                   style={{
@@ -6653,7 +6663,9 @@ export default function PaisPage({ userPai, timer }) {
                   }}
                 >
                   {limiteAtingido
-                    ? "Volte amanhã."
+                    ? pendentesAtingido
+                      ? `${pendentes} pendente(s) de ${limiteMissoes}. Novas missões liberam quando ele concluir com pelo menos 60% de acertos.`
+                      : "Volte amanhã."
                     : "Cada missão é única e personalizada."}
                 </p>
               </div>

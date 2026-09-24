@@ -81,6 +81,11 @@ export async function gerarMissaoIA({ disciplina, serie, bimestre, tema, isDemo,
       throw new Error("Este perfil não pertence a esta conta.");
     }
 
+    // Servidor barrou: já existem missões pendentes na quantidade escolhida pelo responsável
+    if (error?.message?.includes('LIMITE_PENDENTES')) {
+      throw new Error("LIMITE_PENDENTES");
+    }
+
     if (error?.code === 'internal') {
       throw new Error("Ocorreu uma falha no motor de Inteligência. Tente novamente em alguns segundos.");
     }
