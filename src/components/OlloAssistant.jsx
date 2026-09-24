@@ -36,7 +36,8 @@ function Estrelinhas() {
   );
 }
 
-export default function OlloAssistant({ missao, c, tema }) {
+// compacto: versão menor e discreta para telas de jogo (ex.: teclado da forca), sem balão
+export default function OlloAssistant({ missao, c, tema, compacto = false }) {
   const [aberto, setAberto] = useState(false);
   const [pergunta, setPergunta] = useState("");
   const [resposta, setResposta] = useState("");
@@ -45,7 +46,7 @@ export default function OlloAssistant({ missao, c, tema }) {
   const [tocandoAudio, setTocandoAudio] = useState(false);
   const [carregandoAudio, setCarregandoAudio] = useState(false);
   const [iniciandoMic, setIniciandoMic] = useState(false);
-  const [posicao, setPosicao] = useState({ bottom: 80, right: 16 });
+  const [posicao, setPosicao] = useState(compacto ? { bottom: 96, right: 10 } : { bottom: 80, right: 16 });
   const [arrastando, setArrastando] = useState(false);
 
   const audioRef = useRef(null);
@@ -252,7 +253,7 @@ export default function OlloAssistant({ missao, c, tema }) {
         <div
           style={{
             position: "fixed",
-            bottom: posicao.bottom + 64,
+            bottom: posicao.bottom + (compacto ? 52 : 64),
             right: posicao.right,
             width: "clamp(280px, 88vw, 360px)",
             background: cardBg,
@@ -536,8 +537,9 @@ export default function OlloAssistant({ missao, c, tema }) {
           position: "fixed",
           bottom: posicao.bottom,
           right: posicao.right,
-          width: 56,
-          height: 56,
+          width: compacto ? 44 : 56,
+          height: compacto ? 44 : 56,
+          opacity: compacto && !aberto ? 0.85 : 1,
           borderRadius: "50%",
           background: `linear-gradient(135deg, ${cor}, #0099FF)`,
           boxShadow: aberto
@@ -561,7 +563,7 @@ export default function OlloAssistant({ missao, c, tema }) {
         </div>
 
         {/* Balãozinho de chamada — só quando fechado */}
-        {!aberto && (
+        {!aberto && !compacto && (
           <div
             style={{
               position: "absolute",

@@ -904,6 +904,9 @@ export default function AudioLesson({
   const [audioAtivo, setAudioAtivo] = useState(null); // "tts" | "podcast" | null
   const [podcast, setPodcast] = useState(null);
   const [buscando, setBuscando] = useState(true);
+  const [abasVistas, setAbasVistas] = useState(() => new Set(["resumo"]));
+  const [passouTempoMinimo, setPassouTempoMinimo] = useState(false);
+  const [iniciouAudio, setIniciouAudio] = useState(false);
   const e = tema === "escuro";
 
   // missao carregada
@@ -925,6 +928,26 @@ export default function AudioLesson({
   const roteiro = extrairStr(cont.roteiroPodcast) || extrairStr(m.roteiroPodcast) || extrairStr(ativ.roteiroPodcast) || extrairStr(vid.roteiro) || extrairStr(vid.texto) || "";
   const tituloMissao = m.titulo || vid.titulo || "Explicação";
   const textoResumo = resumo || roteiro;
+
+  // ── Leitura só conta como concluída se a criança realmente leu/ouviu ──
+  // (antes bastava abrir e fechar). Regra: ficar pelo menos 20 s na tela E
+  // (ver o Resumo e os Tópicos OU ter dado play no áudio).
+  useEffect(() => {
+    const t = setTimeout(() => setPassouTempoMinimo(true), 20000);
+    return () => clearTimeout(t);
+  }, []);
+  useEffect(() => {
+    setAbasVistas((prev) => (prev.has(aba) ? prev : new Set(prev).add(aba)));
+  }, [aba]);
+  useEffect(() => {
+    if (audioAtivo) setIniciouAudio(true);
+  }, [audioAtivo]);
+  const precisaResumo = !!textoResumo;
+  const precisaTopicos = topicos.length > 0;
+  const leuTexto =
+    (!precisaResumo || abasVistas.has("resumo")) &&
+    (!precisaTopicos || abasVistas.has("topicos"));
+  const leituraCompleta = passouTempoMinimo && (leuTexto || iniciouAudio);
 
   useEffect(() => {
     const buscar = async () => {
@@ -988,7 +1011,7 @@ export default function AudioLesson({
         }}
       >
         <button
-          onClick={onFechar}
+          onClick={() => onFechar && onFechar(leituraCompleta)}
           style={{
             width: 38,
             height: 38,
@@ -1086,6 +1109,31 @@ export default function AudioLesson({
             <span>{a.icone}</span> {a.label}
           </button>
         ))}
+      </div>
+
+      {/* PROGRESSO DA LEITURA */}
+      <div
+        role="status"
+        style={{
+          flexShrink: 0,
+          padding: "6px 14px",
+          fontSize: "0.72rem",
+          fontWeight: 700,
+          textAlign: "center",
+          color: leituraCompleta ? "#0F6E56" : c.textoSub,
+          background: leituraCompleta ? "#0F6E5618" : "transparent",
+          borderBottom: `1px solid ${c.borda}`,
+        }}
+      >
+        {leituraCompleta
+          ? "✅ Leitura concluída! Pode fechar no ✕ e ir para o Quiz."
+          : !passouTempoMinimo
+            ? "📖 Leia com calma… a leitura será concluída em instantes."
+            : precisaTopicos && !abasVistas.has("topicos") && !iniciouAudio
+              ? "🔍 Falta ver os Tópicos (ou ouvir o áudio) para concluir."
+              : precisaResumo && !abasVistas.has("resumo") && !iniciouAudio
+                ? "📖 Falta ler o Resumo (ou ouvir o áudio) para concluir."
+                : "📖 Continue…"}
       </div>
 
       {/* CONTEÚDO */}

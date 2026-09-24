@@ -871,6 +871,13 @@ export default function SubjectPage() {
   const [resultado, setResultado] = useState(null);
   const [missaoConcluida, setMissaoConcluida] = useState(null);
   const [notas, setNotas] = useState({ quiz: null, forca: null });
+  // Aviso na tela (substitui os alert() nativos do navegador)
+  const [aviso, setAviso] = useState(null);
+  useEffect(() => {
+    if (!aviso) return;
+    const t = setTimeout(() => setAviso(null), 12000);
+    return () => clearTimeout(t);
+  }, [aviso]);
   const [bloqueioSaida, setBloqueioSaida] = useState(false);
   const [arquivoSecreto, setArquivoSecreto] = useState(null);
   const [arquivoAberto, setArquivoAberto] = useState(false);
@@ -1227,7 +1234,7 @@ export default function SubjectPage() {
   // ── Atividade ──
   if (atividade && atividade !== "audio" && moduloSelecionado) {
     return (
-      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: 90 }}>
+      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: atividade === "forca" ? 170 : 90 }}>
         <PageHeader
           titulo={
             atividade === "quiz"
@@ -1256,7 +1263,7 @@ export default function SubjectPage() {
                 // Mostra resultado parcial do quiz via alert e volta
                 const pct = t > 0 ? Math.round((a / t) * 100) : 0;
                 setTimeout(() => {
-                  alert("Quiz concluído! Você acertou " + a + " de " + t + " (" + pct + "%)\n\nComplete as outras etapas para finalizar a missão.");
+                  setAviso({ emoji: "❓", titulo: "Quiz concluído!", texto: "Você acertou " + a + " de " + t + " (" + pct + "%). Complete as outras etapas para finalizar a missão." });
                   setAtividade(null);
                 }, 300);
               }
@@ -1276,7 +1283,9 @@ export default function SubjectPage() {
                 concluir(...somarNotas(notasAtuais));
               } else {
                 setTimeout(() => {
-                  alert(a > 0 ? "Parabéns! Você descobriu a palavra!\n\nComplete as outras etapas para finalizar a missão." : "Boa tentativa!\n\nComplete as outras etapas para finalizar a missão.");
+                  setAviso(a > 0
+                    ? { emoji: "🔤", titulo: "Parabéns!", texto: "Você descobriu a palavra! Complete as outras etapas para finalizar a missão." }
+                    : { emoji: "🔤", titulo: "Boa tentativa!", texto: "Complete as outras etapas para finalizar a missão." });
                   setAtividade(null);
                 }, 300);
               }
@@ -1376,7 +1385,7 @@ export default function SubjectPage() {
             </div>
           </div>
         )}
-        <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />
+        <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} compacto />
         <BottomNav />
       </div>
     );
@@ -1391,8 +1400,13 @@ export default function SubjectPage() {
             disciplinaId={disciplinaId}
             moduloId={moduloAtivo}
             missao={moduloSelecionado}
-            onFechar={() => {
-              setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
+            onFechar={(leituraCompleta) => {
+              if (leituraCompleta) {
+                setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
+                setAviso(null);
+              } else if (!etapasConcluidas.leitura) {
+                setAviso({ emoji: "📖", titulo: "Ainda falta um pouquinho da leitura", texto: "Leia o Resumo, veja os Tópicos (ou ouça o áudio) e fique alguns segundos por lá para liberar o Quiz e a Forca." });
+              }
               setAtividade(null);
             }}
             tema={tema}
@@ -1411,6 +1425,29 @@ export default function SubjectPage() {
         />
 
         <main style={{ padding: "16px", maxWidth: 640, margin: "0 auto" }}>
+          {aviso && (
+            <div
+              role="status"
+              style={{
+                display: "flex", alignItems: "flex-start", gap: 10,
+                background: `${cor}18`, border: `2px solid ${cor}66`,
+                borderRadius: 14, padding: "12px 14px", marginBottom: 14,
+              }}
+            >
+              <span style={{ fontSize: "1.4rem", lineHeight: 1 }}>{aviso.emoji}</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "0.95rem", color: c.texto, marginBottom: 2 }}>{aviso.titulo}</div>
+                <div style={{ fontSize: "0.82rem", color: c.textoSub, lineHeight: 1.5 }}>{aviso.texto}</div>
+              </div>
+              <button
+                onClick={() => setAviso(null)}
+                aria-label="Fechar aviso"
+                style={{ minWidth: 32, minHeight: 32, borderRadius: 8, border: "none", background: "transparent", color: c.textoSub, fontSize: "1rem", cursor: "pointer" }}
+              >
+                ✕
+              </button>
+            </div>
+          )}
           <div
             style={{
               background: `linear-gradient(135deg, ${cor}22, ${cor}08)`,
@@ -1464,7 +1501,7 @@ export default function SubjectPage() {
                 🎙️ Explicação em áudio
               </p>
               <button
-                onClick={() => setAtividade("audio")}
+                onClick={() => { setAviso(null); setAtividade("audio"); }}
                 style={{
                   width: "100%",
                   background: c.card2,
@@ -1537,7 +1574,7 @@ export default function SubjectPage() {
               const destaque = et.id === "leitura" && !etapasConcluidas.leitura;
               return (
               <button key={et.id}
-                onClick={() => !bloqueado && setAtividade(et.acao)}
+                onClick={() => { if (bloqueado) return; setAviso(null); setAtividade(et.acao); }}
                 disabled={bloqueado}
                 style={{
                 flex: 1, padding: "14px 8px", borderRadius: 14, textAlign: "center",
@@ -1561,7 +1598,7 @@ export default function SubjectPage() {
           </div>
 
           {todasEtapasConcluidas && (
-            <button onClick={() => concluir(0, 0)} style={{
+            <button onClick={() => concluir(...somarNotas(notas))} style={{
               width: "100%", padding: "14px", marginBottom: 12, borderRadius: 14, border: "none",
               background: `linear-gradient(135deg, ${cor}, ${cor}CC)`, color: "#fff",
               fontSize: "1rem", fontWeight: 700, cursor: "pointer",
