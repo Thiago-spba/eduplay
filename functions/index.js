@@ -33,6 +33,37 @@ function validarQuiz(quiz) {
   })
 }
 
+// Limites da palavra da forca por serie: o prompt pede ate LIMITE_FORCA_PROMPT
+// e o validador aceita uma folga (LIMITE_FORCA_MAX) antes de descartar.
+const LIMITE_FORCA_PROMPT = { '6ano': 10, '7ano': 12, '8ano': 13, '9ano': 14 }
+const LIMITE_FORCA_MAX    = { '6ano': 12, '7ano': 14, '8ano': 15, '9ano': 16 }
+function problemaDaForca(forca, serie) {
+  if (!forca || typeof forca.palavra !== 'string') return 'forca sem palavra'
+  const p = forca.palavra.trim()
+  if (!/^[A-Z]{3,}$/.test(p)) return `palavra da forca invalida: ${p}`
+  const max = LIMITE_FORCA_MAX[serie] || 14
+  if (p.length > max) return `palavra da forca longa demais (${p.length} > ${max}): ${p}`
+  if (!Array.isArray(forca.dicas) || forca.dicas.length !== 3) return 'forca precisa de 3 dicas'
+  if (!forca.dicas.every(d => typeof d === 'string' && d.trim().length >= 10)) return 'dica da forca vazia ou curta'
+  const pn = normQuiz(p)
+  if (forca.dicas.some(d => normQuiz(d).includes(pn))) return 'dica da forca entrega a palavra'
+  return null
+}
+// Retorna um texto descrevendo o problema da missao gerada, ou null se estiver ok
+function problemaDaMissao(m, serie) {
+  if (!m || typeof m !== 'object') return 'missao vazia'
+  if (!m.titulo || !m.perguntaCentral) return 'sem titulo ou perguntaCentral'
+  const quiz = m.atividades?.quiz
+  if (!Array.isArray(quiz) || quiz.length < 3) return 'quiz com menos de 3 perguntas'
+  if (!validarQuiz(quiz)) return 'quiz invalido: ' + JSON.stringify(quiz).slice(0, 300)
+  const pf = problemaDaForca(m.atividades?.forca, serie)
+  if (pf) return pf
+  if (typeof m.resumo !== 'string' || m.resumo.trim().length < 80) return 'resumo curto demais'
+  if (!Array.isArray(m.topicos) || m.topicos.filter(x => typeof x === 'string' && x.trim().length >= 25).length < 3) return 'topicos sem explicacao'
+  if (typeof m.roteiroPodcast !== 'string' || m.roteiroPodcast.trim().length < 700) return 'roteiroPodcast curto demais'
+  return null
+}
+
 const CURRICULO = {
   historia: {
     '6ano': {
@@ -284,10 +315,9 @@ const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
 const antiRepeticao = titulosJaGerados && titulosJaGerados.length > 0
   ? `\n\nTÍTULOS JÁ GERADOS ANTERIORMENTE — NÃO REPITA ESTES ASSUNTOS:\n${titulosJaGerados.slice(0, 10).map(t => `- ${t}`).join('\n')}\nCrie um ângulo completamente diferente dentro do mesmo currículo.`
   : ''
-      let infoTemporal = ''
-    if (contextoTemporal) {
-      infoTemporal = `\nINFORMAÇÃO DE TEMPO REAL: Hoje é dia ${parseInt(contextoTemporal.dia)}/${parseInt(contextoTemporal.mes)}/${parseInt(contextoTemporal.ano)}. Se houver algum feriado histórico, científico ou nacional próximo a esta data que tenha ligação com a matéria, insira uma menção sutil no roteiro do podcast para conectar o aluno com o mundo real.`
-    }
+    // A data de hoje NAO vai mais para o prompt: a IA a colocava dentro de
+    // perguntas e explicacoes do quiz. contextoTemporal continua aceito, mas ignorado.
+    const infoTemporal = ''
     const prompt = `Você é um especialista em educação básica brasileira e psicologia do desenvolvimento infantil.
 Crie uma missão educacional para o EduPlay — Instituto do Saber.
 
@@ -347,58 +377,67 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       }
     ],
     "forca": {
-      "palavra": "PALAVRA_CHAVE_EM_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
+      "palavra": "UMA_PALAVRA_REAL_EM_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
       "palavraAcentuada": "A MESMA PALAVRA em maiúsculas COM os acentos e o cedilha corretos (ex.: TRANSPIRAÇÃO)",
-      "dicas": ["1ª dica: contexto geral, sem citar a palavra (max 70 chars)", "2ª dica: descrição concreta ou exemplo do dia a dia, em linguagem simples (max 80 chars)", "3ª dica: quase entrega, como uma definição curta (max 80 chars)"]
+      "dicas": ["1ª dica: pista concreta e específica sobre o significado, sem citar a palavra (max 70 chars)", "2ª dica: descrição concreta ou exemplo do dia a dia, em linguagem simples (max 80 chars)", "3ª dica: quase entrega, como uma definição curta (max 80 chars)"]
     },
     "caca": {
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "resumo": "explicação do assunto in 3-4 frases simples e diretas, como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
-  "topicos": ["tópico 1 — conceito central", "tópico 2 — curiosidade real", "tópico 3 — conexão com o presente", "tópico 4 — impacto na vida", "tópico 5 — gancho para ir além"],
-  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos, linguagem investigativa para 11-14 anos, adequada à série indicada. Começa com situação intrigante, desenvolve o conteúdo com conexões reais. Última frase: 'Missão registrada, Agente!'"
+  "resumo": "explicação em 4-5 frases simples que RESPONDE diretamente à perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definições, fórmulas, fatos usados nas perguntas), como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
+  "topicos": ["Nome do conceito 1: explicação em uma frase simples", "Nome do conceito 2: explicação em uma frase simples", "Nome do conceito 3: explicação em uma frase simples", "Nome do conceito 4: explicação em uma frase simples", "Nome do conceito 5: explicação em uma frase simples"],
+  "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa para 11-14 anos, adequada à série indicada. Começa com situação intrigante, desenvolve TODO o conteúdo do resumo e dos tópicos com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
 
 REGRAS INVIOLÁVEIS:
 - Conteúdo 100% alinhado ao currículo e factualmente correto — nunca invente datas, nomes ou dados que você não tenha certeza absoluta
-- Palavras da forca: "palavra" apenas letras maiúsculas A-Z, sem acentos, sem espaços; "palavraAcentuada" é a mesma palavra com a grafia correta em português
-- Dicas da forca: 3 dicas progressivas em linguagem que um aluno da série indicada entende sem consultar nada; nunca use a própria palavra (nem parte dela) na dica; evite metáforas e termos mais difíceis que a própria palavra
+- NUNCA escreva a data de hoje, o ano atual nem frases como "hoje é dia..." em nenhum campo. Só cite datas que sejam fatos históricos do currículo (ex.: 1822)
+- Palavra da forca: UMA única palavra real do dicionário (nunca duas palavras coladas, como NUMEROSINTEIROS), comum ao vocabulário da série, com no máximo ${LIMITE_FORCA_PROMPT[serie] || 12} letras. "palavra" apenas letras maiúsculas A-Z, sem acentos, sem espaços; "palavraAcentuada" é a mesma palavra com a grafia correta em português
+- Dicas da forca: 3 dicas progressivas em linguagem que um aluno da série indicada entende sem consultar nada; nunca use a própria palavra (nem parte dela) na dica; evite metáforas e termos mais difíceis que a própria palavra; a 1ª dica deve ser concreta e específica (nunca vaga como "conceito importante da matéria")
 - Quiz: escreva a "explicacao" ANTES (resolvendo a questão passo a passo), depois "respostaCorreta" coerente com ela. A opção 0 é SEMPRE a resposta correta (igual a "respostaCorreta") e "correta" é SEMPRE 0; as opções 1, 2 e 3 são erros plausíveis, todos DIFERENTES entre si e diferentes da correta (o app embaralha as opções depois). Nunca deixe a explicação apontar para uma opção diferente da correta
-- Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa
+- Nunca crie perguntas ambíguas onde mais de uma opção poderia estar certa: as opções erradas devem ser claramente erradas para quem estudou, e nunca use como erro um valor que também poderia estar certo conforme a interpretação (ex.: o mesmo número com sinal diferente quando o contexto admite os dois). Se o contexto admitir duas leituras, reescreva a pergunta
+- Tudo que o quiz pergunta precisa estar explicado no "resumo", nos "topicos" ou no "roteiroPodcast" — não cobre o que o aluno não leu
+- O "roteiroPodcast" deve ter de 4 a 5 parágrafos separados por linha em branco (\\n\\n), cada um com 3 a 5 frases, desenvolvendo TODO o conteúdo do resumo e dos tópicos — não pare na introdução
 - O título deve dizer o tema em palavras que o aluno da série conhece; metáfora só se o tema continuar evidente
 - Temas sensíveis (guerras, Holocausto, ditadura, escravidão, sexualidade e saúde): trate com respeito, sem detalhes gráficos, com linguagem adequada à idade e foco em compreender, não em chocar
 - Responda APENAS o JSON puro, sem marcação markdown como \`\`\`json`
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
-    let resposta
-    try {
-      // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
-      const msg = await client.messages.create({
-        model: 'claude-haiku-4-5-20251001', max_tokens: 3200, temperature: 0.5,
-        messages: [{ role: 'user', content: prompt }],
-      })
-      resposta = msg.content[0].text
-    } catch (err) {
-      console.error('[ERRO ANTHROPIC DETALHADO]:', err)
-      throw new HttpsError('internal', `Falha de comunicação com a IA: ${err.message}`)
+    // Ate 2 tentativas: se a IA devolver algo que nao passa no controle de
+    // qualidade (quiz, forca, textos), tenta de novo antes de incomodar o responsavel
+    let missao = null
+    for (let tentativa = 1; tentativa <= 2 && !missao; tentativa++) {
+      let resposta
+      try {
+        // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
+        const msg = await client.messages.create({
+          model: 'claude-haiku-4-5-20251001', max_tokens: 3600, temperature: 0.5,
+          messages: [{ role: 'user', content: prompt }],
+        })
+        resposta = msg.content[0].text
+      } catch (err) {
+        console.error('[ERRO ANTHROPIC DETALHADO]:', err)
+        throw new HttpsError('internal', `Falha de comunicação com a IA: ${err.message}`)
+      }
+      let candidata
+      try {
+        const jsonStr = resposta.substring(resposta.indexOf('{'), resposta.lastIndexOf('}') + 1)
+        candidata = JSON.parse(jsonStr)
+      } catch (err) {
+        console.error(`Erro parse JSON (tentativa ${tentativa}):`, resposta)
+        continue
+      }
+      // Validacao de conteudo — garante que quiz, forca e textos fazem sentido
+      // antes de mostrar pra crianca (a IA pode "alucinar" gabarito, palavra longa etc.)
+      const problema = problemaDaMissao(candidata, serie)
+      if (problema) {
+        console.warn(`[gerarMissao] missao descartada (tentativa ${tentativa}): ${problema}`)
+        continue
+      }
+      missao = candidata
     }
-    let missao
-    try {
-      const jsonStr = resposta.substring(resposta.indexOf('{'), resposta.lastIndexOf('}') + 1)
-      missao = JSON.parse(jsonStr)
-    } catch (err) {
-      console.error('Erro parse JSON:', resposta)
-      throw new HttpsError('internal', 'O arquivo recebido da inteligência estava corrompido.')
-    }
-    if (!missao.titulo || !missao.perguntaCentral || !Array.isArray(missao.atividades?.quiz) || missao.atividades.quiz.length < 3 || !missao.atividades?.forca?.palavra || !missao.roteiroPodcast) {
-      throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade.')
-    }
-    // Validacao de conteudo — garante que cada pergunta do quiz faz sentido
-    // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
-    const quizValidoManual = validarQuiz(missao.atividades.quiz)
-    if (!quizValidoManual) {
-      console.warn('[gerarMissao] quiz invalido descartado:', JSON.stringify(missao.atividades.quiz))
+    if (!missao) {
       throw new HttpsError('internal', 'A missão gerada não passou no controle de qualidade. Tente novamente.')
     }
     if (isDemo === true) {
@@ -1194,21 +1233,21 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       }
     ],
     "forca": {
-      "palavra": "PALAVRA_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
+      "palavra": "UMA_PALAVRA_REAL_MAIUSCULO_SEM_ACENTO_SEM_ESPACO",
       "palavraAcentuada": "A MESMA PALAVRA em maiusculas COM acentos e cedilha corretos (ex.: TRANSPIRAÇÃO)",
-      "dicas": ["1a dica: contexto geral sem citar a palavra max 70 chars", "2a dica: descricao concreta ou exemplo do dia a dia em linguagem simples max 80 chars", "3a dica: quase entrega, como definicao curta max 80 chars"]
+      "dicas": ["1a dica: pista concreta e especifica sobre o significado, sem citar a palavra max 70 chars", "2a dica: descricao concreta ou exemplo do dia a dia em linguagem simples max 80 chars", "3a dica: quase entrega, como definicao curta max 80 chars"]
     }
   },
-  "resumo": "explicacao do assunto em 3-4 frases simples para um aluno da serie indicada",
-  "topicos": ["topico 1", "topico 2", "topico 3", "topico 4", "topico 5"],
-  "roteiroPodcast": "roteiro completo: 4-5 paragrafos, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
+  "resumo": "explicacao em 4-5 frases simples que RESPONDE diretamente a perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definicoes, formulas, fatos usados nas perguntas)",
+  "topicos": ["Nome do conceito: explicacao em uma frase simples", "Nome do conceito 2: explicacao em uma frase simples", "Nome do conceito 3: explicacao em uma frase simples", "Nome do conceito 4: explicacao em uma frase simples", "Nome do conceito 5: explicacao em uma frase simples"],
+  "roteiroPodcast": "roteiro completo: 4-5 paragrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
-REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo), depois respostaCorreta coerente com ela. A opcao 0 e SEMPRE a resposta correta (igual a respostaCorreta) e correta e SEMPRE 0; as opcoes 1, 2 e 3 sao erros plausiveis, todos diferentes entre si e da correta (o app embaralha depois). Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. A explicacao nunca pode apontar para uma opcao diferente da correta. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa. O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra com letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas. Responda APENAS JSON puro sem markdown.`
+REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo), depois respostaCorreta coerente com ela. A opcao 0 e SEMPRE a resposta correta (igual a respostaCorreta) e correta e SEMPRE 0; as opcoes 1, 2 e 3 sao erros plausiveis, todos diferentes entre si e da correta (o app embaralha depois). Perguntas com resposta verificavel sobre fatos reais — nunca invente datas, nomes ou dados sem certeza absoluta. A explicacao nunca pode apontar para uma opcao diferente da correta. Nunca crie perguntas ambiguas onde mais de uma opcao poderia estar certa: as opcoes erradas devem ser claramente erradas para quem estudou, e nunca use como erro um valor que tambem poderia estar certo conforme a interpretacao (ex.: o mesmo numero com sinal diferente quando o contexto admite os dois); se o contexto admitir duas leituras, reescreva a pergunta. Tudo que o quiz pergunta precisa estar explicado no resumo, nos topicos ou no roteiro — nao cobre o que o aluno nao leu. NUNCA escreva a data de hoje, o ano atual ou frases como "hoje e dia" em nenhum campo; so cite datas que sejam fatos historicos do curriculo (ex.: 1822). O titulo deve dizer o tema em palavras que o aluno da serie conhece (metafora so se o tema continuar evidente). Temas sensiveis (guerras, Holocausto, ditadura, escravidao, sexualidade, saude): trate com respeito, sem detalhes graficos, com linguagem adequada a idade e foco em compreender. Forca: palavra e UMA unica palavra real do dicionario (nunca duas palavras coladas como NUMEROSINTEIROS), com no maximo ${LIMITE_FORCA_PROMPT[serie] || 12} letras, comum ao vocabulario da serie; letras A-Z sem acentos sem espacos; palavraAcentuada e a mesma palavra com a grafia correta em portugues. dicas e array com 3 strings progressivas, em linguagem que o aluno da serie entende sem consultar nada, sem usar a propria palavra (nem parte dela) e sem metaforas; a 1a dica deve ser concreta e especifica (nunca vaga como "conceito importante da materia"). O roteiroPodcast deve ter de 4 a 5 paragrafos separados por linha em branco (\\n\\n), cada um com 3 a 5 frases, desenvolvendo TODO o conteudo do resumo e dos topicos — nao pare na introducao. Responda APENAS JSON puro sem markdown.`
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
-              max_tokens: 3200,
+              max_tokens: 3600,
               temperature: 0.5,
               messages: [{ role: 'user', content: prompt }]
             })
@@ -1223,19 +1262,11 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
               continue
             }
 
-            // Validacao de conteudo — garante que o quiz gerado faz sentido
-            // antes de mostrar pra crianca (a IA pode "alucinar" um indice invalido)
-            const quiz = missao?.atividades?.quiz
-            const quizValido = validarQuiz(quiz)
-            const forca = missao?.atividades?.forca
-            const forcaValida = forca && typeof forca.palavra === 'string' &&
-              /^[A-Z0-9]+$/.test(forca.palavra) &&
-              Array.isArray(forca.dicas) && forca.dicas.length === 3
-
-            if (!missao?.titulo || !quizValido || !forcaValida) {
-              console.warn(`[auto] missao invalida gerada para ${disciplina} (${criancaId}) — descartada`, {
-                temTitulo: !!missao?.titulo, quizValido, forcaValida,
-              })
+            // Validacao de conteudo — garante que a missao gerada faz sentido
+            // antes de mostrar pra crianca (quiz, forca, textos de leitura)
+            const problema = problemaDaMissao(missao, serie)
+            if (problema) {
+              console.warn(`[auto] missao invalida gerada para ${disciplina} (${criancaId}) — descartada: ${problema}`)
               continue
             }
 

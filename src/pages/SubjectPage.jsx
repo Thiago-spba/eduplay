@@ -148,7 +148,7 @@ function textoOpcao(val) {
   return String(val);
 }
 
-// Nota mínima (em %) para concluir a missão. Abaixo disso a criança refaz Quiz e Forca.
+// Nota mínima (em %) para concluir a missão. Abaixo disso a criança refaz Quiz e Descobrir a Palavra.
 const NOTA_MINIMA = 60;
 
 // ── Soma as notas das atividades (quiz + forca) para a nota final da missão ──
@@ -990,7 +990,7 @@ export default function SubjectPage() {
       tipo: "refazer",
       emoji: "💪",
       titulo: "Quase lá! Vamos tentar de novo",
-      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e a Forca — você consegue!`,
+      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e o Descobrir a Palavra — você consegue!`,
     });
   };
 
@@ -1430,7 +1430,7 @@ export default function SubjectPage() {
                 setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
                 setAviso(null);
               } else if (!etapasConcluidas.leitura) {
-                setAviso({ emoji: "📖", titulo: "Ainda falta um pouquinho da leitura", texto: "Leia o Resumo, veja os Tópicos (ou ouça o áudio) e fique alguns segundos por lá para liberar o Quiz e a Forca." });
+                setAviso({ emoji: "📖", titulo: "Ainda falta um pouquinho da leitura", texto: "Leia o Resumo, veja os Tópicos (ou ouça o áudio) e fique alguns segundos por lá para liberar o Quiz e o Descobrir a Palavra." });
               }
               setAtividade(null);
             }}
@@ -1594,7 +1594,7 @@ export default function SubjectPage() {
             {[
               { id: "leitura", emoji: "📖", label: "Leitura", acao: "audio", clr: "#00D4AA" },
               { id: "quiz", emoji: "❓", label: "Quiz", acao: "quiz", clr: "#0099FF" },
-              { id: "forca", emoji: "🔤", label: "Forca", acao: "forca", clr: "#FFB830" },
+              { id: "forca", emoji: "🔤", label: "Descobrir a Palavra", acao: "forca", clr: "#FFB830" },
             ].map((et) => {
               const bloqueado = et.id !== "leitura" && !etapasConcluidas.leitura;
               const destaque = et.id === "leitura" && !etapasConcluidas.leitura;
@@ -1646,7 +1646,7 @@ export default function SubjectPage() {
               color: c.textoSub,
             }}
           >
-            💡 Complete leitura, quiz e forca para concluir a missão
+            💡 Complete leitura, quiz e descobrir a palavra para concluir a missão
           </div>
         </main>
         <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />
