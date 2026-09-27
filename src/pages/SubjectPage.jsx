@@ -1623,16 +1623,36 @@ export default function SubjectPage() {
             })}
           </div>
 
-          {todasEtapasConcluidas && (
-            <button onClick={() => finalizarOuRefazer(notas)} style={{
-              width: "100%", padding: "14px", marginBottom: 12, borderRadius: 14, border: "none",
-              background: `linear-gradient(135deg, ${cor}, ${cor}CC)`, color: "#fff",
+          <button
+            onClick={() => {
+              if (!todasEtapasConcluidas) {
+                const faltando = [
+                  !etapasConcluidas.leitura && "a Leitura",
+                  !etapasConcluidas.quiz && "o Quiz",
+                  !etapasConcluidas.forca && "Descobrir a Palavra",
+                ].filter(Boolean);
+                setAviso({
+                  tipo: "faltando",
+                  emoji: "🚀",
+                  titulo: "Falta pouquinho para a missão ser sua!",
+                  texto: `Ainda falta completar ${faltando.join(" e ")}. Continue explorando — você está quase terminando essa missão!`,
+                });
+                return;
+              }
+              finalizarOuRefazer(notas);
+            }}
+            style={{
+              width: "100%", padding: "14px", marginBottom: 12, borderRadius: 14,
+              border: todasEtapasConcluidas ? "none" : `2px dashed ${c.borda}`,
+              background: todasEtapasConcluidas ? `linear-gradient(135deg, ${cor}, ${cor}CC)` : c.card2,
+              color: todasEtapasConcluidas ? "#fff" : c.textoSub,
               fontSize: "1rem", fontWeight: 700, cursor: "pointer",
-              fontFamily: "'Fredoka', sans-serif", boxShadow: `0 4px 16px ${cor}40`,
-            }}>
-              🏁 Concluir Missão
-            </button>
-          )}
+              fontFamily: "'Fredoka', sans-serif",
+              boxShadow: todasEtapasConcluidas ? `0 4px 16px ${cor}40` : "none",
+            }}
+          >
+            🏁 Concluir Missão
+          </button>
 
 
           <div
