@@ -8141,6 +8141,8 @@ export default function PaisPage({ userPai, timer }) {
                     try {
                       await atualizarCrianca(filho.id, {
                         autoPausadaPorInatividade: false,
+                        // Conta os 3 dias de inatividade a partir da retomada
+                        retomadaEm: new Date(),
                       });
                     } catch (_) {}
                   }}

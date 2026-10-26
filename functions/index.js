@@ -1149,9 +1149,16 @@ async function processarLoteAutoMissoes() {
           .limit(1)
           .get()
 
-        const referenciaAtividade = !ultimaFeitaSnap.empty
-          ? ultimaFeitaSnap.docs[0].data().feitaEm?.toDate?.()
-          : (criancaData.criadoEm?.toDate ? criancaData.criadoEm.toDate() : null)
+        // Referencia = o mais recente entre ultima missao feita, retomada pelo responsavel e criacao.
+        // Sem a retomada, a crianca seria pausada de novo no dia seguinte sem receber nenhuma missao.
+        const datasRef = [
+          !ultimaFeitaSnap.empty ? ultimaFeitaSnap.docs[0].data().feitaEm?.toDate?.() : null,
+          criancaData.retomadaEm?.toDate?.() || null,
+          criancaData.criadoEm?.toDate?.() || null,
+        ].filter(Boolean)
+        const referenciaAtividade = datasRef.length
+          ? new Date(Math.max(...datasRef.map(d => d.getTime())))
+          : null
 
         if (referenciaAtividade) {
           const diasSemAtividade = Math.floor((_agora - referenciaAtividade) / (1000 * 60 * 60 * 24))
