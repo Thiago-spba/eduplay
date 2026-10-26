@@ -527,16 +527,16 @@ export default function HomePage({ playerName }) {
               marginBottom: 20,
             }}
           >
-            <span style={{ fontSize: "4rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>🦉</span>
+            <span style={{ fontSize: "4rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>{feitasHoje > 0 ? "🏆" : "🦉"}</span>
             <p
               style={{
-                color: c.textoSub,
+                color: feitasHoje > 0 ? c.texto : c.textoSub,
                 fontSize: "0.88rem",
-                fontWeight: 600,
+                fontWeight: feitasHoje > 0 ? 800 : 600,
                 margin: "10px 0 4px",
               }}
             >
-              Nenhuma missão disponível ainda.
+              {feitasHoje > 0 ? "Missões de hoje concluídas! 🎉" : "Nenhuma missão disponível ainda."}
             </p>
             <p
               style={{
@@ -547,7 +547,9 @@ export default function HomePage({ playerName }) {
                 lineHeight: 1.5,
               }}
             >
-              Peça para o responsável gerar missões no Painel.
+              {feitasHoje > 0
+                ? "Mandou bem! Amanhã tem missão nova esperando por você."
+                : "Peça para o responsável gerar missões no Painel."}
             </p>
           </div>
         )}
