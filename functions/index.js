@@ -643,9 +643,11 @@ exports.perguntarAssistente = onCall(
     // 🛠️ MODELO ATUALIZADO
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001', max_tokens: 300,
-      system: `Você é um assistente educacional para crianças de 11-12 anos. Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Se você não tiver certeza absoluta de um fato, diga que não sabe ao certo em vez de inventar uma resposta. Use linguagem simples, direta e encorajadora. Máximo 3 frases.`,
+      system: `Você é um assistente educacional para alunos de 11-14 anos (6º ao 9º ano). Responda APENAS sobre o tema: "${tema}" (${disciplina}). Contexto: ${resumo ? resumo.slice(0, 300) : ''}. Se a pergunta for sobre outro assunto, responda exatamente: "Essa dúvida está fora da nossa missão de hoje! Me pergunta sobre ${tema}." Se você não tiver certeza absoluta de um fato, diga que não sabe ao certo em vez de inventar uma resposta. Use linguagem simples, direta e encorajadora. Máximo 3 frases. Escreva em texto simples, sem markdown (nada de asteriscos, # ou listas).`,
       messages: [{ role: 'user', content: pergunta.slice(0, 500) }]
     })
+    // A tela mostra texto puro: remove qualquer markdown que escape (ex.: **negrito**)
+    const respostaLimpa = msg.content[0].text.replace(/\*\*?([^*]+)\*\*?/g, '$1').replace(/^#+\s*/gm, '')
 
     // Incrementa contador de rate limit
     await rateRef.set({
@@ -655,7 +657,7 @@ exports.perguntarAssistente = onCall(
       atualizadoEm: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true })
 
-    return { resposta: msg.content[0].text, restantes: 15 - (totalHoje + 1) }
+    return { resposta: respostaLimpa, restantes: 15 - (totalHoje + 1) }
   }
 )
 

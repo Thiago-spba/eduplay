@@ -1081,8 +1081,11 @@ export default function SubjectPage() {
         resumo: moduloSelecionado?.resumo || "",
       });
       setChatMsgs(prev => [...prev, { role: "assistant", content: r.data.resposta }]);
-    } catch {
-      setChatMsgs(prev => [...prev, { role: "assistant", content: "Erro de conexao. Tente novamente." }]);
+    } catch (err) {
+      const msgErro = String(err?.message).includes("LIMITE_DIARIO")
+        ? "Você já fez todas as perguntas de hoje! Amanhã tem mais. 😉"
+        : "Erro de conexão. Tente novamente.";
+      setChatMsgs(prev => [...prev, { role: "assistant", content: msgErro }]);
     }
   };
 
@@ -1224,7 +1227,9 @@ export default function SubjectPage() {
                               ? (moduloSelecionado.topicos[0].nome || moduloSelecionado.topicos[0].descricao || "")
                               : moduloSelecionado.topicos[0])
                           : (moduloSelecionado?.tema || disciplinaBase.label);
-                      const busca = `${topico} ${disciplinaBase.label} aula ${serieAtual}`;
+                      // Busca curta: só o nome do tópico (antes de ":") — frase longa trazia poucos resultados
+                      const nomeTopico = String(topico).split(":")[0].replace(/['"]/g, "").trim();
+                      const busca = `${nomeTopico} ${disciplinaBase.label} ${serieAtual.replace("ano", "º ano")} aula`;
                       return (
                         <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(busca)}&sp=EgIQAQ%3D%3D`} target="_blank" rel="noreferrer"
                           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>

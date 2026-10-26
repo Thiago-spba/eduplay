@@ -122,8 +122,12 @@ export default function OlloAssistant({ missao, c, tema, compacto = false }) {
         resumo: missao?.resumo || missao?.roteiroPodcast || "",
       });
       setResposta(result.data.resposta);
-    } catch {
-      setResposta("Ops! Não consegui responder agora. Tente novamente.");
+    } catch (err) {
+      setResposta(
+        String(err?.message).includes("LIMITE_DIARIO")
+          ? "Você já fez todas as perguntas de hoje! Amanhã tem mais. 😉"
+          : "Ops! Não consegui responder agora. Tente novamente.",
+      );
     } finally {
       setCarregando(false);
     }
