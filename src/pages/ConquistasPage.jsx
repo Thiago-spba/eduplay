@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
-import { getProgresso, getTodasMissoes, getCrianca } from "../services/db";
+import { getProgresso, getTodasMissoes, getCrianca, sequenciaAtual, diasDesdeUltimoEstudo } from "../services/db";
 
 const DISC = {
   historia: { label: "História", icone: "📜", cor: "#C4A882" },
@@ -76,7 +76,7 @@ function datasDaSemanaAtual() {
 // CONQUISTAS — calculadas só com dados que JÁ existem no banco
 // ─────────────────────────────────────────────────────────────
 function gerarConquistas(progresso, totalFeitas, missoesPorDisc) {
-  const dias = progresso?.diasSeguidos || 0;
+  const dias = sequenciaAtual(progresso);
   const recorde = progresso?.recordeDias || 0;
   const media = progresso?.mediaGeral || 0;
   const melhorNota = progresso?.melhorNota || 0;
@@ -184,7 +184,7 @@ function gerarMensagens(progresso, missoesPorDisc, nome) {
   const total = Object.values(missoesPorDisc)
     .flat()
     .filter((m) => m.feita).length;
-  const dias = progresso?.diasSeguidos || 0;
+  const dias = sequenciaAtual(progresso);
   const media = progresso?.mediaGeral || 0;
   const recorde = progresso?.recordeDias || 0;
 
@@ -209,6 +209,13 @@ function gerarMensagens(progresso, missoesPorDisc, nome) {
       },
     ];
   }
+
+  // Voltou depois de 2+ dias sem concluir missão
+  if ((diasDesdeUltimoEstudo(progresso) ?? 0) >= 2)
+    msgs.push({
+      emoji: "👋",
+      texto: `Que bom te ver de novo, ${nome}! Vamos retomar com uma missão rápida?`,
+    });
 
   msgs.push({
     emoji: "⚡",
@@ -708,7 +715,7 @@ export default function ConquistasPage() {
     .filter((m) => m.feita).length;
   const nivelInfo = calcularNivel(totalFeitas);
   const tit = tituloDoNivel(nivelInfo.nivel);
-  const dias = progresso?.diasSeguidos || 0;
+  const dias = sequenciaAtual(progresso);
   const diasAtivos = progresso?.diasAtivos || [];
   const media = progresso?.mediaGeral || 0;
   const conquistas = gerarConquistas(progresso, totalFeitas, missoesPorDisc);
@@ -1356,29 +1363,32 @@ export default function ConquistasPage() {
                             alignItems: "center",
                             justifyContent: "center",
                             fontSize: "0.7rem",
-                            background: isHoje
-                              ? "#FFD700"
-                              : feito
-                                ? "#0F6E56"
-                                : c.borda,
-                            color: isHoje
-                              ? "#633806"
-                              : feito
-                                ? "#E1F5EE"
-                                : c.textoSub,
-                            animation: isHoje
+                            // Chama só acende em dia com missão concluída
+                            background: feito
+                              ? isHoje
+                                ? "#FFD700"
+                                : "#0F6E56"
+                              : c.borda,
+                            border: isHoje && !feito ? "2px dashed #FFD700" : "none",
+                            boxSizing: "border-box",
+                            color: feito
+                              ? isHoje
+                                ? "#633806"
+                                : "#E1F5EE"
+                              : c.textoSub,
+                            animation: isHoje && feito
                               ? "edu-pulso-suave 2s ease-in-out infinite"
                               : "none",
                           }}
                         >
-                          {isHoje ? "🔥" : feito ? "✓" : "—"}
+                          {feito ? (isHoje ? "🔥" : "✓") : "—"}
                         </div>
                       </div>
                     );
                   },
                 )}
               </div>
-              {dias > 0 && (
+              {(dias > 0 || progresso?.recordeDias > 0) && (
                 <p
                   style={{
                     fontSize: "0.78rem",

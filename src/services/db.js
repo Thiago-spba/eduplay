@@ -196,7 +196,35 @@ export async function getProgresso(codigoAcesso) {
     : { ...PROGRESSO_INICIAL };
 }
 
-/** Registra acesso diário e atualiza sequência */
+const fmtDataSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
+/** Dias desde a última missão concluída (0 = hoje). null se nunca estudou */
+export function diasDesdeUltimoEstudo(prog) {
+  const ultimo = [...(prog?.diasAtivos || [])].sort().at(-1);
+  if (!ultimo) return null;
+  const hoje = new Date(fmtDataSP(new Date()) + "T00:00:00");
+  return Math.round((hoje - new Date(ultimo + "T00:00:00")) / 86400000);
+}
+
+/** Sequência válida hoje: zera se o último estudo foi antes de ontem (o recorde fica guardado) */
+export function sequenciaAtual(prog) {
+  const d = diasDesdeUltimoEstudo(prog);
+  return d !== null && d <= 1 ? prog.diasSeguidos || 0 : 0;
+}
+
+/** Data (AAAA-MM-DD, fuso SP) em que a missão foi concluída, ou null */
+export function dataConclusaoSP(m) {
+  return m?.feita && m?.feitaEm?.toDate ? fmtDataSP(m.feitaEm.toDate()) : null;
+}
+
+/** Segunda-feira da semana atual (AAAA-MM-DD, fuso SP) */
+export function inicioSemanaSP() {
+  const hoje = new Date(fmtDataSP(new Date()) + "T12:00:00");
+  hoje.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7));
+  return fmtDataSP(hoje);
+}
+
+/** Registra dia de estudo (chamado só ao concluir missão) e atualiza sequência */
 export async function registrarAcessoDiario(codigoAcesso) {
   const fmtSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
   const hoje = fmtSP(new Date());
@@ -212,6 +240,7 @@ export async function registrarAcessoDiario(codigoAcesso) {
   const atualizado = {
     diasAtivos: novosDias,
     diasSeguidos,
+    recordeDias: Math.max(prog.recordeDias || 0, diasSeguidos),
     ultimoAcesso: serverTimestamp(),
   };
 
@@ -236,11 +265,7 @@ export async function registrarMissaoConcluida(codigoAcesso, chaveMissao, percen
   inicioSemana.setHours(0, 0, 0, 0);
   const missoesEssaSemana = (prog.missoesEssaSemana || 0) + 1;
 
-  // Calcular recorde de dias
-  const diasAtivos = prog.diasAtivos || [];
-  const hoje = new Date().toISOString().slice(0, 10);
-  const diasSeguidos = prog.diasSeguidos || 0;
-  const recordeDias = Math.max(prog.recordeDias || 0, diasSeguidos);
+  // Recorde de dias agora é calculado em registrarAcessoDiario, junto com a sequência
 
   // Melhor nota
   const melhorNota = Math.max(prog.melhorNota || 0, percentual);
@@ -252,7 +277,6 @@ export async function registrarMissaoConcluida(codigoAcesso, chaveMissao, percen
     mediaGeral,
     melhorNota,
     missoesEssaSemana,
-    recordeDias,
     atualizadoEm: serverTimestamp(),
   }, { merge: true });
 }

@@ -8,7 +8,8 @@ import {
   getTodasMissoes,
   getProgresso,
   verificarTrial,
-getCrianca, getResponsavel} from "../services/db";
+getCrianca, getResponsavel,
+  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 
 // ── Utilitários ──
@@ -21,18 +22,19 @@ function obterSaudacao() {
 
 function obterDiasSemana(diasAtivos = []) {
   const nomes = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const hoje = new Date();
-  const inicio = new Date(hoje);
-  inicio.setDate(hoje.getDate() - ((hoje.getDay() + 6) % 7));
+  // Datas no fuso de São Paulo (toISOString usa UTC e desloca o dia à noite)
+  const fmtSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const hojeISO = fmtSP(new Date());
+  const inicio = new Date(inicioSemanaSP() + "T12:00:00");
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(inicio);
     d.setDate(inicio.getDate() + i);
-    const iso = d.toISOString().slice(0, 10);
+    const iso = fmtSP(d);
     return {
       label: nomes[d.getDay()],
       iso,
       feito: diasAtivos.includes(iso),
-      hoje: iso === hoje.toISOString().slice(0, 10),
+      hoje: iso === hojeISO,
     };
   });
 }
@@ -162,16 +164,23 @@ export default function HomePage({ playerName }) {
   });
 
 
-  // ── Badges de esforço ──
-  const diasSeguidos = progresso?.diasSeguidos || 0;
-  const missoesFeitas = progresso?.missoesFeitas || 0;
+  // ── Badges de esforço (só o que foi feito hoje / nesta semana) ──
+  const diasSeguidos = sequenciaAtual(progresso);
+  const diasSemEstudar = diasDesdeUltimoEstudo(progresso);
+  const hojeSPData = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const segundaSP = inicioSemanaSP();
+  const datasConclusao = Object.values(missoes).flat().map(dataConclusaoSP).filter(Boolean);
+  const feitasHoje = datasConclusao.filter((d) => d === hojeSPData).length;
+  const feitasSemana = datasConclusao.filter((d) => d >= segundaSP).length;
+  // Voltou depois de 2+ dias sem concluir missão e ainda não fez nenhuma hoje
+  const voltouDepoisDeDias = diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
   const badges = [];
+  if (feitasHoje > 0)
+    badges.push({ icone: "✅", label: `${feitasHoje} ${feitasHoje === 1 ? "missão" : "missões"} hoje` });
+  if (feitasSemana > 0)
+    badges.push({ icone: "📅", label: `${feitasSemana} nesta semana` });
   if (diasSeguidos >= 3)
     badges.push({ icone: "🔥", label: `${diasSeguidos} dias seguidos` });
-  if (missoesFeitas >= 5)
-    badges.push({ icone: "✅", label: "5 missões concluídas" });
-  if (missoesFeitas >= 1 && diasSeguidos >= 1)
-    badges.push({ icone: "💡", label: "Voltou para aprender" });
 
   // ── Observador de Missões (Gatilho da Festa) ──
   useEffect(() => {
@@ -358,8 +367,8 @@ export default function HomePage({ playerName }) {
             },
             {
               icone: "✅",
-              label: "missões feitas",
-              valor: `${missoesFeitas} ${missoesFeitas === 1 ? "missão" : "missões"}`,
+              label: "nesta semana",
+              valor: `${feitasSemana} ${feitasSemana === 1 ? "missão" : "missões"}`,
             },
           ].map((p) => (
             <div
@@ -403,6 +412,25 @@ export default function HomePage({ playerName }) {
 
       {/* ── CONTEÚDO ── */}
       <main style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+        {voltouDepoisDeDias && (
+          <div
+            style={{
+              background: c.card,
+              borderRadius: 16,
+              padding: "14px 16px",
+              border: `1.5px solid ${c.borda}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              marginBottom: 20,
+            }}
+          >
+            <span style={{ fontSize: "1.8rem" }}>👋</span>
+            <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 700, color: c.texto, lineHeight: 1.4 }}>
+              Que bom te ver de novo! Vamos retomar com uma missão rápida?
+            </p>
+          </div>
+        )}
         <p
           style={{
             fontSize: "0.66rem",
@@ -578,8 +606,7 @@ export default function HomePage({ playerName }) {
         </div>
 
         {/* Badges */}
-        {badges.length > 0 && (
-          <>
+        <>
             <p
               style={{
                 fontSize: "0.66rem",
@@ -592,6 +619,30 @@ export default function HomePage({ playerName }) {
             >
               Conquistado
             </p>
+            {badges.length === 0 ? (
+              <button
+                onClick={() => navigate(missaoPrincipal ? `/${missaoPrincipal.id}` : "/mapa")}
+                style={{
+                  width: "100%",
+                  background: c.card,
+                  borderRadius: 16,
+                  padding: "14px 16px",
+                  border: `1.5px dashed ${c.borda}`,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  marginBottom: 20,
+                  cursor: "pointer",
+                  textAlign: "left",
+                  fontFamily: "'Nunito', sans-serif",
+                }}
+              >
+                <span style={{ fontSize: "1.6rem" }}>🚀</span>
+                <span style={{ fontSize: "0.82rem", color: c.texto, fontWeight: 700, lineHeight: 1.4 }}>
+                  Nenhuma missão nesta semana ainda. Faça uma agora e ganhe sua primeira conquista!
+                </span>
+              </button>
+            ) : (
             <div
               style={{
                 display: "flex",
@@ -626,8 +677,8 @@ export default function HomePage({ playerName }) {
                 </div>
               ))}
             </div>
-          </>
-        )}
+            )}
+        </>
 
 
         {/* Palco da Premiação */}

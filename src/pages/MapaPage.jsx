@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
-import { getTodasMissoes } from "../services/db";
+import { getTodasMissoes, dataConclusaoSP, inicioSemanaSP } from "../services/db";
 
 const DISCIPLINAS = [
   { id: "historia", label: "História", icone: "📜", cor: "#C4A882" },
@@ -45,6 +45,12 @@ export default function MapaPage() {
   const totalPendentes = DISCIPLINAS.reduce((acc, d) => {
     return acc + (missoes[d.id] || []).filter((m) => !m.feita).length;
   }, 0);
+
+  // Concluídas nesta semana (fuso SP) — o total histórico não conta como atividade recente
+  const segundaSP = inicioSemanaSP();
+  const feitaNaSemana = (m) => (dataConclusaoSP(m) || "") >= segundaSP;
+  const feitasSemanaTotal = Object.values(missoes).flat().filter(feitaNaSemana).length;
+  const totalMissoes = Object.values(missoes).flat().length;
 
   return (
     <div
@@ -105,7 +111,11 @@ export default function MapaPage() {
             ? "Carregando..."
             : totalPendentes > 0
               ? `${totalPendentes} ${totalPendentes === 1 ? "missão pendente" : "missões pendentes"}`
-              : "Tudo em dia! 🎉"}
+              : feitasSemanaTotal > 0
+                ? "Tudo em dia! 🎉"
+                : totalMissoes === 0
+                  ? "Nenhuma missão ainda"
+                  : "Nenhuma missão nova agora"}
         </p>
       </header>
 
@@ -130,7 +140,7 @@ export default function MapaPage() {
             {DISCIPLINAS.map((d) => {
               const lista = missoes[d.id] || [];
               const pendentes = lista.filter((m) => !m.feita).length;
-              const concluidas = lista.filter((m) => m.feita).length;
+              const concluidas = lista.filter(feitaNaSemana).length;
 
               return (
                 <button
@@ -186,8 +196,10 @@ export default function MapaPage() {
                       {pendentes > 0
                         ? `${pendentes} ${pendentes === 1 ? "missão disponível" : "missões disponíveis"}`
                         : concluidas > 0
-                          ? `${concluidas} ${concluidas === 1 ? "missão concluída" : "missões concluídas"} ✓`
-                          : "Nenhuma missão ainda"}
+                          ? `${concluidas} ${concluidas === 1 ? "concluída" : "concluídas"} nesta semana ✓`
+                          : lista.length === 0
+                            ? "Nenhuma missão ainda"
+                            : "Nenhuma missão nova"}
                     </div>
                   </div>
 
