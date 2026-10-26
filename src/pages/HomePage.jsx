@@ -9,8 +9,9 @@ import {
   getProgresso,
   verificarTrial,
 getCrianca, getResponsavel,
-  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP} from "../services/db";
+  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
+import FimDeSemana from '../components/FimDeSemana';
 
 // ── Utilitários ──
 function obterSaudacao() {
@@ -176,8 +177,10 @@ export default function HomePage({ playerName }) {
   const datasConclusao = Object.values(missoes).flat().map(dataConclusaoSP).filter(Boolean);
   const feitasHoje = datasConclusao.filter((d) => d === hojeSPData).length;
   const feitasSemana = datasConclusao.filter((d) => d >= segundaSP).length;
-  // Voltou depois de 2+ dias sem concluir missão e ainda não fez nenhuma hoje
-  const voltouDepoisDeDias = diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
+  // Sábado e domingo: sem missões, só o convite para descansar
+  const fimDeSemana = ehFimDeSemanaSP();
+  // Voltou depois de 2+ dias úteis sem concluir missão e ainda não fez nenhuma hoje
+  const voltouDepoisDeDias = !fimDeSemana && diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
   const badges = [];
   if (feitasHoje > 0)
     badges.push({ icone: "✅", label: `${feitasHoje} ${feitasHoje === 1 ? "missão" : "missões"} hoje` });
@@ -473,10 +476,12 @@ export default function HomePage({ playerName }) {
             margin: "0 0 10px",
           }}
         >
-          Missão de hoje
+          {fimDeSemana ? "Hoje" : "Missão de hoje"}
         </p>
 
-        {missaoPrincipal ? (
+        {fimDeSemana ? (
+          <FimDeSemana c={c} />
+        ) : missaoPrincipal ? (
           <>
           {missoesPendentesResto.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
@@ -638,8 +643,8 @@ export default function HomePage({ playerName }) {
           ))}
         </div>
 
-        {/* Badges */}
-        <>
+        {/* Badges (no fim de semana, sem convite para fazer missão) */}
+        {(badges.length > 0 || !fimDeSemana) && (<>
             <p
               style={{
                 fontSize: "0.66rem",
@@ -717,7 +722,7 @@ export default function HomePage({ playerName }) {
               ))}
             </div>
             )}
-        </>
+        </>)}
 
 
         {/* Palco da Premiação */}

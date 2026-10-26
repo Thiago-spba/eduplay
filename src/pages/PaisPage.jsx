@@ -8128,7 +8128,7 @@ export default function PaisPage({ userPai, timer }) {
                   }}
                 >
                   {filho?.nome?.split(" ")[0] || "Sua criança"} ficou 3 dias
-                  ou mais sem completar nenhuma missão, então o sistema parou
+                  úteis ou mais sem completar nenhuma missão, então o sistema parou
                   de gerar novas automaticamente — pra não empilhar missões
                   que ninguém está fazendo. Toque abaixo para retomar.
                 </p>

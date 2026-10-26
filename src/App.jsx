@@ -11,6 +11,7 @@ import { usePlayer } from "./hooks/usePlayer";
 import { useTimer } from "./hooks/useTimer";
 import { useParentLock } from "./hooks/useParentLock";
 import { onAuthChange } from "./services/auth";
+import { ehFimDeSemanaSP } from "./services/db";
 
 // ── Estáticos — carregam sempre no boot ──
 import CodigoPage from "./pages/CodigoPage";
@@ -202,7 +203,11 @@ export default function App() {
         />
         <Route path="/conquistas" element={<ConquistasPage />} />
         <Route path="/mapa" element={<MapaPage />} />
-        <Route path="/:disciplinaId" element={<SubjectPage timer={timer} />} />
+        {/* Missões só de segunda a sexta; no fim de semana volta para o Início */}
+        <Route
+          path="/:disciplinaId"
+          element={ehFimDeSemanaSP() ? <Navigate to="/" replace /> : <SubjectPage timer={timer} />}
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Suspense>

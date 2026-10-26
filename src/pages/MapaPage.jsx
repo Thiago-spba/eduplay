@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
-import { getTodasMissoes, dataConclusaoSP, inicioSemanaSP } from "../services/db";
+import { getTodasMissoes, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP } from "../services/db";
+import FimDeSemana from "../components/FimDeSemana";
 
 const DISCIPLINAS = [
   { id: "historia", label: "História", icone: "📜", cor: "#F5A623" },
@@ -51,6 +52,8 @@ export default function MapaPage() {
   const feitaNaSemana = (m) => (dataConclusaoSP(m) || "") >= segundaSP;
   const feitasSemanaTotal = Object.values(missoes).flat().filter(feitaNaSemana).length;
   const totalMissoes = Object.values(missoes).flat().length;
+  // Sábado e domingo: missões ficam guardadas para segunda
+  const fimDeSemana = ehFimDeSemanaSP();
 
   return (
     <div
@@ -110,7 +113,9 @@ export default function MapaPage() {
         <p style={{ margin: 0, fontSize: "0.78rem", color: "#9FE1CB" }}>
           {carregando
             ? "Carregando..."
-            : totalPendentes > 0
+            : fimDeSemana
+              ? "Fim de semana — as missões voltam na segunda 💚"
+              : totalPendentes > 0
               ? `${totalPendentes} ${totalPendentes === 1 ? "missão pendente" : "missões pendentes"}`
               : feitasSemanaTotal > 0
                 ? "Tudo em dia! 🎉"
@@ -138,7 +143,8 @@ export default function MapaPage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {totalMissoes === 0 && (
+            {fimDeSemana && <FimDeSemana c={c} />}
+            {!fimDeSemana && totalMissoes === 0 && (
               <div
                 style={{
                   background: c.card,
@@ -171,7 +177,8 @@ export default function MapaPage() {
               return (
                 <button
                   key={d.id}
-                  onClick={() => navigate(`/${d.id}`)}
+                  onClick={() => !fimDeSemana && navigate(`/${d.id}`)}
+                  disabled={fimDeSemana}
                   style={{
                     background: c.card,
                     borderRadius: 22,
@@ -186,7 +193,8 @@ export default function MapaPage() {
                     display: "flex",
                     alignItems: "center",
                     gap: 14,
-                    cursor: "pointer",
+                    cursor: fimDeSemana ? "default" : "pointer",
+                    opacity: fimDeSemana ? 0.6 : 1,
                     textAlign: "left",
                     width: "100%",
                     transition: "all 0.2s",

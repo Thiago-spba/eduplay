@@ -417,3 +417,46 @@ export const niveis = [
 ];
 
 export const NIVEIS = niveis;
+
+// ─────────────────────────────────────────────────────────────
+// FIM DE SEMANA — sem missões. Descanso, brincadeira e convivência
+// também fazem parte do aprendizado (o cérebro consolida a memória
+// no descanso). Tom: convite, sem cobrança nem culpa.
+// ─────────────────────────────────────────────────────────────
+export const MENSAGENS_FIM_DE_SEMANA = [
+  {
+    emoji: "🎬",
+    texto: "Que tal escolher um filme com a família? No final, cada um conta a cena favorita e por quê. Conversar sobre uma história também é aprender — e é bem mais divertido!",
+  },
+  {
+    emoji: "⚽",
+    texto: "Enquanto você descansa e se diverte, seu cérebro organiza tudo o que aprendeu na semana. Chama os amigos para uma partida, uma corrida ou aquele jogo que vocês curtem!",
+  },
+  {
+    emoji: "🍳",
+    texto: "Proponha um programa com seu pai, sua mãe ou quem cuida de você: que tal cozinhar uma receita juntos? Medir, misturar e provar vale até como aula de ciências — sem prova nenhuma!",
+  },
+  {
+    emoji: "🌳",
+    texto: "Dá uma escapada para fora de casa: praça, parque, bicicleta ou uma caminhada. Movimentar o corpo deixa a cabeça mais leve e prontinha para segunda-feira.",
+  },
+  {
+    emoji: "🎲",
+    texto: "Desafio do fim de semana: chama alguém da família para um jogo de tabuleiro, cartas ou adivinhação. Saber ganhar e perder com bom humor também é um superpoder.",
+  },
+  {
+    emoji: "🎨",
+    texto: "Faça algo só porque você gosta: desenhar, montar, tocar, escrever uma história, inventar alguma coisa. É da curiosidade livre que nascem as grandes ideias.",
+  },
+  {
+    emoji: "💬",
+    texto: "Lembra daquele amigo que você não vê faz tempo? Manda uma mensagem ou combina de se encontrar. Boas amizades deixam a gente mais feliz — e até aprendendo melhor.",
+  },
+];
+
+/** Mensagem do dia (muda entre sábado e domingo e a cada fim de semana) */
+export function mensagemFimDeSemana(data = new Date()) {
+  const iso = data.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const dia = Math.floor(new Date(iso + "T12:00:00Z").getTime() / 86400000);
+  return MENSAGENS_FIM_DE_SEMANA[dia % MENSAGENS_FIM_DE_SEMANA.length];
+}

@@ -198,12 +198,30 @@ export async function getProgresso(codigoAcesso) {
 
 const fmtDataSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
-/** Dias desde a última missão concluída (0 = hoje). null se nunca estudou */
+/** Sábado ou domingo no fuso de SP — dia sem missões */
+export function ehFimDeSemanaSP(data = new Date()) {
+  const dia = new Date(fmtDataSP(data) + "T12:00:00").getDay();
+  return dia === 0 || dia === 6;
+}
+
+/** Dias úteis (seg-sex) depois de isoA até isoB inclusive. Sexta -> segunda = 1 */
+function diasUteisEntre(isoA, isoB) {
+  const fim = new Date(isoB + "T12:00:00");
+  const cursor = new Date(isoA + "T12:00:00");
+  let n = 0;
+  while (true) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor > fim) break;
+    if (cursor.getDay() !== 0 && cursor.getDay() !== 6) n++;
+  }
+  return n;
+}
+
+/** Dias úteis desde a última missão concluída (0 = hoje ou só fim de semana no meio). null se nunca estudou */
 export function diasDesdeUltimoEstudo(prog) {
   const ultimo = [...(prog?.diasAtivos || [])].sort().at(-1);
   if (!ultimo) return null;
-  const hoje = new Date(fmtDataSP(new Date()) + "T00:00:00");
-  return Math.round((hoje - new Date(ultimo + "T00:00:00")) / 86400000);
+  return diasUteisEntre(ultimo, fmtDataSP(new Date()));
 }
 
 /** Sequência válida hoje: zera se o último estudo foi antes de ontem (o recorde fica guardado) */
@@ -232,9 +250,9 @@ export async function registrarAcessoDiario(codigoAcesso) {
 
   if (prog.diasAtivos.includes(hoje)) return prog;
 
-  const ontem = fmtSP(new Date(Date.now() - 86400000));
+  // Sábado e domingo não quebram a sequência (sexta -> segunda continua)
   const ultimoDia = prog.diasAtivos.sort().at(-1);
-  const diasSeguidos = ultimoDia === ontem ? prog.diasSeguidos + 1 : 1;
+  const diasSeguidos = ultimoDia && diasUteisEntre(ultimoDia, hoje) <= 1 ? prog.diasSeguidos + 1 : 1;
   const novosDias = [...prog.diasAtivos, hoje].slice(-90);
 
   const atualizado = {

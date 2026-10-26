@@ -1161,7 +1161,17 @@ async function processarLoteAutoMissoes() {
           : null
 
         if (referenciaAtividade) {
-          const diasSemAtividade = Math.floor((_agora - referenciaAtividade) / (1000 * 60 * 60 * 24))
+          // Conta so dias uteis completos entre a referencia e hoje (sabado e domingo nao contam)
+          const fmtSP = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+          const cursorDia = new Date(fmtSP(referenciaAtividade) + 'T12:00:00Z')
+          const hojeDia = new Date(fmtSP(new Date()) + 'T12:00:00Z')
+          let diasSemAtividade = 0
+          cursorDia.setUTCDate(cursorDia.getUTCDate() + 1)
+          while (cursorDia < hojeDia) {
+            const ds = cursorDia.getUTCDay()
+            if (ds !== 0 && ds !== 6) diasSemAtividade++
+            cursorDia.setUTCDate(cursorDia.getUTCDate() + 1)
+          }
           if (diasSemAtividade >= 3) {
             await db.collection('criancas').doc(criancaId).set({
               autoPausadaPorInatividade: true,
