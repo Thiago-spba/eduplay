@@ -23,6 +23,7 @@ import {
   desativarConta,
   reativarConta,
   verificarTrial,
+  sequenciaAtual,
 } from "../services/db";
 
 const MAX_MISSOES_DIA_DEFAULT = 3;
@@ -1627,7 +1628,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
       <div class="stats">
         <div class="stat"><div class="stat-num">${totalMissoes}</div><div class="stat-label">Missões concluídas</div></div>
         <div class="stat"><div class="stat-num">${media}%</div><div class="stat-label">Média de acertos</div></div>
-        <div class="stat"><div class="stat-num">${progresso?.diasSeguidos || 0}</div><div class="stat-label">Dias seguidos</div></div>
+        <div class="stat"><div class="stat-num">${sequenciaAtual(progresso)}</div><div class="stat-label">Dias seguidos</div></div>
         <div class="stat"><div class="stat-num">${progresso?.diasAtivos?.length || 0}</div><div class="stat-label">Dias ativos</div></div>
       </div>
       <table>
@@ -1698,7 +1699,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
           { label: "Média de acertos", valor: `${media}%`, icone: "🎯" },
           {
             label: "Dias seguidos",
-            valor: progresso?.diasSeguidos || 0,
+            valor: sequenciaAtual(progresso),
             icone: "🔥",
           },
           {
@@ -3952,7 +3953,7 @@ export default function PaisPage({ userPai, timer }) {
   };
   const compartilharOrgulhoWhatsApp = () => {
     const nome = filho?.nome?.split(" ")[0] || "meu filho";
-    const dias = progresso?.diasSeguidos || 0;
+    const dias = sequenciaAtual(progresso);
     const total = Object.values(missoesPorDisc).reduce((a, arr) => a + (arr?.length || 0), 0);
     const link = `https://eduplay.olloapp.com.br/agente/${gerarSlug(filho?.nome, filho?.id)}`;
     const msg = dias >= 3
@@ -5494,7 +5495,7 @@ export default function PaisPage({ userPai, timer }) {
                       margin: 0,
                     }}
                   >
-                    {(progresso?.diasSeguidos || 0) >= 2 ? `${progresso.diasSeguidos}  dias seguidos! 🔥` : "Agente Ativo"}
+                    {sequenciaAtual(progresso) >= 2 ? `${sequenciaAtual(progresso)} dias seguidos! 🔥` : "Agente Ativo"}
                   </p>
                   <h2
                     style={{

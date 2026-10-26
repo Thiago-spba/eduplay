@@ -4,11 +4,11 @@ import BottomNav from "../components/BottomNav";
 import { getProgresso, getTodasMissoes, getCrianca, sequenciaAtual, diasDesdeUltimoEstudo } from "../services/db";
 
 const DISC = {
-  historia: { label: "História", icone: "📜", cor: "#C4A882" },
-  geografia: { label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
-  matematica: { label: "Matemática", icone: "📐", cor: "#6B5B95" },
-  ciencias: { label: "Ciências", icone: "🔬", cor: "#2E8B57" },
-  portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
+  historia: { label: "História", icone: "📜", cor: "#F5A623" },
+  geografia: { label: "Geografia", icone: "🗺️", cor: "#1FC1B0" },
+  matematica: { label: "Matemática", icone: "📐", cor: "#9B7BFF" },
+  ciencias: { label: "Ciências", icone: "🔬", cor: "#3DDC84" },
+  portugues: { label: "Português", icone: "✍️", cor: "#FF6B7A" },
 };
 
 // ─────────────────────────────────────────────────────────────
@@ -769,7 +769,7 @@ export default function ConquistasPage() {
       }}
     >
       {/* HEADER */}
-      <div style={{ background: c.verde, padding: "18px 20px" }}>
+      <div style={{ background: "linear-gradient(135deg,#0F6E56 0%,#13A07C 60%,#1FC1B0 100%)", padding: "18px 20px", borderRadius: "0 0 26px 26px" }}>
         <div
           style={{
             display: "flex",
@@ -836,8 +836,8 @@ export default function ConquistasPage() {
         {/* CARD AGENTE */}
         <div
           style={{
-            background: "#085041",
-            borderRadius: 16,
+            background: "linear-gradient(135deg,#085041 0%,#0F6E56 55%,#5B3FD1 100%)",
+            borderRadius: 22,
             padding: 20,
             position: "relative",
             overflow: "hidden",
@@ -895,7 +895,8 @@ export default function ConquistasPage() {
               margin: "0 0 14px",
             }}
           >
-            Nível {nivelInfo.nivel} · {serieNum}º Ano
+            Nível {nivelInfo.nivel} · {serieNum}º Ano ·{" "}
+            <span style={{ color: "#FFD700", fontWeight: 800 }}>⚡ {totalFeitas * 10} XP</span>
           </p>
           <div
             style={{
@@ -906,9 +907,9 @@ export default function ConquistasPage() {
           >
             <div
               style={{
-                height: 6,
-                background: "rgba(255,255,255,.12)",
-                borderRadius: 3,
+                height: 10,
+                background: "rgba(255,255,255,.15)",
+                borderRadius: 5,
                 overflow: "hidden",
                 marginBottom: 5,
               }}
@@ -1061,27 +1062,37 @@ export default function ConquistasPage() {
           }}
         >
           {[
-            { emoji: "🔥", num: dias, label: "dias seguidos" },
-            { emoji: "🎯", num: totalFeitas, label: "missões feitas" },
+            { emoji: "🔥", num: dias, label: "dias seguidos", cor: "#FF8A3D", apagado: dias === 0 },
+            { emoji: "🎯", num: totalFeitas, label: "missões feitas", cor: "#9B7BFF" },
             {
               emoji: "⭐",
               num: totalFeitas > 0 ? `${media}%` : "--",
               label: "média geral",
+              cor: "#F5A623",
             },
           ].map((s, i) => (
             <div
               key={i}
               style={{
                 background: c.card,
-                border: `1.5px solid ${c.borda}`,
-                borderRadius: 12,
+                border: `1.5px solid ${s.cor}66`,
+                borderRadius: 18,
                 padding: "12px 8px",
                 textAlign: "center",
                 animation: `edu-surgir 0.5s ease ${i * 0.12}s backwards`,
               }}
             >
-              <div style={{ fontSize: 20, marginBottom: 4 }}>{s.emoji}</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: c.verde }}>
+              <div
+                style={{
+                  fontSize: 24,
+                  marginBottom: 4,
+                  filter: s.apagado ? "grayscale(1) opacity(0.5)" : "none",
+                  animation: i === 0 && !s.apagado ? "edu-pulso-suave 1.6s ease-in-out infinite" : "none",
+                }}
+              >
+                {s.emoji}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: e ? s.cor : c.texto }}>
                 {s.num}
               </div>
               <div
@@ -1111,6 +1122,17 @@ export default function ConquistasPage() {
             titulo={`🏅 Mural de Conquistas · ${desbloqueadas}/${conquistas.length}`}
             chave="conquistas"
           />
+          <div style={{ height: 8, background: c.borda, borderRadius: 4, overflow: "hidden", margin: "10px 16px 0" }}>
+            <div
+              style={{
+                height: "100%",
+                width: `${Math.round((desbloqueadas / conquistas.length) * 100)}%`,
+                background: "linear-gradient(90deg,#3DDC84,#FFD700)",
+                borderRadius: 4,
+                transition: "width 1s ease",
+              }}
+            />
+          </div>
           {exp.conquistas && (
             <div
               style={{
@@ -1126,11 +1148,12 @@ export default function ConquistasPage() {
                   title={cq.ok ? cq.desc : cq.req}
                   style={{
                     background: cq.ok ? (e ? "#0F6E5622" : "#E1F5EE") : c.bg,
-                    border: `1.5px solid ${cq.ok ? "#5DCAA5" : c.borda}`,
-                    borderRadius: 12,
+                    border: `1.5px solid ${cq.ok ? "#3DDC84" : c.borda}`,
+                    borderRadius: 18,
                     padding: "12px 6px",
                     textAlign: "center",
                     opacity: cq.ok ? 1 : 0.55,
+                    boxShadow: cq.ok ? "0 0 14px #3DDC8444" : "none",
                     animation: cq.ok
                       ? `edu-pop 0.4s ease ${i * 0.05}s backwards`
                       : "none",
@@ -1138,9 +1161,10 @@ export default function ConquistasPage() {
                 >
                   <div
                     style={{
-                      fontSize: "1.5rem",
+                      fontSize: "1.8rem",
                       marginBottom: 4,
                       filter: cq.ok ? "none" : "grayscale(1)",
+                      animation: cq.ok ? `edu-flutuar 3s ease-in-out ${i * 0.2}s infinite` : "none",
                     }}
                   >
                     {cq.ok ? cq.emoji : "🔒"}

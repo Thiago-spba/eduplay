@@ -40,12 +40,16 @@ function obterDiasSemana(diasAtivos = []) {
 }
 
 const DISCIPLINAS_META = {
-  historia: { label: "História", icone: "📜", cor: "#C4A882" },
-  geografia: { label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
-  matematica: { label: "Matemática", icone: "📐", cor: "#6B5B95" },
-  ciencias: { label: "Ciências", icone: "🔬", cor: "#2E8B57" },
-  portugues: { label: "Português", icone: "✍️", cor: "#C0392B" },
+  historia: { label: "História", icone: "📜", cor: "#F5A623" },
+  geografia: { label: "Geografia", icone: "🗺️", cor: "#1FC1B0" },
+  matematica: { label: "Matemática", icone: "📐", cor: "#9B7BFF" },
+  ciencias: { label: "Ciências", icone: "🔬", cor: "#3DDC84" },
+  portugues: { label: "Português", icone: "✍️", cor: "#FF6B7A" },
 };
+
+// Meta da semana usada na barra de XP (10 XP por missão)
+const META_SEMANA = 5;
+const XP_POR_MISSAO = 10;
 
 const ORDEM_DISCIPLINAS = [
   "historia",
@@ -269,7 +273,7 @@ export default function HomePage({ playerName }) {
       }}
     >
       {/* ── HEADER VERDE ── */}
-      <div style={{ background: c.verde, padding: "18px 20px 22px" }}>
+      <div style={{ background: "linear-gradient(135deg,#0F6E56 0%,#13A07C 60%,#1FC1B0 100%)", padding: "18px 20px 22px", borderRadius: "0 0 26px 26px" }}>
         <div
           style={{
             display: "flex",
@@ -364,27 +368,38 @@ export default function HomePage({ playerName }) {
               icone: "🔥",
               label: "dias seguidos",
               valor: `${diasSeguidos} ${diasSeguidos === 1 ? "dia" : "dias"}`,
+              aceso: diasSeguidos > 0,
             },
             {
-              icone: "✅",
-              label: "nesta semana",
-              valor: `${feitasSemana} ${feitasSemana === 1 ? "missão" : "missões"}`,
+              icone: "⚡",
+              label: "XP da semana",
+              valor: `${feitasSemana * XP_POR_MISSAO} XP`,
+              barra: Math.min(100, (feitasSemana / META_SEMANA) * 100),
+              sub: `${Math.min(feitasSemana, META_SEMANA)}/${META_SEMANA} missões`,
             },
           ].map((p) => (
             <div
               key={p.label}
               style={{
                 flex: 1,
-                background: "rgba(255,255,255,0.12)",
-                borderRadius: 13,
-                padding: "10px 13px",
+                background: "rgba(255,255,255,0.16)",
+                borderRadius: 16,
+                padding: "10px 12px",
                 display: "flex",
                 alignItems: "center",
                 gap: 8,
               }}
             >
-              <span style={{ fontSize: "1.2rem" }}>{p.icone}</span>
-              <div>
+              <span
+                style={{
+                  fontSize: "1.5rem",
+                  filter: p.aceso === false ? "grayscale(1) opacity(0.5)" : "none",
+                  animation: p.aceso ? "edu-chama 1.6s ease-in-out infinite" : "none",
+                }}
+              >
+                {p.icone}
+              </span>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div
                   style={{
                     fontSize: "0.65rem",
@@ -404,6 +419,14 @@ export default function HomePage({ playerName }) {
                 >
                   {p.valor}
                 </div>
+                {p.barra !== undefined && (
+                  <>
+                    <div style={{ height: 7, background: "rgba(255,255,255,0.2)", borderRadius: 4, overflow: "hidden", marginTop: 4 }}>
+                      <div style={{ height: "100%", width: `${p.barra}%`, background: "linear-gradient(90deg,#FFD700,#FF8A3D)", borderRadius: 4, transition: "width 1s ease" }} />
+                    </div>
+                    <div style={{ fontSize: "0.62rem", color: "#E1F5EE", marginTop: 3 }}>{p.sub}</div>
+                  </>
+                )}
               </div>
             </div>
           ))}
@@ -416,19 +439,28 @@ export default function HomePage({ playerName }) {
           <div
             style={{
               background: c.card,
-              borderRadius: 16,
+              borderRadius: 20,
               padding: "14px 16px",
-              border: `1.5px solid ${c.borda}`,
+              border: "2px solid #FFD70088",
               display: "flex",
               alignItems: "center",
               gap: 12,
               marginBottom: 20,
+              animation: "edu-pop 0.45s ease",
             }}
           >
-            <span style={{ fontSize: "1.8rem" }}>👋</span>
-            <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 700, color: c.texto, lineHeight: 1.4 }}>
-              Que bom te ver de novo! Vamos retomar com uma missão rápida?
-            </p>
+            <span style={{ fontSize: "2.4rem", display: "inline-block", animation: "edu-acenar 1.8s ease-in-out infinite" }}>👋</span>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: "0 0 8px", fontSize: "0.9rem", fontWeight: 700, color: c.texto, lineHeight: 1.4 }}>
+                Que bom te ver de novo! Vamos retomar com uma missão rápida?
+              </p>
+              <button
+                onClick={() => navigate(missaoPrincipal ? `/${missaoPrincipal.id}` : "/mapa")}
+                style={{ background: "linear-gradient(90deg,#FFD700,#FF8A3D)", color: "#3A2500", border: "none", borderRadius: 12, padding: "8px 16px", fontSize: "0.85rem", fontWeight: 800, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+              >
+                ▶ Bora!
+              </button>
+            </div>
           </div>
         )}
         <p
@@ -450,7 +482,7 @@ export default function HomePage({ playerName }) {
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
               <style>{`details[open] .seta-home{transform:rotate(90deg)} summary::-webkit-details-marker{display:none}`}</style>
               {missoesPendentesResto.map((item, idx) => (
-                <details key={idx} style={{ background: c.card, borderRadius: 16, border: `1.5px solid ${c.borda}`, overflow: "hidden" }}>
+                <details key={idx} style={{ background: c.card, borderRadius: 20, border: `1.5px solid ${item.cor}55`, borderLeft: `5px solid ${item.cor}`, overflow: "hidden", animation: `edu-surgir 0.4s ease ${idx * 0.06}s backwards` }}>
                   <summary style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", listStyle: "none" }}>
                     <span className="seta-home" style={{ fontSize: "0.7rem", color: c.textoSub, transition: "transform 0.25s", flexShrink: 0 }}>▶</span>
                     <span style={{ fontSize: "1.3rem", flexShrink: 0 }}>{item.icone}</span>
@@ -469,7 +501,7 @@ export default function HomePage({ playerName }) {
                     )}
                     <button
                       onClick={() => navigate(`/${item.id}`)}
-                      style={{ alignSelf: "flex-end", background: c.verde, color: c.verdeClaro, border: "none", borderRadius: 10, padding: "7px 18px", fontSize: "0.85rem", fontWeight: 600, cursor: "pointer", fontFamily: "'Nunito', sans-serif" }}
+                      style={{ alignSelf: "flex-end", background: item.cor, color: "#0D141C", border: "none", borderRadius: 14, padding: "9px 20px", fontSize: "0.9rem", fontWeight: 800, cursor: "pointer", fontFamily: "'Nunito', sans-serif", boxShadow: `0 4px 12px ${item.cor}55` }}
                     >
                       ▶ Jogar
                     </button>
@@ -490,7 +522,7 @@ export default function HomePage({ playerName }) {
               marginBottom: 20,
             }}
           >
-            <span style={{ fontSize: "2rem" }}>📭</span>
+            <span style={{ fontSize: "4rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>🦉</span>
             <p
               style={{
                 color: c.textoSub,
@@ -503,8 +535,9 @@ export default function HomePage({ playerName }) {
             </p>
             <p
               style={{
-                color: c.textoSub,
-                fontSize: "0.76rem",
+                color: c.texto,
+                fontSize: "0.82rem",
+                fontWeight: 700,
                 margin: 0,
                 lineHeight: 1.5,
               }}
@@ -625,9 +658,9 @@ export default function HomePage({ playerName }) {
                 style={{
                   width: "100%",
                   background: c.card,
-                  borderRadius: 16,
-                  padding: "14px 16px",
-                  border: `1.5px dashed ${c.borda}`,
+                  borderRadius: 20,
+                  padding: "16px",
+                  border: "2px dashed #1FC1B088",
                   display: "flex",
                   alignItems: "center",
                   gap: 12,
@@ -637,9 +670,14 @@ export default function HomePage({ playerName }) {
                   fontFamily: "'Nunito', sans-serif",
                 }}
               >
-                <span style={{ fontSize: "1.6rem" }}>🚀</span>
-                <span style={{ fontSize: "0.82rem", color: c.texto, fontWeight: 700, lineHeight: 1.4 }}>
-                  Nenhuma missão nesta semana ainda. Faça uma agora e ganhe sua primeira conquista!
+                <span style={{ fontSize: "2.6rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>🚀</span>
+                <span style={{ flex: 1 }}>
+                  <span style={{ display: "block", fontSize: "0.85rem", color: c.texto, fontWeight: 700, lineHeight: 1.4, marginBottom: 8 }}>
+                    Nenhuma missão nesta semana ainda. Faça uma agora e ganhe sua primeira conquista!
+                  </span>
+                  <span style={{ display: "inline-block", background: "linear-gradient(90deg,#1FC1B0,#3DDC84)", color: "#0D141C", borderRadius: 12, padding: "7px 16px", fontSize: "0.85rem", fontWeight: 800 }}>
+                    ▶ Começar
+                  </span>
                 </span>
               </button>
             ) : (
@@ -659,9 +697,10 @@ export default function HomePage({ playerName }) {
                     alignItems: "center",
                     gap: 6,
                     background: c.card,
-                    borderRadius: 12,
+                    borderRadius: 16,
                     padding: "8px 12px",
-                    border: `1.5px solid ${c.borda}`,
+                    border: "1.5px solid #FFD70088",
+                    animation: `edu-pop 0.45s ease ${i * 0.1}s backwards`,
                   }}
                 >
                   <span style={{ fontSize: "1rem" }}>{b.icone}</span>
@@ -696,6 +735,11 @@ export default function HomePage({ playerName }) {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes pulsar { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+        @keyframes edu-flutuar { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes edu-pop { 0%{opacity:0;transform:scale(0.6)} 70%{transform:scale(1.08)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes edu-surgir { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes edu-chama { 0%,100%{transform:scale(1) rotate(-4deg)} 50%{transform:scale(1.15) rotate(4deg)} }
+        @keyframes edu-acenar { 0%,60%,100%{transform:rotate(0)} 15%,45%{transform:rotate(18deg)} 30%{transform:rotate(-10deg)} }
       `}</style>
     </div>
   );

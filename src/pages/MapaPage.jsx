@@ -5,11 +5,11 @@ import BottomNav from "../components/BottomNav";
 import { getTodasMissoes, dataConclusaoSP, inicioSemanaSP } from "../services/db";
 
 const DISCIPLINAS = [
-  { id: "historia", label: "História", icone: "📜", cor: "#C4A882" },
-  { id: "geografia", label: "Geografia", icone: "🗺️", cor: "#5A8F8C" },
-  { id: "matematica", label: "Matemática", icone: "📐", cor: "#6B5B95" },
-  { id: "ciencias", label: "Ciências", icone: "🔬", cor: "#2E8B57" },
-  { id: "portugues", label: "Português", icone: "✍️", cor: "#C0392B" },
+  { id: "historia", label: "História", icone: "📜", cor: "#F5A623" },
+  { id: "geografia", label: "Geografia", icone: "🗺️", cor: "#1FC1B0" },
+  { id: "matematica", label: "Matemática", icone: "📐", cor: "#9B7BFF" },
+  { id: "ciencias", label: "Ciências", icone: "🔬", cor: "#3DDC84" },
+  { id: "portugues", label: "Português", icone: "✍️", cor: "#FF6B7A" },
 ];
 
 export default function MapaPage() {
@@ -63,8 +63,9 @@ export default function MapaPage() {
     >
       <header
         style={{
-          background: c.verde,
+          background: "linear-gradient(135deg,#0F6E56 0%,#13A07C 60%,#1FC1B0 100%)",
           padding: "18px 20px 20px",
+          borderRadius: "0 0 26px 26px",
           position: "sticky",
           top: 0,
           zIndex: 100,
@@ -137,10 +138,35 @@ export default function MapaPage() {
           </div>
         ) : (
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {DISCIPLINAS.map((d) => {
+            {totalMissoes === 0 && (
+              <div
+                style={{
+                  background: c.card,
+                  borderRadius: 22,
+                  padding: "24px 18px",
+                  textAlign: "center",
+                  border: "2px dashed #1FC1B088",
+                  animation: "edu-pop 0.45s ease",
+                }}
+              >
+                <span style={{ fontSize: "4rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>🦉</span>
+                <p style={{ color: c.texto, fontSize: "0.95rem", fontWeight: 800, margin: "10px 0 4px" }}>
+                  Suas missões estão a caminho!
+                </p>
+                <p style={{ color: c.textoSub, fontSize: "0.82rem", margin: 0, lineHeight: 1.5 }}>
+                  Peça para o responsável gerar missões no Painel e volte aqui para jogar.
+                </p>
+              </div>
+            )}
+            {DISCIPLINAS.map((d, idx) => {
               const lista = missoes[d.id] || [];
               const pendentes = lista.filter((m) => !m.feita).length;
               const concluidas = lista.filter(feitaNaSemana).length;
+              // Progresso da semana: concluídas nesta semana / (concluídas + pendentes)
+              const pctSemana =
+                concluidas + pendentes > 0
+                  ? Math.round((concluidas / (concluidas + pendentes)) * 100)
+                  : 0;
 
               return (
                 <button
@@ -148,12 +174,15 @@ export default function MapaPage() {
                   onClick={() => navigate(`/${d.id}`)}
                   style={{
                     background: c.card,
-                    borderRadius: 18,
+                    borderRadius: 22,
                     padding: "16px 18px",
                     border:
                       pendentes > 0
-                        ? `2px solid ${d.cor}66`
+                        ? `2px solid ${d.cor}88`
                         : `1.5px solid ${c.borda}`,
+                    borderLeft: `6px solid ${d.cor}`,
+                    animation: `edu-surgir 0.4s ease ${idx * 0.06}s backwards`,
+                    fontFamily: "'Nunito', sans-serif",
                     display: "flex",
                     alignItems: "center",
                     gap: 14,
@@ -167,10 +196,10 @@ export default function MapaPage() {
                     style={{
                       width: 52,
                       height: 52,
-                      borderRadius: 14,
+                      borderRadius: 18,
                       flexShrink: 0,
-                      background: `${d.cor}22`,
-                      border: `2px solid ${d.cor}44`,
+                      background: `${d.cor}2E`,
+                      border: `2px solid ${d.cor}77`,
                       display: "flex",
                       alignItems: "center",
                       justifyContent: "center",
@@ -180,7 +209,7 @@ export default function MapaPage() {
                     {d.icone}
                   </div>
 
-                  <div style={{ flex: 1 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
                     <div
                       style={{
                         fontFamily: "'Fredoka', sans-serif",
@@ -201,6 +230,11 @@ export default function MapaPage() {
                             ? "Nenhuma missão ainda"
                             : "Nenhuma missão nova"}
                     </div>
+                    {concluidas + pendentes > 0 && (
+                      <div style={{ height: 7, background: c.borda, borderRadius: 4, overflow: "hidden", marginTop: 7 }}>
+                        <div style={{ height: "100%", width: `${pctSemana}%`, background: d.cor, borderRadius: 4, transition: "width 1s ease" }} />
+                      </div>
+                    )}
                   </div>
 
                   <div
@@ -215,8 +249,9 @@ export default function MapaPage() {
                       <div
                         style={{
                           background: d.cor,
-                          color: "#fff",
+                          color: "#0D141C",
                           borderRadius: 20,
+                          animation: "edu-pulso-suave 2s ease-in-out infinite",
                           padding: "3px 10px",
                           fontSize: "0.72rem",
                           fontWeight: 700,
@@ -245,6 +280,10 @@ export default function MapaPage() {
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;600;700&family=Nunito:wght@400;600;700;800;900&display=swap');
         @keyframes girar { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+        @keyframes edu-flutuar { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+        @keyframes edu-pop { 0%{opacity:0;transform:scale(0.6)} 70%{transform:scale(1.08)} 100%{opacity:1;transform:scale(1)} }
+        @keyframes edu-surgir { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
+        @keyframes edu-pulso-suave { 0%,100%{transform:scale(1)} 50%{transform:scale(1.08)} }
       `}</style>
     </div>
   );
