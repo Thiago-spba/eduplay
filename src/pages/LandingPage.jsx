@@ -17,7 +17,7 @@ const FRASES = {
     "Currículo Paulista. Em casa.",
     "Acompanhe cada passo em tempo real.",
     "Diversão que virou aprendizado.",
-    "5 dias grátis. Resultado garantido.",
+    "Resultado garantido ou seu dinheiro de volta.",
     "A escola continua em casa.",
   ],
 };
@@ -627,6 +627,23 @@ export default function LandingPage({ onComecar, onResponsavel }) {
           >
             5 dias grátis · Sem compromisso · Cancele quando quiser
           </p>
+
+          {/* Garantia de resultado — condições visíveis para o responsável */}
+          {publico === "responsavel" && (
+            <p
+              style={{
+                fontSize: "clamp(0.76rem, 1.5vw, 0.82rem)",
+                color: c.textoSub,
+                margin: 0,
+                textAlign: "center",
+                lineHeight: 1.5,
+              }}
+            >
+              🛡️ <strong>Resultado garantido:</strong> se seu filho fizer as 3
+              missões diárias em todos os dias úteis e, em 30 dias, você não
+              notar evolução, devolvemos seu dinheiro.
+            </p>
+          )}
         </div>
       </div>
 
