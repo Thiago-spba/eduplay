@@ -670,7 +670,7 @@ export default function HomePage({ playerName }) {
                   fontFamily: "'Nunito', sans-serif",
                 }}
               >
-                <span style={{ fontSize: "2.6rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite" }}>🚀</span>
+                <span style={{ fontSize: "2.6rem", display: "inline-block", animation: "edu-flutuar 3s ease-in-out infinite", fontFamily: "'Segoe UI Emoji','Apple Color Emoji','Noto Color Emoji',sans-serif" }}>🚀</span>
                 <span style={{ flex: 1 }}>
                   <span style={{ display: "block", fontSize: "0.85rem", color: c.texto, fontWeight: 700, lineHeight: 1.4, marginBottom: 8 }}>
                     Nenhuma missão nesta semana ainda. Faça uma agora e ganhe sua primeira conquista!

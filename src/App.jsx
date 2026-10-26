@@ -65,7 +65,8 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onAuthChange((user) => {
-      setPaisUser(user ?? null);
+      // Sessão anônima é da criança/demo — nunca conta como responsável logado
+      setPaisUser(user && !user.isAnonymous ? user : null);
       setAuthChecked(true);
     });
     return unsub;
