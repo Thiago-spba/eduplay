@@ -24,6 +24,7 @@ import {
   reativarConta,
   verificarTrial,
   sequenciaAtual,
+  bimestreAtualSP,
 } from "../services/db";
 
 const MAX_MISSOES_DIA_DEFAULT = 3;
@@ -3508,7 +3509,8 @@ export default function PaisPage({ userPai, timer }) {
   const [missoesExpandidas, setMissoesExpandidas] = useState({});
   const [config, setConfig] = useState({
     serie: localStorage.getItem("eduplay_config_serie") || "6ano",
-    bimestre: localStorage.getItem("eduplay_config_bimestre") || "1bimestre",
+    // Bimestre automático pela data (o responsável não precisa mais trocar)
+    bimestre: bimestreAtualSP(),
     tempoEstudo: 45,
   });
   const [gerando, setGerando] = useState(null);
@@ -3625,20 +3627,12 @@ export default function PaisPage({ userPai, timer }) {
           setConfig((prev) => ({ ...prev, serie: resp.serie }));
           localStorage.setItem("eduplay_config_serie", resp.serie);
         }
-        if (resp.bimestre) {
-          setConfig((prev) => ({ ...prev, bimestre: resp.bimestre }));
-          localStorage.setItem("eduplay_config_bimestre", resp.bimestre);
-        }
         if (resp.tempoEstudo)
           setConfig((prev) => ({ ...prev, tempoEstudo: resp.tempoEstudo }));
         if (resp.autoMissoes !== undefined) setAutoMissoes(resp.autoMissoes);
         if (resp.serie) {
           setConfig((prev) => ({ ...prev, serie: resp.serie }));
           localStorage.setItem("eduplay_config_serie", resp.serie);
-        }
-        if (resp.bimestre) {
-          setConfig((prev) => ({ ...prev, bimestre: resp.bimestre }));
-          localStorage.setItem("eduplay_config_bimestre", resp.bimestre);
         }
         if (resp.premioImagemUrl) setPremioImagemUrl(resp.premioImagemUrl);
         setConfig((prev) => ({
@@ -6593,24 +6587,12 @@ export default function PaisPage({ userPai, timer }) {
                   gap: 6,
                 }}
               >
+                {/* Automático pela data: só mostra qual bimestre está valendo */}
                 {BIMESTRES.map((b) => (
-                  <button
+                  <div
                     key={b.id}
-                    onClick={async () => {
-                      setConfig({ ...config, bimestre: b.id });
-                      localStorage.setItem("eduplay_config_bimestre", b.id);
-                      try {
-                        const { db } = await import("../services/firebase");
-                        const { doc, setDoc } =
-                          await import("firebase/firestore");
-                        await setDoc(
-                          doc(db, "responsaveis", userPai.uid),
-                          { bimestre: b.id },
-                          { merge: true },
-                        );
-                      } catch (_) {}
-                    }}
                     style={{
+                      textAlign: "center",
                       padding: "8px 4px",
                       borderRadius: 10,
                       border: `2px solid ${config.bimestre === b.id ? c.azul : c.borda}`,
@@ -6621,14 +6603,17 @@ export default function PaisPage({ userPai, timer }) {
                       color: config.bimestre === b.id ? c.azul : c.textoSub,
                       fontWeight: 800,
                       fontSize: "0.78rem",
-                      cursor: "pointer",
                       fontFamily: "'Nunito', sans-serif",
+                      opacity: config.bimestre === b.id ? 1 : 0.5,
                     }}
                   >
                     {b.label}
-                  </button>
+                  </div>
                 ))}
               </div>
+              <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: "8px 0 0", lineHeight: 1.5 }}>
+                🗓️ Automático pelo calendário escolar — muda sozinho a cada bimestre.
+              </p>
             </div>
             <div
               style={{

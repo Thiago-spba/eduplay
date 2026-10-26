@@ -1089,6 +1089,21 @@ export default function SubjectPage() {
     }
   };
 
+  // Link de busca no YouTube sobre o assunto da missão
+  const linkVideosAssunto = () => {
+    const serieAtual = localStorage.getItem("eduplay_serie") || "6ano";
+    const topico =
+      Array.isArray(moduloSelecionado?.topicos) && moduloSelecionado.topicos.length > 0
+        ? (typeof moduloSelecionado.topicos[0] === "object"
+            ? (moduloSelecionado.topicos[0].nome || moduloSelecionado.topicos[0].descricao || "")
+            : moduloSelecionado.topicos[0])
+        : (moduloSelecionado?.tema || disciplinaBase.label);
+    // Busca curta: só o nome do tópico (antes de ":") — frase longa trazia poucos resultados
+    const nomeTopico = String(topico).split(":")[0].replace(/['"]/g, "").trim();
+    const busca = `${nomeTopico} ${disciplinaBase.label} ${serieAtual.replace("ano", "º ano")} aula`;
+    return `https://www.youtube.com/results?search_query=${encodeURIComponent(busca)}&sp=EgIQAQ%3D%3D`;
+  };
+
   // ── Resultado ──
   if (resultado) {
     const pct = resultado.total > 0 ? Math.round((resultado.acertos / resultado.total) * 100) : 0;
@@ -1115,6 +1130,23 @@ export default function SubjectPage() {
               {resultado.acertos} de {resultado.total} questões — {pct}%
             </p>
           </div>
+
+          {/* Reforço: acertou menos de 60% — vídeo para ver o assunto de outro jeito */}
+          {pct < 60 && (
+            <div style={{ background: c.card, borderRadius: 20, padding: "16px 18px", border: "2px solid #FF6B7A66", textAlign: "center" }}>
+              <div style={{ fontSize: "2rem", marginBottom: 6 }}>🎬</div>
+              <p style={{ fontSize: "0.95rem", fontWeight: 800, color: c.texto, margin: "0 0 6px" }}>
+                Esse assunto ficou difícil?
+              </p>
+              <p style={{ fontSize: "0.82rem", color: c.textoSub, lineHeight: 1.5, margin: "0 0 12px" }}>
+                Tudo bem — errar mostra onde focar. Um vídeo pode te ajudar a ver de outro jeito. Chame um adulto para assistir junto!
+              </p>
+              <a href={linkVideosAssunto()} target="_blank" rel="noreferrer"
+                style={{ display: "block", padding: "12px", borderRadius: 14, background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.92rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif" }}>
+                ▶ Ver vídeos sobre o assunto
+              </a>
+            </div>
+          )}
 
           {/* Envelope ou Arquivo Aberto */}
           {!arquivoAberto ? (
@@ -1211,7 +1243,7 @@ export default function SubjectPage() {
                   <div style={{ background: "linear-gradient(135deg, #00D4AA15, #0099FF10)", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #00D4AA44" }}>
                     <p style={{ fontSize: "0.72rem", color: "#00D4AA", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, margin: "0 0 6px" }}>Ficou com dúvida?</p>
                     <p style={{ fontSize: "0.82rem", color: c.texto, lineHeight: 1.6, margin: 0 }}>
-                      Aqui na página tem um <strong>assistente</strong> que pode te ajudar a entender melhor qualquer parte do assunto. É só tocar na plantinha verde!
+                      Use o <strong>Assistente de Missão</strong> aqui em cima para entender melhor o que errou ou qualquer parte do assunto!
                     </p>
                   </div>
                   <div style={{ background: "linear-gradient(135deg, #1a1a2e, #16213e)", borderRadius: 14, padding: "14px 16px", border: "1.5px solid #FF000044" }}>
@@ -1220,18 +1252,8 @@ export default function SubjectPage() {
                       Quem assiste vídeos aprende muito mais. Peça a um adulto para assistir junto com você!
                     </p>
                     {(() => {
-                      const serieAtual = localStorage.getItem("eduplay_serie") || "6ano";
-                      const topico =
-                        Array.isArray(moduloSelecionado?.topicos) && moduloSelecionado.topicos.length > 0
-                          ? (typeof moduloSelecionado.topicos[0] === "object"
-                              ? (moduloSelecionado.topicos[0].nome || moduloSelecionado.topicos[0].descricao || "")
-                              : moduloSelecionado.topicos[0])
-                          : (moduloSelecionado?.tema || disciplinaBase.label);
-                      // Busca curta: só o nome do tópico (antes de ":") — frase longa trazia poucos resultados
-                      const nomeTopico = String(topico).split(":")[0].replace(/['"]/g, "").trim();
-                      const busca = `${nomeTopico} ${disciplinaBase.label} ${serieAtual.replace("ano", "º ano")} aula`;
                       return (
-                        <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(busca)}&sp=EgIQAQ%3D%3D`} target="_blank" rel="noreferrer"
+                        <a href={linkVideosAssunto()} target="_blank" rel="noreferrer"
                           style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>
                           Assistir vídeos sobre esse assunto
                         </a>
@@ -1415,7 +1437,7 @@ export default function SubjectPage() {
             </div>
           </div>
         )}
-        <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} compacto />
+        {/* Sem assistente durante quiz/forca: a criança tenta sozinha (o assistente fica antes e depois) */}
         <BottomNav />
       </div>
     );

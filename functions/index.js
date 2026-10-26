@@ -1095,7 +1095,9 @@ async function processarLoteAutoMissoes() {
         const paiId = respDoc.id
         const limiteDia = resp.limiteMissoes || 3
         const serie = resp.serie || '6ano'
-        const bimestre = resp.bimestre || '1bimestre'
+        // Bimestre automatico pelo calendario (SP): jan-abr 1o, mai-jul 2o, ago-set 3o, out-dez 4o
+        const mesSP = Number(new Date().toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' }).slice(5, 7))
+        const bimestre = mesSP <= 4 ? '1bimestre' : mesSP <= 7 ? '2bimestre' : mesSP <= 9 ? '3bimestre' : '4bimestre'
 
         // Busca crianca vinculada
         const criancaSnap = await db.collection('criancas')

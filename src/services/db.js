@@ -198,6 +198,18 @@ export async function getProgresso(codigoAcesso) {
 
 const fmtDataSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
 
+/**
+ * Bimestre escolar atual pelo calendário (fuso SP), sem o responsável precisar trocar:
+ * jan-abr = 1º, mai-jul = 2º, ago-set = 3º, out-dez = 4º
+ */
+export function bimestreAtualSP(data = new Date()) {
+  const mes = Number(fmtDataSP(data).slice(5, 7));
+  if (mes <= 4) return "1bimestre";
+  if (mes <= 7) return "2bimestre";
+  if (mes <= 9) return "3bimestre";
+  return "4bimestre";
+}
+
 /** Sábado ou domingo no fuso de SP — dia sem missões */
 export function ehFimDeSemanaSP(data = new Date()) {
   const dia = new Date(fmtDataSP(data) + "T12:00:00").getDay();
