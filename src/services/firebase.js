@@ -3,6 +3,7 @@ import { getFirestore } from "firebase/firestore";
 import { getAuth, setPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFunctions } from "firebase/functions";
 import { getStorage } from "firebase/storage";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
 
 const firebaseConfig = {
   apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
@@ -15,6 +16,20 @@ const firebaseConfig = {
 
 // Padrão Singleton: Garante instância única de segurança, evitando colisões no empacotamento do Vite
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+
+// App Check: prova para o servidor que o pedido vem do app de verdade (não de um robô usando a IA/voz).
+// Só liga quando a chave do reCAPTCHA estiver no .env; sem ela o app funciona igual.
+const chaveAppCheck = import.meta.env.VITE_APPCHECK_SITE_KEY;
+if (chaveAppCheck && typeof window !== "undefined") {
+  try {
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(chaveAppCheck),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (error) {
+    console.warn("App Check não iniciou:", error);
+  }
+}
 
 export const db        = getFirestore(app);
 export const auth      = getAuth(app);

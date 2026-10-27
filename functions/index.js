@@ -111,8 +111,8 @@ const COMO_FAZER = '"2 ou 3 frases curtas que ENSINAM como resolver esta ativida
 const MODELOS_EXTRA = {
   pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "comoFazer": ${COMO_FAZER}, "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]}`,
   fakenews: `"extra": {"tipo": "fakenews", "instrucao": "Verdadeiro ou falso? Investigue cada afirmação", "comoFazer": ${COMO_FAZER}, "afirmacoes": [{"texto": "afirmação sobre o conteúdo (max 110 chars)", "verdadeira": true, "explicacao": "por que é verdadeira ou falsa (max 120 chars)"}, ... EXATAMENTE 4 afirmações, com pelo menos 1 verdadeira e pelo menos 1 falsa; as falsas são erros comuns de quem não leu]}`,
-  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha)`,
-  erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "comoFazer": ${COMO_FAZER}, "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos`,
+  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha). ORDEM LÓGICA OBRIGATÓRIA: cada item só pode acontecer depois do anterior (datas em ordem crescente, ou etapas em que um passo depende do outro); preparações e conferências que vêm ANTES (ex.: "conferir se as medidas estão na mesma unidade") ficam ANTES do cálculo, nunca no fim; não use itens que poderiam trocar de lugar sem erro; antes de responder, confira item por item se a ordem está certa`,
+  erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "comoFazer": ${COMO_FAZER}, "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos e na ordem lógica de resolução`,
 }
 function blocoExtras(tipo) {
   return `
@@ -821,7 +821,8 @@ exports.buscarVideoAula = onCall(
     const { busca } = request.data || {}
     if (typeof busca !== 'string' || busca.trim().length < 3) throw new HttpsError('invalid-argument', 'Busca vazia.')
     const termo = busca.trim().slice(0, 120)
-    const chave = crypto.createHash('sha256').update(normQuiz(termo)).digest('hex').slice(0, 32)
+    // "v2": cache novo, já com o filtro de vídeos de ENEM/vestibular (o antigo podia ter esses vídeos)
+    const chave = crypto.createHash('sha256').update('v2|' + normQuiz(termo)).digest('hex').slice(0, 32)
     const cacheRef = db.collection('videosCache').doc(chave)
 
     const cache = await cacheRef.get()
@@ -840,7 +841,8 @@ exports.buscarVideoAula = onCall(
     await rateRef.set({ total: totalHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
 
     const params = new URLSearchParams({
-      part: 'snippet', type: 'video', maxResults: '5', q: termo,
+      // Os "-" pedem ao YouTube para evitar vídeos de ENEM/vestibular (são para alunos mais velhos)
+      part: 'snippet', type: 'video', maxResults: '15', q: `${termo} -enem -vestibular -concurso`,
       safeSearch: 'strict', videoEmbeddable: 'true', videoSyndicated: 'true',
       relevanceLanguage: 'pt', regionCode: 'BR', videoDuration: 'medium',
       key: GOOGLE_TTS_KEY.value(),
@@ -852,8 +854,11 @@ exports.buscarVideoAula = onCall(
     }
     const data = await resp.json()
     const decod = (s) => String(s || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    // Segunda barreira: descarta pelo título/descrição o que for de ENEM, vestibular, concurso ou ensino médio
+    const MAIS_VELHOS = /\b(enem|vestibular(es)?|concursos?|fuvest|unicamp|unesp|ensino m[eé]dio|pr[eé]-?vestibular|faculdade|universit[aá]rio|[123]\s*[ºª°]?\s*(ano|s[eé]rie)\s+do\s+(em|ensino m[eé]dio))\b/i
     const videos = (data.items || [])
       .filter(it => it.id?.videoId)
+      .filter(it => !MAIS_VELHOS.test(`${decod(it.snippet?.title)} ${decod(it.snippet?.description)}`))
       .slice(0, 3)
       .map(it => ({
         videoId: it.id.videoId,
