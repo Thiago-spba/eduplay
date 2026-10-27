@@ -25,6 +25,8 @@ import {
   verificarTrial,
   sequenciaAtual,
   bimestreAtualSP,
+  dataConclusaoSP,
+  inicioSemanaSP,
 } from "../services/db";
 
 const MAX_MISSOES_DIA_DEFAULT = 3;
@@ -3965,6 +3967,11 @@ export default function PaisPage({ userPai, timer }) {
     (acc, arr) => acc + (arr?.length || 0),
     0,
   );
+  // Números do card do agente: só o que foi CONCLUÍDO (missão gerada e pendente não conta)
+  const hojeSPPainel = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const todasMissoesPainel = Object.values(missoesPorDisc).flat();
+  const totalConcluidas = todasMissoesPainel.filter((m) => m.feita).length;
+  const concluidasHoje = todasMissoesPainel.filter((m) => dataConclusaoSP(m) === hojeSPPainel).length;
   const serieAtual = filho?.serie || config.serie;
   const ultimaSessao = sessoesQuiz?.[0] || null;
   const ultimasSessoes = sessoesQuiz?.slice(0, 3) || [];
@@ -5520,10 +5527,11 @@ export default function PaisPage({ userPai, timer }) {
                 }}
               >
                 {[
-                  { label: "Missões", valor: totalMissoes, icone: "🎯" },
-                  { label: "Hoje", valor: missoesHoje, icone: "📅" },
+                  { label: "Concluídas", valor: totalConcluidas, icone: "🎯" },
+                  // feitas hoje / missões do dia (geradas hoje)
+                  { label: "Feitas hoje", valor: `${concluidasHoje}/${Math.max(missoesHoje, concluidasHoje)}`, icone: "📅" },
                   {
-                    label: "Dias ativos",
+                    label: "Dias de estudo",
                     valor: progresso?.diasAtivos?.length || 0,
                     icone: "🔥",
                   },
@@ -5592,7 +5600,12 @@ export default function PaisPage({ userPai, timer }) {
                     : new Date(b.criadoEm).getTime();
                   return dataB - dataA;
                 });
-                const semana = sessoesOrd.slice(0, 7);
+                // Só as atividades desta semana (desde segunda, fuso SP) — antes eram as 7 últimas de sempre
+                const segundaSP = inicioSemanaSP();
+                const semana = sessoesOrd.filter((s) => {
+                  const dt = s.criadoEm?.toDate ? s.criadoEm.toDate() : new Date(s.criadoEm);
+                  return !isNaN(dt) && dt.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" }) >= segundaSP;
+                });
                 const mediaSemana =
                   semana.length > 0
                     ? Math.round(
@@ -5693,15 +5706,8 @@ export default function PaisPage({ userPai, timer }) {
               const pendentes = todasMissoes.filter((m) => !m.feita);
               const hoje = new Date().toLocaleDateString("pt-BR");
               const hojeStr = new Date().toLocaleDateString("pt-BR");
-              const feitasHoje = todasMissoes.filter((m) => {
-                if (!m.feita) return false;
-                const dataMissao = m.criadoEm?.toDate
-                  ? m.criadoEm.toDate().toLocaleDateString("pt-BR")
-                  : m.criadoEm
-                    ? new Date(m.criadoEm).toLocaleDateString("pt-BR")
-                    : null;
-                return dataMissao === hojeStr;
-              });
+              // Concluídas hoje pela data de CONCLUSÃO (antes usava a data em que a missão foi criada)
+              const feitasHoje = todasMissoes.filter((m) => dataConclusaoSP(m) === hojeSPPainel);
               const sessoesOrdenadas = [
                 ...(Array.isArray(sessoesQuiz) ? sessoesQuiz : []),
               ].sort((a, b) => {
@@ -6096,7 +6102,7 @@ export default function PaisPage({ userPai, timer }) {
                             margin: "0 0 2px",
                           }}
                         >
-                          Tendência — últimos 7 dias
+                          Tendência — últimas 7 atividades
                         </p>
                         <p
                           style={{
