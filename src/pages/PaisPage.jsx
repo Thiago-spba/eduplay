@@ -6639,7 +6639,10 @@ export default function PaisPage({ userPai, timer }) {
                     ? pendentesAtingido
                       ? "Aguardando seu filho concluir as missões"
                       : "Limite diário atingido"
-                    : `${Math.min(limiteMissoes - missoesHoje, limiteMissoes - pendentes)} missões disponíveis hoje`}
+                    : (() => {
+                        const n = Math.min(limiteMissoes - missoesHoje, limiteMissoes - pendentes);
+                        return `${n} ${n === 1 ? "missão disponível" : "missões disponíveis"} hoje`;
+                      })()}
                 </p>
                 <p
                   style={{
@@ -7107,7 +7110,37 @@ export default function PaisPage({ userPai, timer }) {
         )}
         {secao === "orientacao" && <OrientacaoTab c={c} e={e} />}
 
-        {secao === "assinar" && (
+        {/* Já assinante: mostra o status em vez da oferta (evita assinar duas vezes).
+            PIX com 5 dias ou menos volta a mostrar a oferta, para renovar. */}
+        {secao === "assinar" && filho?.assinaturaAtiva &&
+        !(filho?.pixPaymentId && pixDiasRestantes !== null && pixDiasRestantes <= 5) ? (
+          <div
+            style={{
+              background: c.card,
+              border: "2px solid #5DCAA5",
+              borderRadius: 20,
+              padding: "24px 20px",
+              textAlign: "center",
+              animation: "fadeIn 0.3s ease",
+            }}
+          >
+            <div style={{ fontSize: "2.6rem", marginBottom: 6 }}>✅</div>
+            <p style={{ fontSize: "1.1rem", fontWeight: 800, color: c.texto, margin: "0 0 6px" }}>
+              Assinatura ativa
+            </p>
+            <p style={{ fontSize: "0.88rem", color: c.textoSub, margin: "0 0 12px", lineHeight: 1.6 }}>
+              {filho?.nome?.split(" ")[0] || "Seu filho"} tem acesso completo ao EduPlay.
+              {filho?.pixPaymentId && pixDiasRestantes !== null
+                ? ` Seu PIX vale por mais ${pixDiasRestantes} ${pixDiasRestantes === 1 ? "dia" : "dias"} — renove antes de acabar.`
+                : filho?.assinaturaStatus === "ativa"
+                  ? " A renovação é automática todo mês no cartão."
+                  : ""}
+            </p>
+            <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0 }}>
+              Dúvidas ou cancelamento: contato@olloapp.com.br
+            </p>
+          </div>
+        ) : secao === "assinar" && (
           <div
             style={{
               display: "flex",
