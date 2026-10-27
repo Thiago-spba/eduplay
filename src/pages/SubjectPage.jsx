@@ -16,7 +16,7 @@ import {
   registrarAcessoDiario,
   registrarXpBonus,
 } from "../services/db";
-import { AtividadeExtra, Explique, INFO_ATIVIDADE } from "../components/AtividadesMissao";
+import { AtividadeExtra, Explique, INFO_ATIVIDADE, ComoFazer } from "../components/AtividadesMissao";
 import { gerarMissaoIA } from "../services/ia";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
@@ -198,7 +198,7 @@ function indiceCorreto(q) {
 }
 
 // ── Quiz com alternativas embaralhadas ──
-function Quiz({ perguntas, onConcluir, cor, c }) {
+function Quiz({ perguntas, onConcluir, cor, c, comoFazer }) {
   const [indice, setIndice] = useState(0);
   const [sel, setSel] = useState(null);
   const [respondeu, setRespondeu] = useState(false);
@@ -316,6 +316,8 @@ function Quiz({ perguntas, onConcluir, cor, c }) {
         </div>
       </div>
 
+      {/* Mini-aula antes da 1ª pergunta (missões novas) */}
+      {indice === 0 && <ComoFazer texto={comoFazer} c={c} />}
       <div
         style={{
           background: c.card2,
@@ -1379,6 +1381,7 @@ export default function SubjectPage() {
           <Quiz
             key={`quiz-${usarReserva ? "reserva" : "principal"}-${tentativasRef.current}`}
             perguntas={perguntasQuiz}
+            comoFazer={moduloSelecionado.atividades?.comoFazerQuiz}
             onConcluir={(a, t) => {
               const notasAtuais = { ...notas, quiz: { a, t } };
               setNotas(notasAtuais);

@@ -284,13 +284,38 @@ function AcheErro({ dados, onConcluir, cor, c }) {
   );
 }
 
+/** 📘 Mini-aula antes da atividade: ensina como fazer (missões novas trazem o texto pronto) */
+export function ComoFazer({ texto, c }) {
+  if (!texto) return null;
+  return (
+    <div style={{ background: "#0099FF14", border: "2px solid #0099FF55", borderRadius: 14, padding: "12px 14px", color: c.texto, fontSize: "0.88rem", lineHeight: 1.6 }}>
+      <div style={{ fontSize: "0.72rem", color: "#3BA9FF", fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, marginBottom: 4 }}>
+        📘 Antes de começar
+      </div>
+      {texto}
+    </div>
+  );
+}
+
 /** Escolhe a atividade pelo tipo do "extra" da missão */
 export function AtividadeExtra({ dados, ...resto }) {
-  if (dados?.tipo === "pares") return <Pares dados={dados} {...resto} />;
-  if (dados?.tipo === "fakenews") return <FakeNews dados={dados} {...resto} />;
-  if (dados?.tipo === "ordem") return <Ordem dados={dados} {...resto} />;
-  if (dados?.tipo === "erro") return <AcheErro dados={dados} {...resto} />;
-  return null;
+  const atividade =
+    dados?.tipo === "pares" ? <Pares dados={dados} {...resto} />
+    : dados?.tipo === "fakenews" ? <FakeNews dados={dados} {...resto} />
+    : dados?.tipo === "ordem" ? <Ordem dados={dados} {...resto} />
+    : dados?.tipo === "erro" ? <AcheErro dados={dados} {...resto} />
+    : null;
+  if (!atividade) return null;
+  return (
+    <>
+      {dados.comoFazer && (
+        <div style={{ padding: "16px 16px 0", maxWidth: 640, margin: "0 auto" }}>
+          <ComoFazer texto={dados.comoFazer} c={resto.c} />
+        </div>
+      )}
+      {atividade}
+    </>
+  );
 }
 
 // ── ✍️ Explique com suas palavras (passo final da missão) ──

@@ -106,11 +106,13 @@ function escolherTipoExtra(disciplina) {
   const tipos = TIPOS_EXTRA[disciplina] || ['pares', 'fakenews']
   return tipos[Math.floor(Math.random() * tipos.length)]
 }
+// Mini-aula antes da atividade: ensina COMO fazer, sem entregar a resposta
+const COMO_FAZER = '"2 ou 3 frases curtas que ENSINAM como resolver esta atividade (a ideia ou regra que o aluno precisa usar, com um exemplo diferente das perguntas), sem entregar nenhuma resposta (max 260 chars)"'
 const MODELOS_EXTRA = {
-  pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]}`,
-  fakenews: `"extra": {"tipo": "fakenews", "instrucao": "Verdadeiro ou falso? Investigue cada afirmação", "afirmacoes": [{"texto": "afirmação sobre o conteúdo (max 110 chars)", "verdadeira": true, "explicacao": "por que é verdadeira ou falsa (max 120 chars)"}, ... EXATAMENTE 4 afirmações, com pelo menos 1 verdadeira e pelo menos 1 falsa; as falsas são erros comuns de quem não leu]}`,
-  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha)`,
-  erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos`,
+  pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "comoFazer": ${COMO_FAZER}, "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]}`,
+  fakenews: `"extra": {"tipo": "fakenews", "instrucao": "Verdadeiro ou falso? Investigue cada afirmação", "comoFazer": ${COMO_FAZER}, "afirmacoes": [{"texto": "afirmação sobre o conteúdo (max 110 chars)", "verdadeira": true, "explicacao": "por que é verdadeira ou falsa (max 120 chars)"}, ... EXATAMENTE 4 afirmações, com pelo menos 1 verdadeira e pelo menos 1 falsa; as falsas são erros comuns de quem não leu]}`,
+  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha)`,
+  erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "comoFazer": ${COMO_FAZER}, "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos`,
 }
 function blocoExtras(tipo) {
   return `
@@ -118,8 +120,11 @@ function blocoExtras(tipo) {
 ACRESCENTE dentro de "atividades" (junto de "quiz" e "forca") estes 3 campos:
 "quizReserva": [3 perguntas NOVAS sobre o mesmo conteúdo, diferentes das do "quiz", no MESMO formato e com TODAS as regras do quiz (opção 0 correta, "correta": 0, "respostaCorreta" igual à opção 0)],
 ${MODELOS_EXTRA[tipo]},
-"explique": {"pergunta": "pergunta aberta para o aluno responder com as próprias palavras em 1 ou 2 frases (max 110 chars)", "pontosChave": ["ideia essencial 1 que uma boa resposta deve conter", "ideia essencial 2"]}
-Tudo nesses campos precisa estar explicado no resumo, nos topicos ou no roteiroPodcast, e ser factualmente correto.`
+"explique": {"pergunta": "pergunta aberta para o aluno responder com as próprias palavras em 1 ou 2 frases (max 110 chars)", "pontosChave": ["ideia essencial 1 que uma boa resposta deve conter", "ideia essencial 2"]},
+"comoFazerQuiz": ${COMO_FAZER.replace('esta atividade', 'as perguntas do quiz')}
+Tudo nesses campos precisa estar explicado no resumo, nos topicos ou no roteiroPodcast, e ser factualmente correto.
+
+ENSINE ANTES DE COBRAR (vale para o "resumo"): use de 6 a 8 frases simples. Comece CONTEXTUALIZANDO (onde isso aparece na vida do aluno), depois ENSINE o conceito e COMO SE FAZ, passo a passo, com um exemplo resolvido, e só então as regras. Toda conta, fórmula ou ideia que o quiz, o "quizReserva" ou a atividade cobram (ex.: como calcular área, não só perímetro) precisa estar ensinada no resumo com exemplo.`
 }
 function problemaDoExtra(e) {
   if (!e || typeof e !== 'object') return 'sem extra'
@@ -164,6 +169,9 @@ function limparExtras(m, origem) {
     console.warn(`[${origem}] extra descartado: ${pe}`)
     delete at.extra
   }
+  // Mini-aulas "como fazer": opcionais, só texto
+  if (at.comoFazerQuiz !== undefined && !(typeof at.comoFazerQuiz === 'string' && at.comoFazerQuiz.trim().length >= 20)) delete at.comoFazerQuiz
+  if (at.extra && at.extra.comoFazer !== undefined && !(typeof at.extra.comoFazer === 'string' && at.extra.comoFazer.trim().length >= 20)) delete at.extra.comoFazer
   const ex = at.explique
   if (ex !== undefined && !(ex && typeof ex.pergunta === 'string' && ex.pergunta.trim().length >= 10 && Array.isArray(ex.pontosChave) && ex.pontosChave.some(p => typeof p === 'string' && p.trim()))) {
     console.warn(`[${origem}] explique descartado`)
@@ -493,7 +501,7 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "resumo": "explicação em 4-5 frases simples que RESPONDE diretamente à perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definições, fórmulas, fatos usados nas perguntas), como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
+  "resumo": "explicação em 6-8 frases simples que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente à perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definições, fórmulas, fatos usados nas perguntas), como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
   "topicos": ["Nome do conceito 1: explicação em uma frase simples", "Nome do conceito 2: explicação em uma frase simples", "Nome do conceito 3: explicação em uma frase simples", "Nome do conceito 4: explicação em uma frase simples", "Nome do conceito 5: explicação em uma frase simples"],
   "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa para 11-14 anos, adequada à série indicada. Começa com situação intrigante, desenvolve TODO o conteúdo do resumo e dos tópicos com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
@@ -526,7 +534,7 @@ REGRAS INVIOLÁVEIS:
       try {
         // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
         const msg = await client.messages.create({
-          model: 'claude-haiku-4-5-20251001', max_tokens: 5500, temperature: 0.5,
+          model: 'claude-haiku-4-5-20251001', max_tokens: 6500, temperature: 0.5,
           messages: [{ role: 'user', content: prompt + blocoExtras(tipoExtra) }],
         })
         resposta = msg.content[0].text
@@ -1430,7 +1438,7 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "dicas": ["1a dica: pista concreta e especifica sobre o significado, sem citar a palavra max 70 chars", "2a dica: descricao concreta ou exemplo do dia a dia em linguagem simples max 80 chars", "3a dica: quase entrega, como definicao curta max 80 chars"]
     }
   },
-  "resumo": "explicacao em 4-5 frases simples que RESPONDE diretamente a perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definicoes, formulas, fatos usados nas perguntas)",
+  "resumo": "explicacao em 6-8 frases simples que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente a perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definicoes, formulas, fatos usados nas perguntas)",
   "topicos": ["Nome do conceito: explicacao em uma frase simples", "Nome do conceito 2: explicacao em uma frase simples", "Nome do conceito 3: explicacao em uma frase simples", "Nome do conceito 4: explicacao em uma frase simples", "Nome do conceito 5: explicacao em uma frase simples"],
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
@@ -1439,7 +1447,7 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
-              max_tokens: 5500,
+              max_tokens: 6500,
               temperature: 0.5,
               messages: [{ role: 'user', content: prompt + blocoExtras(escolherTipoExtra(disciplina)) }]
             })
