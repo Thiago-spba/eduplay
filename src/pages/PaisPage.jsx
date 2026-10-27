@@ -4870,7 +4870,7 @@ export default function PaisPage({ userPai, timer }) {
           </div>
         )}
 
-        {/* Banner trial dia 5 — ultimo dia */}
+        {/* Banner trial encerrado (diasRestantes 0 = acesso da criança já bloqueado) */}
         {diasTrial === 0 && (
           <div
             style={{
@@ -4896,7 +4896,7 @@ export default function PaisPage({ userPai, timer }) {
                     lineHeight: 1.4,
                   }}
                 >
-                  Hoje é o último dia gratuito de {filho?.nome?.split(" ")[0]}.
+                  O período gratuito de {filho?.nome?.split(" ")[0]} terminou.
                 </p>
                 <p
                   style={{
@@ -4906,8 +4906,8 @@ export default function PaisPage({ userPai, timer }) {
                     lineHeight: 1.5,
                   }}
                 >
-                  Ele estudou, se dedicou, cresceu. Não deixe esse momento ser o
-                  fim — é só o começo para vocês.
+                  As missões estão pausadas até a assinatura. Ele estudou, se
+                  dedicou, cresceu — não deixe esse momento ser o fim.
                 </p>
               </div>
             </div>
@@ -4926,7 +4926,7 @@ export default function PaisPage({ userPai, timer }) {
                 fontFamily: "'Nunito', sans-serif",
               }}
             >
-              Continuar a jornada
+              Assinar e liberar as missões
             </button>
           </div>
         )}
