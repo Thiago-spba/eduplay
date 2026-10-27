@@ -244,7 +244,10 @@ export function sequenciaAtual(prog) {
 
 /** Data (AAAA-MM-DD, fuso SP) em que a missão foi concluída, ou null */
 export function dataConclusaoSP(m) {
-  return m?.feita && m?.feitaEm?.toDate ? fmtDataSP(m.feitaEm.toDate()) : null;
+  // Aceita Timestamp do Firestore ou data em texto (o painel converte para ISO no listener)
+  const f = m?.feitaEm;
+  const dt = f?.toDate ? f.toDate() : f ? new Date(f) : null;
+  return m?.feita && dt && !isNaN(dt) ? fmtDataSP(dt) : null;
 }
 
 /** Segunda-feira da semana atual (AAAA-MM-DD, fuso SP) */
