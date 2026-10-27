@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTema } from "../context/ThemeContext";
 import FooterEduPlay from "../components/FooterEduPlay";
+import VendasResponsavel from "../components/VendasResponsavel";
 
 const FRASES = {
   estudante: [
@@ -643,6 +644,11 @@ export default function LandingPage({ onComecar, onResponsavel }) {
               missões diárias em todos os dias úteis e, em 30 dias, você não
               notar evolução, devolvemos seu dinheiro.
             </p>
+          )}
+
+          {/* Seções de venda para o responsável */}
+          {publico === "responsavel" && (
+            <VendasResponsavel tema={tema} onComecar={handleAcaoBotao} onDemo={() => navigate("/demo")} />
           )}
         </div>
       </div>

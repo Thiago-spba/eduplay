@@ -5,6 +5,7 @@ import ModalPremiacao from "../components/ModalPremiacao";
 import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
 import { httpsCallable } from "firebase/functions";
+import NovidadesPainel from "../components/NovidadesPainel";
 import { functions, auth } from "../services/firebase";
 import {
   getResponsavel,
@@ -6548,6 +6549,9 @@ export default function PaisPage({ userPai, timer }) {
             )}
           </div>
         )}
+
+        {/* Mais de um filho + novidades a caminho (fim da aba Visão) */}
+        {secao === "visao" && <NovidadesPainel c={c} />}
 
         {secao === "missoes" && (
           <div
