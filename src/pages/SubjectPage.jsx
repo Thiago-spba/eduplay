@@ -17,6 +17,7 @@ import {
   registrarXpBonus,
 } from "../services/db";
 import { AtividadeExtra, Explique, INFO_ATIVIDADE, ComoFazer } from "../components/AtividadesMissao";
+import VideoAula from "../components/VideoAula";
 import { gerarMissaoIA } from "../services/ia";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
@@ -1150,7 +1151,9 @@ export default function SubjectPage() {
   };
 
   // Link de busca no YouTube sobre o assunto da missão
-  const linkVideosAssunto = () => {
+  const linkVideosAssunto = () =>
+    `https://www.youtube.com/results?search_query=${encodeURIComponent(buscaVideosAssunto())}&sp=EgIQAQ%3D%3D`;
+  const buscaVideosAssunto = () => {
     const serieAtual = localStorage.getItem("eduplay_serie") || "6ano";
     const topico =
       Array.isArray(moduloSelecionado?.topicos) && moduloSelecionado.topicos.length > 0
@@ -1160,8 +1163,7 @@ export default function SubjectPage() {
         : (moduloSelecionado?.tema || disciplinaBase.label);
     // Busca curta: só o nome do tópico (antes de ":") — frase longa trazia poucos resultados
     const nomeTopico = String(topico).split(":")[0].replace(/['"]/g, "").trim();
-    const busca = `${nomeTopico} ${disciplinaBase.label} ${serieAtual.replace("ano", "º ano")} aula`;
-    return `https://www.youtube.com/results?search_query=${encodeURIComponent(busca)}&sp=EgIQAQ%3D%3D`;
+    return `${nomeTopico} ${disciplinaBase.label} ${serieAtual.replace("ano", "º ano")} aula`;
   };
 
   // ── Resultado ──
@@ -1215,10 +1217,7 @@ export default function SubjectPage() {
               <p style={{ fontSize: "0.82rem", color: c.textoSub, lineHeight: 1.5, margin: "0 0 12px" }}>
                 Tudo bem — errar mostra onde focar. Um vídeo pode te ajudar a ver de outro jeito. Chame um adulto para assistir junto!
               </p>
-              <a href={linkVideosAssunto()} target="_blank" rel="noreferrer"
-                style={{ display: "block", padding: "12px", borderRadius: 14, background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.92rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif" }}>
-                ▶ Ver vídeos sobre o assunto
-              </a>
+              <VideoAula busca={buscaVideosAssunto()} linkFallback={linkVideosAssunto()} c={c} />
             </div>
           )}
 
@@ -1325,14 +1324,13 @@ export default function SubjectPage() {
                     <p style={{ fontSize: "0.78rem", color: "#E8F4F8", lineHeight: 1.5, margin: "0 0 10px" }}>
                       Quem assiste vídeos aprende muito mais. Peça a um adulto para assistir junto com você!
                     </p>
-                    {(() => {
-                      return (
-                        <a href={linkVideosAssunto()} target="_blank" rel="noreferrer"
-                          style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, width: "100%", padding: "12px", borderRadius: 12, border: "none", background: "linear-gradient(135deg, #FF0000, #CC0000)", color: "#fff", fontSize: "0.95rem", fontWeight: 800, textDecoration: "none", fontFamily: "'Fredoka', sans-serif", boxShadow: "0 4px 16px #FF000055", animation: "pulsar 2s ease-in-out infinite" }}>
-                          Assistir vídeos sobre esse assunto
-                        </a>
-                      );
-                    })()}
+                    {/* Cartão escuro fixo: cores claras para o texto do player */}
+                    <VideoAula
+                      busca={buscaVideosAssunto()}
+                      linkFallback={linkVideosAssunto()}
+                      c={{ ...c, texto: "#E8F4F8", textoSub: "#A0B4C0", card: "#1F2A44", borda: "#33405E" }}
+                      textoBotao="▶ Assistir vídeos sobre esse assunto"
+                    />
                   </div>
                 </div>
               </div>

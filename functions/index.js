@@ -7,6 +7,8 @@ const crypto = require('crypto')
 
 const ANTHROPIC_KEY = defineSecret('ANTHROPIC_API_KEY')
 const GOOGLE_TTS_KEY = defineSecret('GOOGLE_TTS_KEY')
+// Chave da YouTube Data API v3 (gratuita, cota diária) — usada para mostrar o vídeo dentro do app
+const YOUTUBE_KEY = defineSecret('YOUTUBE_API_KEY')
 
 admin.initializeApp()
 const db = admin.firestore()
@@ -805,6 +807,63 @@ RESPOSTA DO ALUNO: """${resposta.trim().slice(0, 600)}"""`,
       console.warn('[avaliarExplicacao] resposta da IA nao era JSON')
     }
     return { ok: nota !== null, nota, comentario, versaoMelhorada }
+  }
+)
+
+// ═══════════════════════════════════════════════════════════════════════
+// buscarVideoAula — até 3 vídeos-aula do YouTube para tocar DENTRO do app
+// Busca com safeSearch rigoroso, só vídeos incorporáveis, em português.
+// Cache de 30 dias por assunto: a cota grátis (100 buscas/dia) sobra.
+// ═══════════════════════════════════════════════════════════════════════
+exports.buscarVideoAula = onCall(
+  { secrets: [YOUTUBE_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 20 },
+  async (request) => {
+    if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
+    const { busca } = request.data || {}
+    if (typeof busca !== 'string' || busca.trim().length < 3) throw new HttpsError('invalid-argument', 'Busca vazia.')
+    const termo = busca.trim().slice(0, 120)
+    const chave = crypto.createHash('sha256').update(normQuiz(termo)).digest('hex').slice(0, 32)
+    const cacheRef = db.collection('videosCache').doc(chave)
+
+    const cache = await cacheRef.get()
+    const TRINTA_DIAS = 30 * 24 * 60 * 60 * 1000
+    if (cache.exists && Date.now() - (cache.data().em || 0) < TRINTA_DIAS) {
+      return { ok: true, videos: cache.data().videos || [], cache: true }
+    }
+
+    // Rate limit só para buscas novas (o cache é de graça)
+    const uid = request.auth.uid
+    const hoje = new Date().toISOString().slice(0, 10)
+    const rateRef = db.collection('rateLimits').doc(`buscarVideoAula_${uid}_${hoje}`)
+    const rateSnap = await rateRef.get()
+    const totalHoje = rateSnap.exists ? (rateSnap.data().total || 0) : 0
+    if (totalHoje >= 15) throw new HttpsError('resource-exhausted', 'LIMITE_DIARIO')
+    await rateRef.set({ total: totalHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+
+    const params = new URLSearchParams({
+      part: 'snippet', type: 'video', maxResults: '5', q: termo,
+      safeSearch: 'strict', videoEmbeddable: 'true', videoSyndicated: 'true',
+      relevanceLanguage: 'pt', regionCode: 'BR', videoDuration: 'medium',
+      key: YOUTUBE_KEY.value(),
+    })
+    const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`)
+    if (!resp.ok) {
+      console.error('[buscarVideoAula] YouTube respondeu', resp.status, await resp.text().catch(() => ''))
+      throw new HttpsError('unavailable', 'Busca de vídeos indisponível.')
+    }
+    const data = await resp.json()
+    const decod = (s) => String(s || '').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    const videos = (data.items || [])
+      .filter(it => it.id?.videoId)
+      .slice(0, 3)
+      .map(it => ({
+        videoId: it.id.videoId,
+        titulo: decod(it.snippet?.title).slice(0, 120),
+        canal: decod(it.snippet?.channelTitle).slice(0, 60),
+        thumb: it.snippet?.thumbnails?.medium?.url || it.snippet?.thumbnails?.default?.url || '',
+      }))
+    await cacheRef.set({ busca: termo, videos, em: Date.now() })
+    return { ok: true, videos }
   }
 )
 
