@@ -9,9 +9,11 @@ import {
   getProgresso,
   verificarTrial,
 getCrianca, getResponsavel,
-  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP} from "../services/db";
+  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP,
+  xpBonusDaSemana} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 import FimDeSemana from '../components/FimDeSemana';
+import DesafioRelampago, { escolherDesafio } from '../components/DesafioRelampago';
 
 // ── Utilitários ──
 function obterSaudacao() {
@@ -181,6 +183,9 @@ export default function HomePage({ playerName }) {
   const fimDeSemana = ehFimDeSemanaSP();
   // Voltou depois de 2+ dias úteis sem concluir missão e ainda não fez nenhuma hoje
   const voltouDepoisDeDias = !fimDeSemana && diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
+  // Desafio relâmpago: 1 pergunta de uma missão de dia anterior (só em dia útil)
+  const desafioDoDia = !fimDeSemana ? escolherDesafio(Object.values(missoes).flat(), hojeSPData) : null;
+  const desafioFeitoHoje = !!progresso?.desafios?.[hojeSPData];
   const badges = [];
   if (feitasHoje > 0)
     badges.push({ icone: "✅", label: `${feitasHoje} ${feitasHoje === 1 ? "missão" : "missões"} hoje` });
@@ -376,7 +381,8 @@ export default function HomePage({ playerName }) {
             {
               icone: "⚡",
               label: "XP da semana",
-              valor: `${feitasSemana * XP_POR_MISSAO} XP`,
+              // 10 XP por missão + bônus (acertar de primeira, boa explicação, desafio relâmpago)
+              valor: `${feitasSemana * XP_POR_MISSAO + xpBonusDaSemana(progresso)} XP`,
               barra: Math.min(100, (feitasSemana / META_SEMANA) * 100),
               sub: `${Math.min(feitasSemana, META_SEMANA)}/${META_SEMANA} missões`,
             },
@@ -438,6 +444,21 @@ export default function HomePage({ playerName }) {
 
       {/* ── CONTEÚDO ── */}
       <main style={{ padding: "20px 16px", maxWidth: 600, margin: "0 auto" }}>
+        {desafioDoDia && codigoAcesso && (
+          <DesafioRelampago
+            key={desafioDoDia.missao.id}
+            desafio={desafioDoDia}
+            codigoAcesso={codigoAcesso}
+            jaFeitoHoje={desafioFeitoHoje}
+            c={c}
+            onXp={(xp) =>
+              setProgresso((p) => ({
+                ...p,
+                xpBonusLog: [...(p?.xpBonusLog || []), { data: hojeSPData, xp, motivo: "desafio" }],
+              }))
+            }
+          />
+        )}
         {voltouDepoisDeDias && (
           <div
             style={{

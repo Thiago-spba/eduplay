@@ -14,7 +14,9 @@ import {
   salvarMissao,
   salvarSessaoQuiz,
   registrarAcessoDiario,
+  registrarXpBonus,
 } from "../services/db";
+import { AtividadeExtra, Explique, INFO_ATIVIDADE } from "../components/AtividadesMissao";
 import { gerarMissaoIA } from "../services/ia";
 import { signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
@@ -890,7 +892,15 @@ export default function SubjectPage() {
   const [chatInput, setChatInput] = useState("");
   const [chatPergs, setChatPergs] = useState(5);
 
-  // Checklist: leitura + quiz + forca
+  // Avaliação de verdade: tempo, tentativas, nota da 1ª tentativa e perguntas novas ao refazer
+  const inicioMissaoRef = useRef(Date.now());
+  const tentativasRef = useRef(0);
+  const notaPrimeiraRef = useRef(null);
+  const [usarReserva, setUsarReserva] = useState(false);
+  const [notaParaConcluir, setNotaParaConcluir] = useState(null); // {a, t} aguardando o "explique"
+  const [xpGanho, setXpGanho] = useState(null); // XP mostrado na tela de resultado
+
+  // Checklist: leitura + quiz + forca (o slot "forca" também abriga a atividade variada)
   const [etapasConcluidas, setEtapasConcluidas] = useState({ leitura: false, quiz: false, forca: false });
   const todasEtapasConcluidas = etapasConcluidas.leitura && etapasConcluidas.quiz && etapasConcluidas.forca;
 
@@ -972,29 +982,62 @@ export default function SubjectPage() {
     ? missaoConcluida
     : moduloAtivo !== null ? missoes[moduloAtivo] : null;
 
+  // Atividade do 3º card: a variada (pares, fake news, ordem, ache o erro) ou a forca nas missões antigas
+  const extraMissao = moduloSelecionado?.atividades?.extra;
+  const tipoAtividade = extraMissao?.tipo && INFO_ATIVIDADE[extraMissao.tipo] ? extraMissao.tipo : "forca";
+  const infoAtividade = INFO_ATIVIDADE[tipoAtividade];
+  // Ao refazer, alterna para as perguntas reserva (se a missão tiver) — assim não dá para decorar
+  const reservaQuiz = moduloSelecionado?.atividades?.quizReserva;
+  const perguntasQuiz = usarReserva && Array.isArray(reservaQuiz) && reservaQuiz.length ? reservaQuiz : moduloSelecionado?.atividades?.quiz;
+  // Pergunta do "explique": a da missão nova ou, nas antigas, a pergunta central
+  const perguntaExplique = moduloSelecionado?.atividades?.explique?.pergunta || moduloSelecionado?.perguntaCentral || "O que você aprendeu nesta missão?";
+
   // ── Concluir missão ──
-  // Só conclui a missão se a nota somada (Quiz + Forca) for >= NOTA_MINIMA.
-  // Caso contrário a missão continua pendente e a criança refaz o Quiz e a Forca
-  // (a Leitura continua concluída).
+  // Só conclui a missão se a nota somada (Quiz + atividade) for >= NOTA_MINIMA.
+  // Caso contrário a missão continua pendente e a criança refaz o Quiz e a atividade
+  // (a Leitura continua concluída). Passando, vem o "Explique com suas palavras".
   const finalizarOuRefazer = (notasAtuais) => {
     const [a, t] = somarNotas(notasAtuais);
     const pct = t > 0 ? Math.round((a / t) * 100) : 100;
+    tentativasRef.current += 1;
+    if (notaPrimeiraRef.current === null) notaPrimeiraRef.current = pct;
     if (t === 0 || pct >= NOTA_MINIMA) {
-      concluir(a, t);
+      setNotaParaConcluir({ a, t });
+      setAviso(null);
+      setAtividade("explique");
       return;
     }
     setEtapasConcluidas((prev) => ({ ...prev, quiz: false, forca: false }));
     setNotas({ quiz: null, forca: null });
+    if (Array.isArray(reservaQuiz) && reservaQuiz.length) setUsarReserva((r) => !r);
     setAtividade(null);
     setAviso({
       tipo: "refazer",
       emoji: "💪",
       titulo: "Quase lá! Vamos tentar de novo",
-      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e o Descobrir a Palavra — você consegue!`,
+      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e o ${infoAtividade.label}${Array.isArray(reservaQuiz) && reservaQuiz.length ? " — agora com perguntas novas" : ""}. Você consegue!`,
     });
   };
 
-  const concluir = async (acertos, total) => {
+  // Chama a IA para dar nota à explicação (null se falhar — a criança não fica travada)
+  const avaliarExplicacaoIA = async (texto) => {
+    const fn = httpsCallable(functions, "avaliarExplicacao");
+    const r = await fn({
+      pergunta: perguntaExplique,
+      pontosChave: moduloSelecionado?.atividades?.explique?.pontosChave || [],
+      resumo: moduloSelecionado?.resumo || "",
+      resposta: texto,
+      serie: localStorage.getItem("eduplay_serie") || "6ano",
+    });
+    return r.data?.ok ? { nota: r.data.nota, comentario: r.data.comentario, versaoMelhorada: r.data.versaoMelhorada || "" } : null;
+  };
+
+  const concluir = async (acertos, total, explicacao = null) => {
+    // Dados para o painel dos pais e XP bônus
+    const tentativas = Math.max(1, tentativasRef.current);
+    const tempoSegundos = Math.round((Date.now() - inicioMissaoRef.current) / 1000);
+    const xpBonus = (tentativas === 1 ? 5 : 0) + (explicacao?.nota >= 7 ? 5 : 0);
+    setXpGanho({ base: 10, primeira: tentativas === 1 ? 5 : 0, explicacao: explicacao?.nota >= 7 ? 5 : 0 });
     const missaoFeita = moduloSelecionado;
     setMissaoConcluida(missaoFeita);
     setResultado({ acertos, total });
@@ -1027,7 +1070,22 @@ export default function SubjectPage() {
             acertos,
             total,
             percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
+            // Para o painel dos pais: como a missão foi feita de verdade
+            tentativas,
+            notaPrimeiraTentativa: notaPrimeiraRef.current,
+            tempoSegundos,
+            tipoAtividade,
+            perguntaExplique,
+            explicacao: explicacao?.texto || "",
+            explicacaoPorVoz: !!explicacao?.porVoz,
+            notaExplicacao: explicacao?.nota ?? null,
+            comentarioExplicacao: explicacao?.comentario || "",
+            versaoMelhorada: explicacao?.versaoMelhorada || "",
+            xpBonus,
           }),
+          xpBonus > 0
+            ? registrarXpBonus(codigoAcesso, xpBonus, `${disciplinaId}_${missaoFeita.id}`).catch(() => {})
+            : null,
         ]);
         setMissoes((prev) => prev.filter((m) => m.id !== missaoFeita.id));
       } catch (err) {
@@ -1129,10 +1187,24 @@ export default function SubjectPage() {
             <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0 }}>
               {resultado.acertos} de {resultado.total} questões — {pct}%
             </p>
+            {xpGanho && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 12 }}>
+                {[
+                  { t: `+${xpGanho.base} XP missão`, on: true },
+                  { t: `+${xpGanho.primeira} XP de primeira! 🎯`, on: xpGanho.primeira > 0 },
+                  { t: `+${xpGanho.explicacao} XP boa explicação ✍️`, on: xpGanho.explicacao > 0 },
+                ].filter((x) => x.on).map((x) => (
+                  <span key={x.t} style={{ background: "#FFD70022", border: "1.5px solid #FFD70088", color: c.texto, borderRadius: 20, padding: "4px 10px", fontSize: "0.75rem", fontWeight: 800 }}>
+                    ⚡ {x.t}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Reforço: acertou menos de 60% — vídeo para ver o assunto de outro jeito */}
-          {pct < 60 && (
+          {/* Reforço: foi mal na 1ª tentativa (abaixo de 60%) — vídeo para ver o assunto de outro jeito.
+              Usa a 1ª tentativa porque a missão só conclui com 60% ou mais. */}
+          {(notaPrimeiraRef.current ?? pct) < 60 && (
             <div style={{ background: c.card, borderRadius: 20, padding: "16px 18px", border: "2px solid #FF6B7A66", textAlign: "center" }}>
               <div style={{ fontSize: "2rem", marginBottom: 6 }}>🎬</div>
               <p style={{ fontSize: "0.95rem", fontWeight: 800, color: c.texto, margin: "0 0 6px" }}>
@@ -1286,12 +1358,14 @@ export default function SubjectPage() {
   // ── Atividade ──
   if (atividade && atividade !== "audio" && moduloSelecionado) {
     return (
-      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: atividade === "forca" ? 170 : 90 }}>
+      <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: atividade === "forca" && tipoAtividade === "forca" ? 170 : 90 }}>
         <PageHeader
           titulo={
             atividade === "quiz"
               ? "Perguntas e Respostas"
-              : "Descobrir a Palavra"
+              : atividade === "explique"
+                ? "Explique com suas palavras"
+                : infoAtividade.label
           }
           subtitulo={moduloSelecionado.titulo}
           cor={cor}
@@ -1303,7 +1377,8 @@ export default function SubjectPage() {
 
         {atividade === "quiz" && (
           <Quiz
-            perguntas={moduloSelecionado.atividades?.quiz}
+            key={`quiz-${usarReserva ? "reserva" : "principal"}-${tentativasRef.current}`}
+            perguntas={perguntasQuiz}
             onConcluir={(a, t) => {
               const notasAtuais = { ...notas, quiz: { a, t } };
               setNotas(notasAtuais);
@@ -1324,23 +1399,46 @@ export default function SubjectPage() {
             c={c}
           />
         )}
-        {atividade === "forca" && (
-          <Forca
-            dados={moduloSelecionado.atividades?.forca}
-            onConcluir={(a, t) => {
-              const notasAtuais = { ...notas, forca: { a, t } };
-              setNotas(notasAtuais);
-              setEtapasConcluidas(prev => ({ ...prev, forca: true }));
-              if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
-                finalizarOuRefazer(notasAtuais);
-              } else {
-                setTimeout(() => {
-                  setAviso(a > 0
+        {atividade === "forca" && (() => {
+          // Atividade variada (missões novas) ou forca (missões antigas): mesma regra de conclusão
+          const aoConcluirAtividade = (a, t) => {
+            const notasAtuais = { ...notas, forca: { a, t } };
+            setNotas(notasAtuais);
+            setEtapasConcluidas(prev => ({ ...prev, forca: true }));
+            if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
+              finalizarOuRefazer(notasAtuais);
+            } else {
+              setTimeout(() => {
+                setAviso(tipoAtividade === "forca"
+                  ? (a > 0
                     ? { emoji: "🔤", titulo: "Parabéns!", texto: "Você descobriu a palavra! Complete as outras etapas para finalizar a missão." }
-                    : { emoji: "🔤", titulo: "Boa tentativa!", texto: "Complete as outras etapas para finalizar a missão." });
-                  setAtividade(null);
-                }, 300);
-              }
+                    : { emoji: "🔤", titulo: "Boa tentativa!", texto: "Complete as outras etapas para finalizar a missão." })
+                  : { emoji: infoAtividade.emoji, titulo: `${infoAtividade.label} concluído!`, texto: `Você acertou ${a} de ${t}. Complete as outras etapas para finalizar a missão.` });
+                setAtividade(null);
+              }, 300);
+            }
+          };
+          return tipoAtividade === "forca" ? (
+            <Forca dados={moduloSelecionado.atividades?.forca} onConcluir={aoConcluirAtividade} cor={cor} c={c} />
+          ) : (
+            <AtividadeExtra
+              key={`extra-${tentativasRef.current}`}
+              dados={extraMissao}
+              onConcluir={aoConcluirAtividade}
+              cor={cor}
+              c={c}
+            />
+          );
+        })()}
+
+        {atividade === "explique" && (
+          <Explique
+            pergunta={perguntaExplique}
+            avaliar={avaliarExplicacaoIA}
+            onFinal={(exp) => {
+              const nota = notaParaConcluir || { a: 0, t: 0 };
+              setNotaParaConcluir(null);
+              concluir(nota.a, nota.t, exp);
             }}
             cor={cor}
             c={c}
@@ -1621,7 +1719,7 @@ export default function SubjectPage() {
             {[
               { id: "leitura", emoji: "📖", label: "Leitura", acao: "audio", clr: "#00D4AA" },
               { id: "quiz", emoji: "❓", label: "Quiz", acao: "quiz", clr: "#0099FF" },
-              { id: "forca", emoji: "🔤", label: "Descobrir a Palavra", acao: "forca", clr: "#FFB830" },
+              { id: "forca", emoji: infoAtividade.emoji, label: infoAtividade.label, acao: "forca", clr: infoAtividade.clr },
             ].map((et) => {
               const bloqueado = et.id !== "leitura" && !etapasConcluidas.leitura;
               const destaque = et.id === "leitura" && !etapasConcluidas.leitura;
@@ -1656,7 +1754,7 @@ export default function SubjectPage() {
                 const faltando = [
                   !etapasConcluidas.leitura && "a Leitura",
                   !etapasConcluidas.quiz && "o Quiz",
-                  !etapasConcluidas.forca && "Descobrir a Palavra",
+                  !etapasConcluidas.forca && `o ${infoAtividade.label}`,
                 ].filter(Boolean);
                 setAviso({
                   tipo: "faltando",
@@ -1693,7 +1791,7 @@ export default function SubjectPage() {
               color: c.textoSub,
             }}
           >
-            💡 Complete leitura, quiz e descobrir a palavra para concluir a missão
+            💡 Complete leitura, quiz e {infoAtividade.label.toLowerCase()}. No final, explique com suas palavras o que aprendeu!
           </div>
         </main>
         <OlloAssistant missao={moduloSelecionado} c={c} tema={tema} />
@@ -1996,6 +2094,13 @@ export default function SubjectPage() {
                 onClick={() => {
                   setEtapasConcluidas({ leitura: false, quiz: false, forca: false });
                   setNotas({ quiz: null, forca: null });
+                  // Começa a contar tempo e tentativas desta missão
+                  inicioMissaoRef.current = Date.now();
+                  tentativasRef.current = 0;
+                  notaPrimeiraRef.current = null;
+                  setUsarReserva(false);
+                  setNotaParaConcluir(null);
+                  setXpGanho(null);
                   setModuloAtivo(idx);
                 }}
                 onMouseEnter={(e) => {

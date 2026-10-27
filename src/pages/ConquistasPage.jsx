@@ -896,7 +896,7 @@ export default function ConquistasPage() {
             }}
           >
             Nível {nivelInfo.nivel} · {serieNum}º Ano ·{" "}
-            <span style={{ color: "#FFD700", fontWeight: 800 }}>⚡ {totalFeitas * 10} XP</span>
+            <span style={{ color: "#FFD700", fontWeight: 800 }}>⚡ {totalFeitas * 10 + (progresso?.xpBonusTotal || 0)} XP</span>
           </p>
           <div
             style={{

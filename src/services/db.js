@@ -314,6 +314,36 @@ export async function registrarMissaoConcluida(codigoAcesso, chaveMissao, percen
   }, { merge: true });
 }
 
+/**
+ * XP bônus (acertar de primeira, boa explicação, desafio relâmpago).
+ * Fica no progresso: total acumulado + histórico por dia (para o XP da semana).
+ */
+export async function registrarXpBonus(codigoAcesso, xp, motivo) {
+  if (!xp) return;
+  const prog = await getProgresso(codigoAcesso);
+  const log = [...(prog.xpBonusLog || []), { data: fmtDataSP(new Date()), xp, motivo }].slice(-150);
+  await setDoc(doc(db, "progresso", codigoAcesso), {
+    xpBonusTotal: increment(xp),
+    xpBonusLog: log,
+    atualizadoEm: serverTimestamp(),
+  }, { merge: true });
+}
+
+/** XP bônus ganho desde segunda-feira (fuso SP) */
+export function xpBonusDaSemana(prog) {
+  const seg = inicioSemanaSP();
+  return (prog?.xpBonusLog || []).filter((b) => b.data >= seg).reduce((s, b) => s + (b.xp || 0), 0);
+}
+
+/** Desafio relâmpago: guarda o resultado do dia (um por dia) */
+export async function registrarDesafio(codigoAcesso, dados) {
+  const data = fmtDataSP(new Date());
+  await setDoc(doc(db, "progresso", codigoAcesso), {
+    desafios: { [data]: { ...dados, em: new Date().toISOString() } },
+    atualizadoEm: serverTimestamp(),
+  }, { merge: true });
+}
+
 /** Adiciona badge de esforço */
 export async function adicionarBadge(codigoAcesso, badge) {
   const prog = await getProgresso(codigoAcesso);

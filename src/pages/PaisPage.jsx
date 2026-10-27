@@ -5995,7 +5995,12 @@ export default function PaisPage({ userPai, timer }) {
                         const d = DISCIPLINAS.find(
                           (dd) => dd.id === s.disciplina,
                         );
-                        const aprovado = (s.percentual || 0) >= 70;
+                        // Sessão salva na conclusão: nota, tempo, tentativas e a explicação do aluno
+                        const ses = (sessoesQuiz || []).find(
+                          (x) => x.disciplina === s.disciplina && x.tituloMissao === (s.titulo || s.tituloMissao),
+                        );
+                        const percentual = ses?.percentual ?? s.percentual;
+                        const aprovado = (percentual || 0) >= 70;
                         return (
                           <div
                             key={s.id || i}
@@ -6006,6 +6011,7 @@ export default function PaisPage({ userPai, timer }) {
                                   ? `1px solid ${c.borda}`
                                   : "none",
                               display: "flex",
+                              flexWrap: "wrap",
                               alignItems: "center",
                               gap: 10,
                             }}
@@ -6022,7 +6028,7 @@ export default function PaisPage({ userPai, timer }) {
                                   margin: 0,
                                 }}
                               >
-                                {s.tituloMissao || d?.label}
+                                {s.titulo || s.tituloMissao || d?.label}
                               </p>
                               <p
                                 style={{
@@ -6035,8 +6041,8 @@ export default function PaisPage({ userPai, timer }) {
                                 {d?.label}
                               </p>
                             </div>
-                            {s.percentual !== undefined &&
-                            s.percentual !== null ? (
+                            {percentual !== undefined &&
+                            percentual !== null ? (
                               <span
                                 style={{
                                   fontSize: "0.75rem",
@@ -6049,7 +6055,7 @@ export default function PaisPage({ userPai, timer }) {
                                   borderRadius: 8,
                                 }}
                               >
-                                {s.percentual}%
+                                {percentual}%
                               </span>
                             ) : (
                               <span
@@ -6064,6 +6070,46 @@ export default function PaisPage({ userPai, timer }) {
                               >
                                 ✅ Concluída
                               </span>
+                            )}
+                            {/* Como foi feita (missões concluídas depois desta versão) */}
+                            {ses && (ses.tempoSegundos !== undefined || ses.explicacao) && (
+                              <div style={{ flexBasis: "100%", display: "flex", flexDirection: "column", gap: 6, paddingLeft: 30 }}>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+                                  {ses.tempoSegundos !== undefined && (
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 700, color: c.textoSub, background: c.borda + "55", padding: "2px 8px", borderRadius: 8 }}>
+                                      ⏱ {ses.tempoSegundos < 60 ? `${ses.tempoSegundos}s` : `${Math.round(ses.tempoSegundos / 60)} min`}
+                                    </span>
+                                  )}
+                                  {ses.tentativas !== undefined && (
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 700, color: c.textoSub, background: c.borda + "55", padding: "2px 8px", borderRadius: 8 }}>
+                                      🔁 {ses.tentativas} {ses.tentativas === 1 ? "tentativa" : "tentativas"}
+                                    </span>
+                                  )}
+                                  {ses.notaPrimeiraTentativa !== undefined && ses.notaPrimeiraTentativa !== null && (
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 700, color: c.textoSub, background: c.borda + "55", padding: "2px 8px", borderRadius: 8 }}>
+                                      🎯 1ª tentativa: {ses.notaPrimeiraTentativa}%
+                                    </span>
+                                  )}
+                                  {ses.tempoSegundos !== undefined && ses.tempoSegundos < 180 && (
+                                    <span style={{ fontSize: "0.68rem", fontWeight: 800, color: "#B45309", background: "#F59E0B22", padding: "2px 8px", borderRadius: 8 }}>
+                                      ⚡ Feita muito rápido — vale conversar
+                                    </span>
+                                  )}
+                                </div>
+                                {ses.explicacao && (
+                                  <div style={{ background: c.borda + "33", borderRadius: 10, padding: "8px 10px", fontSize: "0.75rem", color: c.texto, lineHeight: 1.5 }}>
+                                    <div style={{ color: c.textoSub, fontWeight: 700, marginBottom: 2 }}>
+                                      {ses.explicacaoPorVoz ? "🎤" : "✍️"} {ses.perguntaExplique || "Explicação"}
+                                      {ses.notaExplicacao !== null && ses.notaExplicacao !== undefined && (
+                                        <span style={{ marginLeft: 6, color: ses.notaExplicacao >= 7 ? "#00A884" : ses.notaExplicacao >= 4 ? "#B45309" : "#DC2626" }}>
+                                          · nota {ses.notaExplicacao}/10
+                                        </span>
+                                      )}
+                                    </div>
+                                    "{ses.explicacao}"
+                                  </div>
+                                )}
+                              </div>
                             )}
                           </div>
                         );

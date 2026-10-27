@@ -2,7 +2,8 @@ import { httpsCallable } from "firebase/functions";
 import { functions } from "./firebase";
 
 // Instância conectada à nuvem do Firebase
-const gerarMissaoFn = httpsCallable(functions, "gerarMissao");
+// 160s: a geração ficou maior (quiz reserva, atividade variada, "explique") — o padrão de 70s cortaria
+const gerarMissaoFn = httpsCallable(functions, "gerarMissao", { timeout: 160000 });
 
 /**
  * Solicita uma nova missão educacional à Inteligência Central.
