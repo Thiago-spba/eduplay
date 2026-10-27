@@ -867,6 +867,156 @@ exports.buscarVideoAula = onCall(
 )
 
 // ═══════════════════════════════════════════════════════════════════════
+// enviarResumos — resumo para os pais (diário, semanal ou mensal), todo dia às 20h
+// Monta o resumo com os dados já salvos (sem IA, custo zero), guarda em
+// resumos/{uid}/itens (aparece no painel) e envia por e-mail se o envio
+// estiver configurado em config/email { resendApiKey, remetente }.
+// ═══════════════════════════════════════════════════════════════════════
+const fmtDataSPServ = (d) => d.toLocaleDateString('en-CA', { timeZone: 'America/Sao_Paulo' })
+const dataBR = (iso) => iso.split('-').reverse().slice(0, 2).join('/')
+
+// Decide se hoje é dia de resumo para a frequência escolhida e qual o período
+function periodoDoResumo(freq, agora = new Date()) {
+  const hoje = fmtDataSPServ(agora)
+  const d = new Date(hoje + 'T12:00:00Z')
+  const diaSemana = d.getUTCDay() // 0 dom ... 6 sab
+  if (freq === 'diario') {
+    if (diaSemana === 0 || diaSemana === 6) return null
+    return { tipo: 'diario', inicio: hoje, fim: hoje, chave: `d-${hoje}`, titulo: `Resumo do dia ${dataBR(hoje)}` }
+  }
+  if (freq === 'semanal') {
+    if (diaSemana !== 5) return null
+    const seg = new Date(d); seg.setUTCDate(d.getUTCDate() - 4)
+    const inicio = seg.toISOString().slice(0, 10)
+    return { tipo: 'semanal', inicio, fim: hoje, chave: `s-${inicio}`, titulo: `Resumo da semana ${dataBR(inicio)} a ${dataBR(hoje)}` }
+  }
+  if (freq === 'mensal') {
+    const amanha = new Date(d); amanha.setUTCDate(d.getUTCDate() + 1)
+    if (amanha.getUTCMonth() === d.getUTCMonth()) return null
+    const inicio = hoje.slice(0, 8) + '01'
+    const mes = d.toLocaleDateString('pt-BR', { month: 'long', timeZone: 'UTC' })
+    return { tipo: 'mensal', inicio, fim: hoje, chave: `m-${hoje.slice(0, 7)}`, titulo: `Resumo de ${mes}` }
+  }
+  return null
+}
+
+// Monta as linhas do resumo a partir das missões concluídas e das sessões do período
+function montarResumo({ nome, periodo, missoes, sessoes, progresso }) {
+  const linhas = []
+  const n = missoes.length
+  const quando = periodo.tipo === 'diario' ? 'hoje' : periodo.tipo === 'semanal' ? 'nesta semana' : 'neste mês'
+  if (n === 0) {
+    linhas.push(`📭 ${nome} não concluiu missões ${quando}.`)
+    linhas.push('💬 Que tal combinar um horário fixo de estudo? 15 minutos por dia já fazem diferença.')
+    return linhas
+  }
+  linhas.push(`✅ ${n} ${n === 1 ? 'missão concluída' : 'missões concluídas'} ${quando}.`)
+  const dias = new Set(missoes.map(m => m.dia)).size
+  if (periodo.tipo !== 'diario') linhas.push(`📅 Estudou em ${dias} ${dias === 1 ? 'dia' : 'dias'}.`)
+  const porDisc = {}
+  missoes.forEach(m => { porDisc[m.disciplina] = (porDisc[m.disciplina] || 0) + 1 })
+  linhas.push('📚 ' + Object.entries(porDisc).map(([dsc, q]) => `${NOMES.disciplina[dsc] || dsc}: ${q}`).join(' · '))
+  if (sessoes.length) {
+    const media = Math.round(sessoes.reduce((a, s) => a + (s.percentual || 0), 0) / sessoes.length)
+    linhas.push(`🎯 Média de acertos: ${media}%.`)
+    const comPrimeira = sessoes.filter(s => typeof s.notaPrimeiraTentativa === 'number')
+    if (comPrimeira.length) {
+      const deCara = comPrimeira.filter(s => s.tentativas === 1).length
+      linhas.push(`🥇 Acertou de primeira em ${deCara} de ${comPrimeira.length}.`)
+    }
+    const tempos = sessoes.filter(s => typeof s.tempoSegundos === 'number')
+    if (tempos.length) {
+      const min = Math.round(tempos.reduce((a, s) => a + s.tempoSegundos, 0) / 60)
+      linhas.push(`⏱ Tempo de estudo: cerca de ${min} min.`)
+      const rapidas = tempos.filter(s => s.tempoSegundos < 180).length
+      if (rapidas) linhas.push(`⚡ ${rapidas} ${rapidas === 1 ? 'missão foi feita' : 'missões foram feitas'} muito rápido — vale conversar sobre o que ele aprendeu.`)
+    }
+    const explicadas = sessoes.filter(s => s.explicacao && typeof s.notaExplicacao === 'number').sort((a, b) => b.notaExplicacao - a.notaExplicacao)
+    if (explicadas.length) {
+      const melhor = explicadas[0]
+      linhas.push(`✍️ Explicação dele ("${melhor.perguntaExplique || melhor.tituloMissao}"): "${String(melhor.explicacao).slice(0, 220)}" — nota ${melhor.notaExplicacao}/10.`)
+      const conversa = sessoes.find(s => s.perguntaExplique)
+      if (conversa) linhas.push(`💬 Para conversar hoje: "${conversa.perguntaExplique}"`)
+    }
+  }
+  const seq = progresso?.diasSeguidos || 0
+  if (seq >= 2) linhas.push(`🔥 Sequência de ${seq} dias de estudo. Elogie a constância!`)
+  return linhas
+}
+
+function htmlDoResumo(titulo, nome, linhas) {
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  return `<div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;color:#1A2B3C">
+<div style="background:#0F6E56;color:#fff;padding:18px 20px;border-radius:14px 14px 0 0"><b style="font-size:18px">🌱 EduPlay</b><br>${esc(titulo)} — ${esc(nome)}</div>
+<div style="border:1px solid #E0EEF5;border-top:0;padding:16px 20px;border-radius:0 0 14px 14px">
+${linhas.map(l => `<p style="margin:0 0 10px;line-height:1.5">${esc(l)}</p>`).join('\n')}
+<p style="margin:16px 0 0"><a href="https://eduplay.olloapp.com.br/pais" style="background:#0F6E56;color:#fff;padding:10px 16px;border-radius:10px;text-decoration:none">Abrir o Painel dos Pais</a></p>
+<p style="font-size:12px;color:#7A9AAA;margin-top:16px">Você pode mudar a frequência (diário, semanal, mensal ou desligado) em Painel → Config.</p>
+</div></div>`
+}
+
+async function processarResumos(agora = new Date()) {
+  const cfgSnap = await db.collection('config').doc('email').get()
+  const cfg = cfgSnap.exists ? cfgSnap.data() : null
+  const respSnap = await db.collection('responsaveis').get()
+  let gerados = 0, enviados = 0
+  for (const respDoc of respSnap.docs) {
+    try {
+      const resp = respDoc.data()
+      if (resp.status === 'inativo') continue
+      const freq = resp.resumoFrequencia || 'semanal'
+      const periodo = periodoDoResumo(freq, agora)
+      if (!periodo) continue
+      if (resp.ultimoResumoChave === periodo.chave) continue
+
+      const criancaSnap = await db.collection('criancas').where('parentId', '==', respDoc.id).limit(1).get()
+      if (criancaSnap.empty) continue
+      const crianca = criancaSnap.docs[0]
+      const nome = (crianca.data().nome || 'Seu filho').split(' ')[0]
+
+      // Mesmo formato de consulta da pausa automática (índice já existente); o período é filtrado abaixo
+      const missoesSnap = await db.collection('missoes').doc(crianca.id).collection('geradas')
+        .where('feita', '==', true).orderBy('feitaEm', 'desc').limit(150).get()
+      const missoes = missoesSnap.docs.map(d => d.data())
+        .map(m => ({ ...m, dia: m.feitaEm?.toDate ? fmtDataSPServ(m.feitaEm.toDate()) : '' }))
+        .filter(m => m.dia && m.dia >= periodo.inicio && m.dia <= periodo.fim)
+      const sessSnap = await db.collection('quizSessions').where('codigoAcesso', '==', crianca.id)
+        .orderBy('criadoEm', 'desc').limit(120).get()
+      const sessoes = sessSnap.docs.map(d => d.data())
+        .filter(s => { const dia = s.criadoEm?.toDate ? fmtDataSPServ(s.criadoEm.toDate()) : ''; return dia >= periodo.inicio && dia <= periodo.fim })
+      const progSnap = await db.collection('progresso').doc(crianca.id).get()
+
+      const linhas = montarResumo({ nome, periodo, missoes, sessoes, progresso: progSnap.data() })
+      await db.collection('resumos').doc(respDoc.id).collection('itens').add({
+        tipo: periodo.tipo, chave: periodo.chave, titulo: `${periodo.titulo} — ${nome}`, linhas,
+        criadoEm: admin.firestore.FieldValue.serverTimestamp(),
+      })
+      gerados++
+
+      // E-mail (só se configurado)
+      if (cfg?.resendApiKey && cfg?.remetente && resp.email) {
+        const r = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${cfg.resendApiKey}` },
+          body: JSON.stringify({ from: cfg.remetente, to: [resp.email], subject: `${periodo.titulo} — ${nome} | EduPlay`, html: htmlDoResumo(periodo.titulo, nome, linhas) }),
+        })
+        if (r.ok) enviados++
+        else console.warn('[resumos] e-mail falhou', respDoc.id, r.status, await r.text().catch(() => ''))
+      }
+      await respDoc.ref.set({ ultimoResumoChave: periodo.chave, ultimoResumoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
+    } catch (err) {
+      console.error('[resumos] erro', respDoc.id, err.message)
+    }
+  }
+  console.log(`[resumos] gerados ${gerados}, e-mails enviados ${enviados}${cfg?.resendApiKey ? '' : ' (envio de e-mail nao configurado)'}`)
+}
+
+exports.enviarResumos = onSchedule(
+  { schedule: '0 20 * * *', timeZone: 'America/Sao_Paulo', region: 'us-central1', timeoutSeconds: 540 },
+  async () => processarResumos()
+)
+
+// ═══════════════════════════════════════════════════════════════════════
 // gerarMensagemMotivacional — Mensagem + perguntas pedagógicas para o pai
 // ═══════════════════════════════════════════════════════════════════════
 exports.gerarMensagemMotivacional = onCall(

@@ -6,6 +6,7 @@ import { logout } from "../services/auth";
 import { gerarMissaoIA } from "../services/ia";
 import { httpsCallable } from "firebase/functions";
 import NovidadesPainel from "../components/NovidadesPainel";
+import { ConfigResumo, CaixaResumos } from "../components/ResumoPais";
 import { functions, auth } from "../services/firebase";
 import {
   getResponsavel,
@@ -6551,6 +6552,7 @@ export default function PaisPage({ userPai, timer }) {
         )}
 
         {/* Mais de um filho + novidades a caminho (fim da aba Visão) */}
+        {secao === "visao" && <CaixaResumos c={c} uid={userPai?.uid} />}
         {secao === "visao" && <NovidadesPainel c={c} />}
 
         {secao === "missoes" && (
@@ -8055,6 +8057,8 @@ export default function PaisPage({ userPai, timer }) {
                 </div>
               </div>
             </div>
+            {/* Resumo para os pais: diário, semanal, mensal ou desligado */}
+            <ConfigResumo c={c} uid={userPai?.uid} />
             {/* Toggle missoes automaticas */}
             <div
               style={{
