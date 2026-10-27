@@ -7,8 +7,6 @@ const crypto = require('crypto')
 
 const ANTHROPIC_KEY = defineSecret('ANTHROPIC_API_KEY')
 const GOOGLE_TTS_KEY = defineSecret('GOOGLE_TTS_KEY')
-// Chave da YouTube Data API v3 (gratuita, cota diária) — usada para mostrar o vídeo dentro do app
-const YOUTUBE_KEY = defineSecret('YOUTUBE_API_KEY')
 
 admin.initializeApp()
 const db = admin.firestore()
@@ -816,7 +814,8 @@ RESPOSTA DO ALUNO: """${resposta.trim().slice(0, 600)}"""`,
 // Cache de 30 dias por assunto: a cota grátis (100 buscas/dia) sobra.
 // ═══════════════════════════════════════════════════════════════════════
 exports.buscarVideoAula = onCall(
-  { secrets: [YOUTUBE_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 20 },
+  // Reaproveita a chave do Google já existente (a mesma da voz), com a YouTube Data API v3 ativada no projeto
+  { secrets: [GOOGLE_TTS_KEY], region: 'us-central1', cors: true, invoker: 'public', timeoutSeconds: 20 },
   async (request) => {
     if (!request.auth) throw new HttpsError('unauthenticated', 'Acesso negado.')
     const { busca } = request.data || {}
@@ -844,7 +843,7 @@ exports.buscarVideoAula = onCall(
       part: 'snippet', type: 'video', maxResults: '5', q: termo,
       safeSearch: 'strict', videoEmbeddable: 'true', videoSyndicated: 'true',
       relevanceLanguage: 'pt', regionCode: 'BR', videoDuration: 'medium',
-      key: YOUTUBE_KEY.value(),
+      key: GOOGLE_TTS_KEY.value(),
     })
     const resp = await fetch(`https://www.googleapis.com/youtube/v3/search?${params}`)
     if (!resp.ok) {
