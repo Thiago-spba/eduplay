@@ -252,6 +252,8 @@ function Ordem({ dados, onConcluir, cor, c }) {
 function AcheErro({ dados, onConcluir, cor, c }) {
   const [sel, setSel] = useState(null);
   const acertou = sel === dados.passoErrado;
+  // A IA às vezes começa com "O passo 2 está errado" contando do zero; a tela já diz o número certo
+  const explicacao = String(dados.explicacao || "").replace(/^\s*o\s+passo\s+\d+\s+(est[aá]\s+)?errad[oa][.:!]?\s*/i, "");
   return (
     <div style={layout}>
       <Instrucao texto={dados.instrucao || "Ache o passo errado"} cor={cor} c={c} />
@@ -274,7 +276,7 @@ function AcheErro({ dados, onConcluir, cor, c }) {
       ))}
       {sel !== null && (
         <>
-          <Feedback acertou={acertou} c={c} texto={`O erro está no passo ${dados.passoErrado + 1}. ${dados.explicacao}`} />
+          <Feedback acertou={acertou} c={c} texto={`O erro está no passo ${dados.passoErrado + 1}. ${explicacao}`} />
           <BotaoPrincipal cor={cor} onClick={() => onConcluir(acertou ? 1 : 0, 1)}>🏁 Concluir</BotaoPrincipal>
         </>
       )}
