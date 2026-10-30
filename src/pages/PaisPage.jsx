@@ -36,6 +36,8 @@ const VERSAO_TERMOS = "1.0";
 // Depoimentos desligados (auditoria out/2026): os textos atuais não são de famílias reais
 // com autorização por escrito. Religar (true) só com depoimentos verdadeiros do piloto.
 const MOSTRAR_DEPOIMENTOS = false;
+// Desde out/2026 a 3ª atividade vale até 1 ponto proporcional, então a nota pode ter decimais (ex.: 3,75)
+const fmtPontos = (n) => String(Math.round((Number(n) || 0) * 100) / 100).replace(".", ",");
 
 const SERIES = [
   { id: "6ano", label: "6º ano" },
@@ -1587,7 +1589,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
           ? s.criadoEm.toDate().toLocaleDateString("pt-BR")
           : "—";
         const nota =
-          s.total > 0 ? `${s.acertos}/${s.total} (${s.percentual}%)` : "—";
+          s.total > 0 ? `${fmtPontos(s.acertos)}/${s.total} (${s.percentual}%)` : "—";
         const topicos = Array.isArray(s.topicos) ? s.topicos.join(", ") : "—";
         return `
         <tr style="background:${i % 2 === 0 ? "#f9f9f9" : "#ffffff"}">
@@ -1957,7 +1959,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
                     flexShrink: 0,
                   }}
                 >
-                  {s.acertos}/{s.total} — {s.percentual}%
+                  {fmtPontos(s.acertos)}/{s.total} — {s.percentual}%
                 </span>
               </div>
               <div
@@ -6389,7 +6391,7 @@ export default function PaisPage({ userPai, timer }) {
                               : "#EF4444",
                       }}
                     >
-                      {ultimaSessao.acertos}/{ultimaSessao.total} —{" "}
+                      {fmtPontos(ultimaSessao.acertos)}/{ultimaSessao.total} —{" "}
                       {ultimaSessao.percentual}%
                     </span>
                   </div>
