@@ -23,6 +23,28 @@ function obterSaudacao() {
   return "Boa noite,";
 }
 
+// Missões concluídas: diz QUANDO vem a próxima. Na sexta (ou antes de feriado) não promete
+// "amanhã", e convida a aproveitar o descanso com a família.
+const NOMES_DIA = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+function mensagemProximaMissao(hoje = new Date()) {
+  const dia = new Date(hoje.getTime());
+  let temFeriado = false;
+  let pausa = 0; // dias sem missão antes da próxima
+  for (;;) {
+    dia.setDate(dia.getDate() + 1);
+    if (ehFimDeSemanaSP(dia)) { pausa++; continue; }
+    if (ehFeriadoNacionalSP(dia)) { pausa++; temFeriado = true; continue; }
+    break;
+  }
+  if (pausa === 0) return "Mandou bem! Amanhã tem missão nova esperando por você.";
+  const proxima = NOMES_DIA[new Date(fmtDataSPLocal(dia) + "T12:00:00").getDay()];
+  const descanso = temFeriado
+    ? pausa === 1 ? "Amanhã é feriado" : "Vem aí um feriadão"
+    : "Agora é fim de semana";
+  return `Mandou bem! ${descanso}: aproveite para brincar, descansar e curtir a família. Na ${proxima} tem missão nova esperando por você.`;
+}
+const fmtDataSPLocal = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+
 function obterDiasSemana(diasAtivos = []) {
   const nomes = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
   // Datas no fuso de São Paulo (toISOString usa UTC e desloca o dia à noite)
@@ -572,7 +594,7 @@ export default function HomePage({ playerName }) {
               }}
             >
               {feitasHoje > 0
-                ? "Mandou bem! Amanhã tem missão nova esperando por você."
+                ? mensagemProximaMissao()
                 : "Peça para o responsável gerar missões no Painel."}
             </p>
           </div>
