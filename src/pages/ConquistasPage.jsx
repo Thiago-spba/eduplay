@@ -219,7 +219,7 @@ function gerarMensagens(progresso, missoesPorDisc, nome) {
 
   msgs.push({
     emoji: "⚡",
-    texto: `${nome}, você já completou ${total} ${total === 1 ? "missão" : "missões"}. Cada uma delas mudou seu cérebro de verdade — isso é ciência!`,
+    texto: `${nome}, você já completou ${total} ${total === 1 ? "missão" : "missões"}. Cada uma delas é um passo a mais no que você sabe!`,
   });
 
   if (dias >= 2)

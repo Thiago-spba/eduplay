@@ -2154,7 +2154,7 @@ function RelatorioTab({ c, e, filho, getMissoesConcluidas, getProgresso }) {
 // ═══════════════════════════════════════════════
 const SUGESTOES_ORIENTACAO = [
   "Como criar uma rotina de estudos em casa?",
-  "Meu filho nao quer fazer dever de casa. O que faco?",
+  "Meu filho não quer fazer dever de casa. O que faço?",
   "Como lidar com notas baixas sem criar conflito?",
   "Como saber se meu filho tem dificuldade de aprendizagem?",
   "Como equilibrar tempo de tela e estudos?",
@@ -2211,7 +2211,7 @@ function OrientacaoTab({ c, e }) {
           {
             role: "assistant",
             content:
-              "Voce atingiu o limite de 10 orientacoes por dia. Isso nos ajuda a manter o servico sempre disponivel para todas as familias. Volte amanha com novas duvidas — estamos aqui para ajudar! 💙",
+              "Você atingiu o limite de 10 orientações por dia. Isso nos ajuda a manter o serviço sempre disponível para todas as famílias. Volte amanhã com novas dúvidas — estamos aqui para ajudar! 💙",
           },
         ]);
       } else {
@@ -2220,7 +2220,7 @@ function OrientacaoTab({ c, e }) {
           {
             role: "assistant",
             content:
-              "Erro de conexao. Verifique sua internet e tente novamente.",
+              "Erro de conexão. Verifique sua internet e tente novamente.",
           },
         ]);
       }
@@ -2345,7 +2345,7 @@ function OrientacaoTab({ c, e }) {
                 Assistente Educacional
               </p>
               <p style={{ fontSize: "0.72rem", color: c.textoSub, margin: 0 }}>
-                Orientacoes para apoiar seu filho em casa
+                Orientações para apoiar seu filho em casa
               </p>
             </div>
           </div>
@@ -2357,7 +2357,7 @@ function OrientacaoTab({ c, e }) {
               lineHeight: 1.6,
             }}
           >
-            Tire duvidas sobre rotina de estudos, convivencia, motivacao e como
+            Tire dúvidas sobre rotina de estudos, convivência, motivação e como
             participar do dia a dia escolar do seu filho.
           </p>
           <p
@@ -2370,7 +2370,7 @@ function OrientacaoTab({ c, e }) {
               margin: "0 0 10px",
             }}
           >
-            Sugestoes de perguntas
+            Sugestões de perguntas
           </p>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {SUGESTOES_ORIENTACAO.map((s, i) => (
@@ -6174,7 +6174,7 @@ export default function PaisPage({ userPai, timer }) {
                                 tendencia === "subindo"
                                   ? "#00D4AA"
                                   : tendencia === "caindo"
-                                    ? "#EF4444"
+                                    ? (media7 >= 70 ? "#D97706" : "#EF4444")
                                     : c.accent,
                               fontWeight: 900,
                             }}
@@ -6187,10 +6187,11 @@ export default function PaisPage({ userPai, timer }) {
                               — evoluindo ↑
                             </span>
                           )}
+                          {/* Caiu, mas ainda alta (ex.: 87%): só avisa; "precisa de atenção" fica para média abaixo de 70% */}
                           {tendencia === "caindo" && (
-                            <span style={{ color: "#EF4444" }}>
+                            <span style={{ color: media7 >= 70 ? "#D97706" : "#EF4444" }}>
                               {" "}
-                              — precisa de atenção ↓
+                              {media7 >= 70 ? "— caiu um pouco ↓" : "— precisa de atenção ↓"}
                             </span>
                           )}
                           {tendencia === "estavel" && (
@@ -8117,7 +8118,7 @@ export default function PaisPage({ userPai, timer }) {
                     }}
                   >
                     Se você não gerar missões, o sistema cria automaticamente
-                    toda manhã de dias úteis.
+                    de madrugada, nos dias úteis.
                   </p>
                 </div>
                 <button
@@ -8180,7 +8181,7 @@ export default function PaisPage({ userPai, timer }) {
                 }}
               >
                 {autoMissoes
-                  ? "✅ Ativado — Todo dia útil às 7h o sistema gera missões automaticamente para seu filho."
+                  ? "✅ Ativado — Toda madrugada de dia útil (antes das 7h) o sistema gera missões automaticamente para seu filho."
                   : "⏸️ Desativado — Você gera as missões manualmente pela aba Missões."}
               </div>
             </div>

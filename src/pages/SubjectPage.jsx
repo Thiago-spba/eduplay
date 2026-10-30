@@ -176,9 +176,15 @@ function etapasSalvas(m) {
   const n = m?.notasEtapas || {};
   const quiz = e.quiz === true && notaValida(n.quiz);
   const forca = e.forca === true && notaValida(n.forca);
+  const tn = m?.tentativas || {};
   return {
     etapas: { leitura: e.leitura === true, quiz, forca },
     notas: { quiz: quiz ? { a: n.quiz.a, t: n.quiz.t } : null, forca: forca ? { a: n.forca.a, t: n.forca.t } : null },
+    tentativas: {
+      n: Number.isInteger(tn.n) && tn.n > 0 ? tn.n : 0,
+      primeira: Number.isInteger(tn.primeira) && tn.primeira >= 0 ? tn.primeira : null,
+      reserva: tn.reserva === true,
+    },
   };
 }
 
@@ -1036,13 +1042,20 @@ export default function SubjectPage() {
 
   // Salva no banco as etapas INTEIRAS concluídas (o progresso dentro de uma etapa não é salvo).
   // Se falhar, a missão continua funcionando na tela, como antes — só registra o erro.
-  const persistirEtapas = (etapas, notasAtuais) => {
+  // Junto vão as tentativas: sem isso, recarregar depois de reprovar mostrava ao responsável
+  // "1 tentativa", dava o XP "de primeira" e voltava para as mesmas perguntas do quiz.
+  const persistirEtapas = (etapas, notasAtuais, reserva = usarReserva) => {
     const id = moduloSelecionado?.id;
     if (!id || !codigoAcesso) return;
     const notasEtapas = {};
     if (etapas.quiz && notaValida(notasAtuais?.quiz)) notasEtapas.quiz = { a: notasAtuais.quiz.a, t: notasAtuais.quiz.t };
     if (etapas.forca && notaValida(notasAtuais?.forca)) notasEtapas.forca = { a: notasAtuais.forca.a, t: notasAtuais.forca.t };
-    salvarEtapasMissao(codigoAcesso, id, etapas, notasEtapas).catch((err) =>
+    const tentativas = {
+      n: Math.min(50, tentativasRef.current),
+      primeira: notaPrimeiraRef.current ?? -1,
+      reserva: !!reserva,
+    };
+    salvarEtapasMissao(codigoAcesso, id, etapas, notasEtapas, tentativas).catch((err) =>
       console.error("Erro ao salvar etapas da missão:", err)
     );
   };
@@ -1057,16 +1070,20 @@ export default function SubjectPage() {
     tentativasRef.current += 1;
     if (notaPrimeiraRef.current === null) notaPrimeiraRef.current = pct;
     if (t === 0 || pct >= NOTA_MINIMA) {
+      // Guarda a tentativa: se a criança fechar no "Explique", o painel continua certo
+      persistirEtapas({ leitura: true, quiz: true, forca: true }, notasAtuais);
       setNotaParaConcluir({ a, t });
       setAviso(null);
       setAtividade("explique");
       return;
     }
+    const temReserva = Array.isArray(reservaQuiz) && reservaQuiz.length > 0;
+    const novaReserva = temReserva ? !usarReserva : usarReserva;
     setEtapasConcluidas((prev) => ({ ...prev, quiz: false, forca: false }));
     setNotas({ quiz: null, forca: null });
     // Zera também no banco: Quiz e 3ª etapa voltam a pendentes, a Leitura continua valendo
-    persistirEtapas({ leitura: etapasConcluidas.leitura, quiz: false, forca: false }, {});
-    if (Array.isArray(reservaQuiz) && reservaQuiz.length) setUsarReserva((r) => !r);
+    persistirEtapas({ leitura: etapasConcluidas.leitura, quiz: false, forca: false }, {}, novaReserva);
+    setUsarReserva(novaReserva);
     setAtividade(null);
     setAviso({
       tipo: "refazer",
@@ -2170,11 +2187,11 @@ export default function SubjectPage() {
                   const salvas = etapasSalvas(m);
                   setEtapasConcluidas(salvas.etapas);
                   setNotas(salvas.notas);
-                  // Começa a contar tempo e tentativas desta missão
+                  // Começa a contar o tempo; as tentativas continuam de onde pararam
                   inicioMissaoRef.current = Date.now();
-                  tentativasRef.current = 0;
-                  notaPrimeiraRef.current = null;
-                  setUsarReserva(false);
+                  tentativasRef.current = salvas.tentativas.n;
+                  notaPrimeiraRef.current = salvas.tentativas.primeira;
+                  setUsarReserva(salvas.tentativas.reserva);
                   setNotaParaConcluir(null);
                   setXpGanho(null);
                   setModuloAtivo(idx);

@@ -99,6 +99,21 @@ test("notasEtapas com chave extra, acerto maior que total ou número quebrado", 
   await assertFails(updateDoc(ref, { notasEtapas: { forca: { a: 0, t: 0 } } }));
 });
 
+// ── tentativas ──
+test("criança salva tentativas válidas", async () => {
+  await assertSucceeds(updateDoc(doc(crianca(), MISSAO("ONZE")), { etapasFeitas: ETAPAS_OK, notasEtapas: {}, tentativas: { n: 1, primeira: 38, reserva: true } }));
+  await assertSucceeds(updateDoc(doc(crianca(), MISSAO("ONZE")), { tentativas: { n: 0, primeira: -1, reserva: false } }));
+});
+test("tentativas inválidas são bloqueadas", async () => {
+  const ref = doc(crianca(), MISSAO("ONZE"));
+  await assertFails(updateDoc(ref, { tentativas: { n: 1, primeira: 38 } }));
+  await assertFails(updateDoc(ref, { tentativas: { n: 1, primeira: 38, reserva: true, xp: 5 } }));
+  await assertFails(updateDoc(ref, { tentativas: { n: -1, primeira: 38, reserva: true } }));
+  await assertFails(updateDoc(ref, { tentativas: { n: 51, primeira: 38, reserva: true } }));
+  await assertFails(updateDoc(ref, { tentativas: { n: 1, primeira: 101, reserva: true } }));
+  await assertFails(updateDoc(ref, { tentativas: { n: 1.5, primeira: 38, reserva: "sim" } }));
+});
+
 // ── Quem não tem acesso continua bloqueado ──
 // Obs.: com liberação ATIVA, acessoAtivoParaCrianca aceita qualquer login que saiba o código
 // (é assim que o aparelho da criança entra, com login anônimo). Isso já era assim antes.

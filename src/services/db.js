@@ -465,8 +465,9 @@ export async function marcarMissaoFeita(codigoAcesso, missaoId) {
  * Salva as etapas inteiras já concluídas da missão (e a nota de cada uma), para a criança
  * continuar de onde parou se fechar o app. A chave "forca" vale para qualquer 3ª atividade.
  * notasEtapas: { quiz?: {a, t}, forca?: {a, t} } — {} quando o Quiz e a 3ª etapa são zerados.
+ * tentativas: { n, primeira (-1 = ainda sem nota), reserva } — para o painel e o quiz reserva.
  */
-export async function salvarEtapasMissao(codigoAcesso, missaoId, etapasFeitas, notasEtapas) {
+export async function salvarEtapasMissao(codigoAcesso, missaoId, etapasFeitas, notasEtapas, tentativas) {
   const ref = doc(db, "missoes", codigoAcesso, "geradas", missaoId);
   await updateDoc(ref, {
     etapasFeitas: {
@@ -475,6 +476,7 @@ export async function salvarEtapasMissao(codigoAcesso, missaoId, etapasFeitas, n
       forca: !!etapasFeitas.forca,
     },
     notasEtapas,
+    ...(tentativas ? { tentativas } : {}),
   });
 }
 

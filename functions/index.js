@@ -107,9 +107,9 @@ function escolherTipoExtra(disciplina) {
   return tipos[Math.floor(Math.random() * tipos.length)]
 }
 // Mini-aula antes da atividade: ensina COMO fazer, sem entregar a resposta
-const COMO_FAZER = '"2 ou 3 frases curtas que ENSINAM como resolver esta atividade (a ideia ou regra que o aluno precisa usar, com um exemplo diferente das perguntas), sem entregar nenhuma resposta (max 260 chars)"'
+const COMO_FAZER = '"2 ou 3 frases curtas que ENSINAM como resolver esta atividade (a ideia ou regra que o aluno precisa usar, com um exemplo de OUTRO assunto ou com outros números), sem entregar nenhuma resposta: nunca defina nem explique os conceitos, fatos ou itens que esta atividade pergunta (max 260 chars)"'
 const MODELOS_EXTRA = {
-  pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "comoFazer": ${COMO_FAZER}, "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]}`,
+  pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "comoFazer": ${COMO_FAZER}, "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]} — o "comoFazer" dos pares ensina a estratégia (ex.: "pense no que cada palavra mede ou descreve") e NUNCA cita nem define nenhum dos 4 conceitos`,
   fakenews: `"extra": {"tipo": "fakenews", "instrucao": "Verdadeiro ou falso? Investigue cada afirmação", "comoFazer": ${COMO_FAZER}, "afirmacoes": [{"texto": "afirmação sobre o conteúdo (max 110 chars)", "verdadeira": true, "explicacao": "por que é verdadeira ou falsa (max 120 chars)"}, ... EXATAMENTE 4 afirmações, com pelo menos 1 verdadeira e pelo menos 1 falsa; as falsas são erros comuns de quem não leu]}`,
   ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha). ORDEM LÓGICA OBRIGATÓRIA: cada item só pode acontecer depois do anterior (datas em ordem crescente, ou etapas em que um passo depende do outro); preparações e conferências que vêm ANTES (ex.: "conferir se as medidas estão na mesma unidade") ficam ANTES do cálculo, nunca no fim; não use itens que poderiam trocar de lugar sem erro; antes de responder, confira item por item se a ordem está certa. O "comoFazer" da Ordem certa ensina COMO PENSAR para ordenar (o critério, ex.: "pergunte-se o que precisa existir antes do outro"), com um exemplo de OUTRO assunto; ele NUNCA cita os itens desta atividade nem revela qual vem primeiro, depois ou por último`,
   erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "comoFazer": ${COMO_FAZER}, "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos e na ordem lógica de resolução`,
@@ -136,13 +136,18 @@ O QUE É ENSINADO É COBRADO (alinhamento obrigatório):
 
 QUIZ COM ENTENDIMENTO (vale para "quiz" e "quizReserva"):
 - Pelo menos 1 das 3 perguntas é de ENTENDIMENTO: o aluno compara, explica ou prevê, em vez de só aplicar uma fórmula. Exemplo: "Dois terrenos com o mesmo perímetro sempre têm a mesma área?".
-- As 3 perguntas avaliam habilidades diferentes: nunca faça 2 perguntas que cobram a mesma habilidade (ex.: duas contas de área com números diferentes).`
+- As 3 perguntas avaliam habilidades diferentes: nunca faça 2 perguntas que cobram a mesma habilidade (ex.: duas contas de área com números diferentes).
+- Use números, figuras e situações DIFERENTES dos exemplos resolvidos no "resumo" (se o resumo calculou um terreno de 20 m × 10 m, o quiz usa outras medidas), para o aluno aplicar o que aprendeu em vez de copiar a resposta do texto.`
 }
-// Ordem certa: a mini-aula "Antes de começar" não pode entregar a sequência
-function comoFazerEntregaOrdem(extra) {
-  if (extra?.tipo !== 'ordem' || typeof extra.comoFazer !== 'string' || !Array.isArray(extra.itens)) return false
+// A mini-aula "Antes de começar" não pode entregar a resposta: na Ordem certa, citar 2+ itens
+// revela a sequência; nos pares, citar 2+ conceitos costuma vir com a definição deles
+function comoFazerEntregaResposta(extra) {
+  if (!extra || typeof extra.comoFazer !== 'string') return false
   const dica = normQuiz(extra.comoFazer)
-  return extra.itens.filter(i => typeof i === 'string' && normQuiz(i).length >= 4 && dica.includes(normQuiz(i))).length >= 2
+  const cita = (lista) => lista.filter(i => typeof i === 'string' && normQuiz(i).length >= 4 && dica.includes(normQuiz(i))).length
+  if (extra.tipo === 'ordem' && Array.isArray(extra.itens)) return cita(extra.itens) >= 2
+  if (extra.tipo === 'pares' && Array.isArray(extra.pares)) return cita(extra.pares.map(p => p?.conceito)) >= 2
+  return false
 }
 function problemaDoExtra(e) {
   if (!e || typeof e !== 'object') return 'sem extra'
@@ -190,8 +195,8 @@ function limparExtras(m, origem) {
   // Mini-aulas "como fazer": opcionais, só texto
   if (at.comoFazerQuiz !== undefined && !(typeof at.comoFazerQuiz === 'string' && at.comoFazerQuiz.trim().length >= 20)) delete at.comoFazerQuiz
   if (at.extra && at.extra.comoFazer !== undefined && !(typeof at.extra.comoFazer === 'string' && at.extra.comoFazer.trim().length >= 20)) delete at.extra.comoFazer
-  if (comoFazerEntregaOrdem(at.extra)) {
-    console.warn(`[${origem}] comoFazer da ordem descartado: entregava a sequencia`)
+  if (comoFazerEntregaResposta(at.extra)) {
+    console.warn(`[${origem}] comoFazer de ${at.extra.tipo} descartado: entregava a resposta`)
     delete at.extra.comoFazer
   }
   const ex = at.explique
@@ -453,6 +458,24 @@ const curriculoEspecifico = CURRICULO[disciplina]?.[serie]?.[bimestre] || ''
 const antiRepeticao = titulosJaGerados && titulosJaGerados.length > 0
   ? `\n\nTÍTULOS JÁ GERADOS ANTERIORMENTE — NÃO REPITA ESTES ASSUNTOS:\n${titulosJaGerados.slice(0, 10).map(t => `- ${t}`).join('\n')}\nCrie um ângulo completamente diferente dentro do mesmo currículo.`
   : ''
+    // Título metafórico não mostra o conteúdo (ex.: duas missões seguidas de perímetro e área,
+    // uma "Mapa Perdido" e outra "Terreno Desaparecido"): a pergunta central das últimas mostra
+    let conteudosRecentes = ''
+    if (isDemo !== true && codigoAcesso) {
+      try {
+        const recentesSnap = await db.collection('missoes').doc(codigoAcesso.trim()).collection('geradas')
+          .orderBy('criadoEm', 'desc').limit(30).get()
+        const recentes = recentesSnap.docs.map(d => d.data())
+          .filter(m => m.disciplina === disciplina && typeof m.perguntaCentral === 'string' && m.perguntaCentral.trim())
+          .slice(0, 4)
+          .map(m => `- ${m.perguntaCentral.replace(/[<>{}[\]\\]/g, '').slice(0, 120)}`)
+        if (recentes.length) {
+          conteudosRecentes = `\n\nCONTEÚDOS DAS ÚLTIMAS MISSÕES DESTA MATÉRIA (perguntas centrais):\n${recentes.join('\n')}\nEscolha OUTRO conteúdo do currículo do bimestre: não repita o foco principal dessas missões, mesmo com outro título.`
+        }
+      } catch (err) {
+        console.warn('[gerarMissao] sem historico recente da materia:', err.message)
+      }
+    }
     // A data de hoje NAO vai mais para o prompt: a IA a colocava dentro de
     // perguntas e explicacoes do quiz. contextoTemporal continua aceito, mas ignorado.
     const infoTemporal = ''
@@ -471,7 +494,7 @@ DADOS DA MISSÃO:
 - Série: ${NOMES.serie[serie]}
 - Bimestre: ${NOMES.bimestre[bimestre]}
 - Tema específico: ${temaSanitizado}
-- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}${infoTemporal}${antiRepeticao}
+- Currículo SP/Paulista (${NOMES.serie[serie]} - ${NOMES.bimestre[bimestre]}): ${curriculoEspecifico}${infoTemporal}${antiRepeticao}${conteudosRecentes}
 
 PRINCÍPIOS PSICOLÓGICOS A APLICAR:
 1. Efeito Zeigarnik: termine com gancho — deixe o aluno querendo saber mais

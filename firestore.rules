@@ -100,14 +100,23 @@ service cloud.firestore {
         (!('quiz' in n) || notaEtapaValida(n.quiz)) &&
         (!('forca' in n) || notaEtapaValida(n.forca));
     }
+    // Tentativas da missao: n (0 a 50), nota da 1a tentativa (-1 = ainda sem nota) e quiz reserva
+    function tentativasValido(t) {
+      return t is map &&
+        t.keys().hasOnly(['n', 'primeira', 'reserva']) && t.keys().hasAll(['n', 'primeira', 'reserva']) &&
+        t.n is int && t.n >= 0 && t.n <= 50 &&
+        t.primeira is int && t.primeira >= -1 && t.primeira <= 100 &&
+        t.reserva is bool;
+    }
     match /missoes/{codigoAcesso}/geradas/{missaoId} {
       allow create: if acessoAtivoParaCrianca(codigoAcesso);
       allow read:   if acessoAtivoParaCrianca(codigoAcesso);
       allow update: if acessoAtivoParaCrianca(codigoAcesso) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['feita', 'feitaEm', 'etapasFeitas', 'notasEtapas']) &&
+          .hasOnly(['feita', 'feitaEm', 'etapasFeitas', 'notasEtapas', 'tentativas']) &&
         (!('etapasFeitas' in request.resource.data) || etapasFeitasValido(request.resource.data.etapasFeitas)) &&
-        (!('notasEtapas' in request.resource.data) || notasEtapasValido(request.resource.data.notasEtapas));
+        (!('notasEtapas' in request.resource.data) || notasEtapasValido(request.resource.data.notasEtapas)) &&
+        (!('tentativas' in request.resource.data) || tentativasValido(request.resource.data.tentativas));
       allow delete: if false;
     }
 
