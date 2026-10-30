@@ -38,7 +38,7 @@ export function escolherDesafio(missoesTodas, hojeSP) {
   return { missao: m, pergunta: quiz[semente] };
 }
 
-export default function DesafioRelampago({ desafio, codigoAcesso, jaFeitoHoje, c, onXp }) {
+export default function DesafioRelampago({ desafio, codigoAcesso, jaFeitoHoje, c, onXp, opcional = false }) {
   const [opcoes] = useState(() => {
     const q = desafio.pergunta;
     const certo = indiceCerto(q);
@@ -76,6 +76,11 @@ export default function DesafioRelampago({ desafio, codigoAcesso, jaFeitoHoje, c
       <p style={{ margin: "0 0 4px", fontSize: "0.72rem", fontWeight: 800, color: "#F5A623", textTransform: "uppercase", letterSpacing: 1 }}>
         ⚡ Desafio relâmpago · +{XP_DESAFIO} XP
       </p>
+      {opcional && (
+        <p style={{ margin: "0 0 6px", fontSize: "0.75rem", color: c.textoSub }}>
+          🎉 Hoje é feriado: o desafio é opcional e pular não quebra sua sequência.
+        </p>
+      )}
       <p style={{ margin: "0 0 10px", fontSize: "0.78rem", color: c.textoSub }}>Lembra da missão "{titulo}"?</p>
       <p style={{ margin: "0 0 12px", fontSize: "0.95rem", fontWeight: 700, color: c.texto, lineHeight: 1.45 }}>{desafio.pergunta.pergunta}</p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>

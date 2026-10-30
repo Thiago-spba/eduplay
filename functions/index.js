@@ -111,7 +111,7 @@ const COMO_FAZER = '"2 ou 3 frases curtas que ENSINAM como resolver esta ativida
 const MODELOS_EXTRA = {
   pares: `"extra": {"tipo": "pares", "instrucao": "Ligue cada conceito à explicação certa", "comoFazer": ${COMO_FAZER}, "pares": [{"conceito": "termo curto do conteúdo (max 30 chars)", "explicacao": "explicação curta e correta (max 70 chars)"}, ... EXATAMENTE 4 pares com conceitos diferentes]}`,
   fakenews: `"extra": {"tipo": "fakenews", "instrucao": "Verdadeiro ou falso? Investigue cada afirmação", "comoFazer": ${COMO_FAZER}, "afirmacoes": [{"texto": "afirmação sobre o conteúdo (max 110 chars)", "verdadeira": true, "explicacao": "por que é verdadeira ou falsa (max 120 chars)"}, ... EXATAMENTE 4 afirmações, com pelo menos 1 verdadeira e pelo menos 1 falsa; as falsas são erros comuns de quem não leu]}`,
-  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha). ORDEM LÓGICA OBRIGATÓRIA: cada item só pode acontecer depois do anterior (datas em ordem crescente, ou etapas em que um passo depende do outro); preparações e conferências que vêm ANTES (ex.: "conferir se as medidas estão na mesma unidade") ficam ANTES do cálculo, nunca no fim; não use itens que poderiam trocar de lugar sem erro; antes de responder, confira item por item se a ordem está certa`,
+  ordem: `"extra": {"tipo": "ordem", "instrucao": "Coloque na ordem certa (ex.: do mais antigo ao mais recente, ou as etapas do processo)", "comoFazer": ${COMO_FAZER}, "itens": ["1º item na ordem CORRETA (max 60 chars)", "2º", "3º", "4º"], "explicacao": "por que essa é a ordem (max 140 chars)"} — EXATAMENTE 4 itens diferentes, já escritos na ordem correta (o app embaralha). ORDEM LÓGICA OBRIGATÓRIA: cada item só pode acontecer depois do anterior (datas em ordem crescente, ou etapas em que um passo depende do outro); preparações e conferências que vêm ANTES (ex.: "conferir se as medidas estão na mesma unidade") ficam ANTES do cálculo, nunca no fim; não use itens que poderiam trocar de lugar sem erro; antes de responder, confira item por item se a ordem está certa. O "comoFazer" da Ordem certa ensina COMO PENSAR para ordenar (o critério, ex.: "pergunte-se o que precisa existir antes do outro"), com um exemplo de OUTRO assunto; ele NUNCA cita os itens desta atividade nem revela qual vem primeiro, depois ou por último`,
   erro: `"extra": {"tipo": "erro", "instrucao": "Ache o passo errado", "comoFazer": ${COMO_FAZER}, "enunciado": "um problema ou afirmação do conteúdo (max 120 chars)", "passos": ["passo 1 do raciocínio (max 90 chars)", "passo 2", "passo 3", "passo 4"], "passoErrado": 2, "explicacao": "qual é o erro e como seria o certo, SEM citar o número do passo (max 150 chars)"} — EXATAMENTE 4 passos e APENAS UM deles errado; "passoErrado" é o índice (0 a 3) desse passo; os outros passos devem estar todos corretos e na ordem lógica de resolução`,
 }
 function blocoExtras(tipo) {
@@ -124,7 +124,25 @@ ${MODELOS_EXTRA[tipo]},
 "comoFazerQuiz": ${COMO_FAZER.replace('esta atividade', 'as perguntas do quiz')}
 Tudo nesses campos precisa estar explicado no resumo, nos topicos ou no roteiroPodcast, e ser factualmente correto.
 
-ENSINE ANTES DE COBRAR (vale para o "resumo"): use de 6 a 8 frases simples. Comece CONTEXTUALIZANDO (onde isso aparece na vida do aluno), depois ENSINE o conceito e COMO SE FAZ, passo a passo, com um exemplo resolvido, e só então as regras. Toda conta, fórmula ou ideia que o quiz, o "quizReserva" ou a atividade cobram (ex.: como calcular área, não só perímetro) precisa estar ensinada no resumo com exemplo.`
+ENSINE ANTES DE COBRAR (vale para o "resumo"): use de 6 a 10 frases simples, divididas em blocos (veja abaixo). Comece CONTEXTUALIZANDO (onde isso aparece na vida do aluno), depois ENSINE o conceito e COMO SE FAZ, passo a passo, com um exemplo resolvido, e só então as regras. Toda conta, fórmula ou ideia que o quiz, o "quizReserva" ou a atividade cobram (ex.: como calcular área, não só perímetro) precisa estar ensinada no resumo com exemplo.
+
+LEITURA EM BLOCOS CURTOS (vale para o "resumo"): escreva o resumo em 2 a 4 blocos separados por linha em branco (\\n\\n). Cada bloco trata de UM conceito só, em 2 ou 3 frases, e traz um exemplo concreto desse conceito. Nunca junte vários conceitos num parágrafo único.
+
+O QUE É ENSINADO É COBRADO (alinhamento obrigatório):
+- Cada conceito que aparece nos "topicos" ou é ensinado no "resumo" precisa ser cobrado em pelo menos uma atividade (quiz, atividade variada ou "explique"). Se um conceito não vai ser cobrado, ele NÃO entra nos "topicos" nem no "resumo".
+- Use de 3 a 5 tópicos, só com os conceitos que as atividades cobram.
+- Exemplo do erro a evitar: uma missão de 6º ano ensinou perímetro, área, simetria, ângulo reto e figuras planas, mas as atividades só cobraram perímetro e área.
+- Antes de responder, confira tópico por tópico qual atividade o cobra.
+
+QUIZ COM ENTENDIMENTO (vale para "quiz" e "quizReserva"):
+- Pelo menos 1 das 3 perguntas é de ENTENDIMENTO: o aluno compara, explica ou prevê, em vez de só aplicar uma fórmula. Exemplo: "Dois terrenos com o mesmo perímetro sempre têm a mesma área?".
+- As 3 perguntas avaliam habilidades diferentes: nunca faça 2 perguntas que cobram a mesma habilidade (ex.: duas contas de área com números diferentes).`
+}
+// Ordem certa: a mini-aula "Antes de começar" não pode entregar a sequência
+function comoFazerEntregaOrdem(extra) {
+  if (extra?.tipo !== 'ordem' || typeof extra.comoFazer !== 'string' || !Array.isArray(extra.itens)) return false
+  const dica = normQuiz(extra.comoFazer)
+  return extra.itens.filter(i => typeof i === 'string' && normQuiz(i).length >= 4 && dica.includes(normQuiz(i))).length >= 2
 }
 function problemaDoExtra(e) {
   if (!e || typeof e !== 'object') return 'sem extra'
@@ -172,6 +190,10 @@ function limparExtras(m, origem) {
   // Mini-aulas "como fazer": opcionais, só texto
   if (at.comoFazerQuiz !== undefined && !(typeof at.comoFazerQuiz === 'string' && at.comoFazerQuiz.trim().length >= 20)) delete at.comoFazerQuiz
   if (at.extra && at.extra.comoFazer !== undefined && !(typeof at.extra.comoFazer === 'string' && at.extra.comoFazer.trim().length >= 20)) delete at.extra.comoFazer
+  if (comoFazerEntregaOrdem(at.extra)) {
+    console.warn(`[${origem}] comoFazer da ordem descartado: entregava a sequencia`)
+    delete at.extra.comoFazer
+  }
   const ex = at.explique
   if (ex !== undefined && !(ex && typeof ex.pergunta === 'string' && ex.pergunta.trim().length >= 10 && Array.isArray(ex.pontosChave) && ex.pontosChave.some(p => typeof p === 'string' && p.trim()))) {
     console.warn(`[${origem}] explique descartado`)
@@ -501,8 +523,8 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "palavras": ["PALAVRA1", "PALAVRA2", "PALAVRA3", "PALAVRA4", "PALAVRA5"]
     }
   },
-  "resumo": "explicação em 6-8 frases simples que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente à perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definições, fórmulas, fatos usados nas perguntas), como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
-  "topicos": ["Nome do conceito 1: explicação em uma frase simples", "Nome do conceito 2: explicação em uma frase simples", "Nome do conceito 3: explicação em uma frase simples", "Nome do conceito 4: explicação em uma frase simples", "Nome do conceito 5: explicação em uma frase simples"],
+  "resumo": "explicação em 2 a 4 blocos curtos separados por \\n\\n (um conceito por bloco, cada um com um exemplo; 6 a 10 frases simples no total) que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente à perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definições, fórmulas, fatos usados nas perguntas), como um professor falaria para um aluno da série indicada — sem termos técnicos, sem enrolação",
+  "topicos": ["Nome do conceito 1: explicação em uma frase simples", "Nome do conceito 2: explicação em uma frase simples", "Nome do conceito 3: explicação em uma frase simples", "Nome do conceito 4: explicação em uma frase simples", "até 5 tópicos no total, SÓ com conceitos que as atividades cobram"],
   "roteiroPodcast": "roteiro completo do podcast: 4-5 parágrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa para 11-14 anos, adequada à série indicada. Começa com situação intrigante, desenvolve TODO o conteúdo do resumo e dos tópicos com conexões reais. Última frase: 'Missão registrada, Agente!'"
 }
 
@@ -1651,8 +1673,8 @@ Gere EXATAMENTE este JSON, sem texto adicional, sem markdown:
       "dicas": ["1a dica: pista concreta e especifica sobre o significado, sem citar a palavra max 70 chars", "2a dica: descricao concreta ou exemplo do dia a dia em linguagem simples max 80 chars", "3a dica: quase entrega, como definicao curta max 80 chars"]
     }
   },
-  "resumo": "explicacao em 6-8 frases simples que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente a perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definicoes, formulas, fatos usados nas perguntas)",
-  "topicos": ["Nome do conceito: explicacao em uma frase simples", "Nome do conceito 2: explicacao em uma frase simples", "Nome do conceito 3: explicacao em uma frase simples", "Nome do conceito 4: explicacao em uma frase simples", "Nome do conceito 5: explicacao em uma frase simples"],
+  "resumo": "explicacao em 2 a 4 blocos curtos separados por \\n\\n (um conceito por bloco, cada um com um exemplo; 6 a 10 frases simples no total) que CONTEXTUALIZA (onde aparece na vida do aluno), ENSINA como se faz com um exemplo resolvido passo a passo e RESPONDE diretamente a perguntaCentral e traz o que o aluno precisa saber para acertar o quiz (definicoes, formulas, fatos usados nas perguntas)",
+  "topicos": ["Nome do conceito: explicacao em uma frase simples", "Nome do conceito 2: explicacao em uma frase simples", "Nome do conceito 3: explicacao em uma frase simples", "Nome do conceito 4: explicacao em uma frase simples", "ate 5 topicos no total, SO com conceitos que as atividades cobram"],
   "roteiroPodcast": "roteiro completo: 4-5 paragrafos separados por \\n\\n, cada um com 3-5 frases, linguagem investigativa. Ultima frase: Missao registrada, Agente!"
 }
 
@@ -1850,20 +1872,32 @@ exports.gerarArquivoSecreto = onCall(
     }
     await rateRefSeg.set({ total: totalSegHoje + 1, atualizadoEm: admin.firestore.FieldValue.serverTimestamp() }, { merge: true })
 
-    const { disciplina, tituloMissao, topicos, serie, percentual } = request.data
+    const { disciplina, tituloMissao, topicos, serie, percentual, avaliado } = request.data
 
     if (!disciplina || !tituloMissao) throw new HttpsError('invalid-argument', 'Dados invalidos.')
 
     const nomeDisc = { historia: 'Historia', geografia: 'Geografia', matematica: 'Matematica', ciencias: 'Ciencias', portugues: 'Portugues' }[disciplina] || disciplina
     const topicosTexto = Array.isArray(topicos) && topicos.length > 0 ? topicos.slice(0, 3).join(', ') : tituloMissao
-    const desempenho = percentual >= 80 ? 'excelente' : percentual >= 50 ? 'bom' : 'dedicado'
+    const pct = Number.isFinite(Number(percentual)) ? Math.max(0, Math.min(100, Math.round(Number(percentual)))) : 0
+    const desempenho = pct >= 80 ? 'excelente' : pct >= 50 ? 'bom' : 'dedicado'
+    // O que foi de fato cobrado na missao (perguntas do quiz e da atividade). So disso a IA pode dizer "dominou"
+    const avaliadoTexto = (Array.isArray(avaliado) ? avaliado : [])
+      .filter(a => typeof a === 'string' && a.trim())
+      .slice(0, 10)
+      .map(a => `- ${a.replace(/[<>{}[\]\\]/g, '').trim().slice(0, 160)}`)
+      .join('\n')
+    const tomElogio = pct >= 80
+      ? 'Nota alta: comemore de verdade o resultado.'
+      : 'Nota media: reconheca o esforco e aponte com carinho que vale revisar a leitura dos pontos avaliados. Nao diga que a crianca dominou o assunto.'
 
     const prompt = `Voce e um educador especialista em motivacao infantil para criancas de 11-13 anos.
 
 Uma crianca acabou de concluir uma missao de ${nomeDisc} sobre "${tituloMissao}".
 Topicos estudados: ${topicosTexto}
 Serie: ${serie || '6ano'}
-Desempenho: ${desempenho} (${percentual || 0}% de acertos)
+Desempenho: ${desempenho} (${pct}% de acertos)
+O que foi avaliado nesta missao:
+${avaliadoTexto || '- (nao informado: nao afirme que a crianca dominou nenhum assunto especifico)'}
 
 Gere um "Arquivo Secreto" motivacional.
 
@@ -1872,13 +1906,16 @@ REGRAS OBRIGATORIAS:
 - NUNCA escreva domino quando deve ser dominou
 - NUNCA mencione escolas de excelencia Pedro II Singapura ou rankings
 - Foque no crescimento pessoal nao em competicao
+- So diga que a crianca "dominou", "aprendeu" ou "sabe" algo que esta na lista "O que foi avaliado". Os outros topicos podem aparecer apenas como algo que ela estudou ou leu
+- Tom do elogio proporcional a nota: ${tomElogio}
+- Precisao cientifica: nada de exageros nem absolutos falsos. Use "aproximadamente", "quase" ou "em geral" quando for o caso (ex.: o corpo humano e so aproximadamente simetrico, nunca uma "reflexao perfeita"). Na duvida sobre um fato, escolha outro que voce tenha certeza
 
 Responda APENAS com este JSON sem markdown:
 {
   "titulo": "titulo misterioso e intrigante relacionado ao assunto — max 50 chars — nao use numeracao nem codigos",
   "mensagem": "mensagem motivacional de 3-4 linhas para a crianca. Tom: direto, que valoriza a inteligencia dela. Sem elogios vazios. Conecta o que ela aprendeu com o mundo real.",
-  "curiosidade": "fato genuinamente surpreendente sobre o assunto — algo que a crianca vai querer contar para os amigos. Max 2 linhas.",
-  }`
+  "curiosidade": "fato genuinamente surpreendente e cientificamente correto sobre o assunto — algo que a crianca vai querer contar para os amigos. Max 2 linhas."
+}`
 
     const client = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
     const msg = await client.messages.create({
@@ -1895,8 +1932,8 @@ Responda APENAS com este JSON sem markdown:
     } catch {
       resultado = {
         titulo: 'O Segredo dos Que Chegaram Longe',
-        mensagem: 'Voce acaba de aprender algo que poucos dominam na sua idade. Cada missao concluida e um tijolo na construcao do seu futuro.',
-        curiosidade: 'Os alunos que mais se destacam nas melhores escolas do Brasil comecaram exatamente assim — uma missao de cada vez.',
+        mensagem: 'Você acaba de concluir mais uma missão. Cada missão concluída é um passo na construção do seu futuro.',
+        curiosidade: 'Aprender um pouco a cada dia, com constância, funciona melhor do que estudar tudo de uma vez — uma missão de cada vez.',
         escola: ''
       }
     }

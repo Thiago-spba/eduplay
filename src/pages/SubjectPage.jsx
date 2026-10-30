@@ -15,6 +15,7 @@ import {
   salvarSessaoQuiz,
   registrarAcessoDiario,
   registrarXpBonus,
+  salvarEtapasMissao,
 } from "../services/db";
 import { AtividadeExtra, Explique, INFO_ATIVIDADE, ComoFazer } from "../components/AtividadesMissao";
 import VideoAula from "../components/VideoAula";
@@ -156,9 +157,47 @@ const NOTA_MINIMA = 60;
 
 // ── Soma as notas das atividades (quiz + forca) para a nota final da missão ──
 // Antes, a nota final era a da ÚLTIMA atividade concluída (ex.: quiz 1/3 e forca 1/1 mostrava 100%).
+// O quiz vale 1 ponto por pergunta; a 3ª atividade (forca, Ordem certa etc.) vale no máximo 1 ponto,
+// proporcional ao acerto. Antes a Ordem certa valia 4 e a criança passava dos 60% errando o quiz.
 function somarNotas(notas) {
-  const partes = [notas?.quiz, notas?.forca].filter(Boolean);
-  return [partes.reduce((s, p) => s + p.a, 0), partes.reduce((s, p) => s + p.t, 0)];
+  const quiz = notas?.quiz;
+  const ativ = notas?.forca;
+  const a = (quiz ? quiz.a : 0) + (ativ && ativ.t > 0 ? ativ.a / ativ.t : 0);
+  const t = (quiz ? quiz.t : 0) + (ativ && ativ.t > 0 ? 1 : 0);
+  return [Math.round(a * 100) / 100, t];
+}
+
+// ── Etapas salvas no documento da missão (etapasFeitas + notasEtapas) ──
+// Missões antigas não têm o campo: tudo começa pendente, como antes. Quiz ou 3ª etapa marcados
+// como feitos, mas sem a nota salva, voltam a pendentes (sem a nota não dá para somar a nota final).
+const notaValida = (n) => !!n && Number.isInteger(n.a) && Number.isInteger(n.t) && n.t > 0 && n.a >= 0 && n.a <= n.t;
+function etapasSalvas(m) {
+  const e = m?.etapasFeitas || {};
+  const n = m?.notasEtapas || {};
+  const quiz = e.quiz === true && notaValida(n.quiz);
+  const forca = e.forca === true && notaValida(n.forca);
+  return {
+    etapas: { leitura: e.leitura === true, quiz, forca },
+    notas: { quiz: quiz ? { a: n.quiz.a, t: n.quiz.t } : null, forca: forca ? { a: n.forca.a, t: n.forca.t } : null },
+  };
+}
+
+// Pontos com vírgula e sem casas desnecessárias (ex.: 3,75)
+const formatarPontos = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+
+// Lista curta do que a missão cobrou (perguntas do quiz, 3ª atividade e "explique"), para o Arquivo Secreto
+function assuntosAvaliados(missao, perguntasQuiz, tipoAtividade, perguntaExplique) {
+  const lista = (Array.isArray(perguntasQuiz) ? perguntasQuiz : []).map((q) => q?.pergunta);
+  const ex = missao?.atividades?.extra;
+  if (tipoAtividade === "pares") lista.push(...(ex?.pares || []).map((p) => `Conceito: ${p?.conceito}`));
+  else if (tipoAtividade === "fakenews") lista.push(...(ex?.afirmacoes || []).map((f) => f?.texto));
+  else if (tipoAtividade === "ordem") lista.push(`${ex?.instrucao || "Ordem certa"}: ${(ex?.itens || []).join("; ")}`);
+  else if (tipoAtividade === "erro") lista.push(`Achar o erro em: ${ex?.enunciado}`);
+  else if (missao?.atividades?.forca?.palavraAcentuada || missao?.atividades?.forca?.palavra) {
+    lista.push(`Vocabulário: ${missao.atividades.forca.palavraAcentuada || missao.atividades.forca.palavra}`);
+  }
+  if (perguntaExplique) lista.push(`Explicar com as próprias palavras: ${perguntaExplique}`);
+  return lista.filter((x) => typeof x === "string" && x.trim()).slice(0, 10);
 }
 
 const normalizarTexto = (t) =>
@@ -995,6 +1034,19 @@ export default function SubjectPage() {
   // Pergunta do "explique": a da missão nova ou, nas antigas, a pergunta central
   const perguntaExplique = moduloSelecionado?.atividades?.explique?.pergunta || moduloSelecionado?.perguntaCentral || "O que você aprendeu nesta missão?";
 
+  // Salva no banco as etapas INTEIRAS concluídas (o progresso dentro de uma etapa não é salvo).
+  // Se falhar, a missão continua funcionando na tela, como antes — só registra o erro.
+  const persistirEtapas = (etapas, notasAtuais) => {
+    const id = moduloSelecionado?.id;
+    if (!id || !codigoAcesso) return;
+    const notasEtapas = {};
+    if (etapas.quiz && notaValida(notasAtuais?.quiz)) notasEtapas.quiz = { a: notasAtuais.quiz.a, t: notasAtuais.quiz.t };
+    if (etapas.forca && notaValida(notasAtuais?.forca)) notasEtapas.forca = { a: notasAtuais.forca.a, t: notasAtuais.forca.t };
+    salvarEtapasMissao(codigoAcesso, id, etapas, notasEtapas).catch((err) =>
+      console.error("Erro ao salvar etapas da missão:", err)
+    );
+  };
+
   // ── Concluir missão ──
   // Só conclui a missão se a nota somada (Quiz + atividade) for >= NOTA_MINIMA.
   // Caso contrário a missão continua pendente e a criança refaz o Quiz e a atividade
@@ -1012,13 +1064,15 @@ export default function SubjectPage() {
     }
     setEtapasConcluidas((prev) => ({ ...prev, quiz: false, forca: false }));
     setNotas({ quiz: null, forca: null });
+    // Zera também no banco: Quiz e 3ª etapa voltam a pendentes, a Leitura continua valendo
+    persistirEtapas({ leitura: etapasConcluidas.leitura, quiz: false, forca: false }, {});
     if (Array.isArray(reservaQuiz) && reservaQuiz.length) setUsarReserva((r) => !r);
     setAtividade(null);
     setAviso({
       tipo: "refazer",
       emoji: "💪",
       titulo: "Quase lá! Vamos tentar de novo",
-      texto: `Você fez ${a} de ${t} (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e o ${infoAtividade.label}${Array.isArray(reservaQuiz) && reservaQuiz.length ? " — agora com perguntas novas" : ""}. Você consegue!`,
+      texto: `Você fez ${formatarPontos(a)} de ${t} pontos (${pct}%). Para concluir a missão são necessários pelo menos ${NOTA_MINIMA}%. Releia a Leitura e refaça o Quiz e o ${infoAtividade.label}${Array.isArray(reservaQuiz) && reservaQuiz.length ? " — agora com perguntas novas" : ""}. Você consegue!`,
     });
   };
 
@@ -1043,7 +1097,7 @@ export default function SubjectPage() {
     setXpGanho({ base: 10, primeira: tentativas === 1 ? 5 : 0, explicacao: explicacao?.nota >= 7 ? 5 : 0 });
     const missaoFeita = moduloSelecionado;
     setMissaoConcluida(missaoFeita);
-    setResultado({ acertos, total });
+    setResultado({ acertos, total, detalhe: { quiz: notas.quiz, forca: notas.forca, tipo: tipoAtividade, label: infoAtividade.label } });
     setAtividade(null);
     setArquivoAberto(false);
     setArquivoSecreto(null);
@@ -1106,6 +1160,8 @@ export default function SubjectPage() {
         topicos: missaoFeita?.topicos || [],
         serie: localStorage.getItem("eduplay_serie") || "6ano",
         percentual: total > 0 ? Math.round((acertos / total) * 100) : 0,
+        // O que foi cobrado de fato: o Arquivo Secreto só pode dizer que a criança "dominou" isso
+        avaliado: assuntosAvaliados(missaoFeita, perguntasQuiz, tipoAtividade, perguntaExplique),
       });
       if (r.data?.ok) setArquivoSecreto(r.data);
     } catch(e) {
@@ -1169,6 +1225,18 @@ export default function SubjectPage() {
   // ── Resultado ──
   if (resultado) {
     const pct = resultado.total > 0 ? Math.round((resultado.acertos / resultado.total) * 100) : 0;
+    // Mensagem acompanha a nota: "ótima compreensão" só com o quiz praticamente todo certo
+    const msgNota =
+      pct >= 85 ? { emoji: "🌟", titulo: "Excelente trabalho!", sub: "Você demonstrou ótima compreensão do conteúdo." }
+      : pct >= 75 ? { emoji: "🎯", titulo: "Muito bem!", sub: "Você foi bem! Dê uma olhada no que errou para deixar o assunto ainda mais firme." }
+      : pct >= NOTA_MINIMA ? { emoji: "💪", titulo: "Missão cumprida!", sub: "Você passou! Vale reler a Leitura com calma e revisar os pontos que errou." }
+      : { emoji: "📚", titulo: "Você se dedicou hoje!", sub: "O mais importante é ter tentado. Continue!" };
+    const det = resultado.detalhe;
+    const textoAtividade = det?.forca
+      ? det.tipo === "forca"
+        ? `${det.label}: ${det.forca.a > 0 ? "palavra descoberta" : "palavra não descoberta"}`
+        : `${det.label}: ${det.forca.a} de ${det.forca.t}`
+      : null;
     return (
       <div style={{ minHeight: "100dvh", background: c.bg, paddingBottom: 90, fontFamily: "'Nunito', sans-serif" }}>
         <PageHeader titulo="Missão Concluída" subtitulo={moduloSelecionado?.titulo} cor={cor}
@@ -1178,18 +1246,20 @@ export default function SubjectPage() {
 
           {/* Card resultado */}
           <div style={{ background: c.card, borderRadius: 20, padding: "24px", border: `2px solid ${cor}33`, textAlign: "center" }}>
-            <div style={{ fontSize: "3rem", marginBottom: 8 }}>{pct >= 80 ? "🌟" : pct >= 50 ? "💪" : "📚"}</div>
+            <div style={{ fontSize: "3rem", marginBottom: 8 }}>{msgNota.emoji}</div>
             <h2 style={{ fontFamily: "'Fredoka', sans-serif", fontSize: "1.5rem", color: c.texto, margin: "0 0 6px" }}>
-              {pct >= 80 ? "Excelente trabalho!" : pct >= 50 ? "Você está evoluindo!" : "Você se dedicou hoje!"}
+              {msgNota.titulo}
             </h2>
             <p style={{ fontSize: "0.85rem", color: c.textoSub, margin: "0 0 16px", lineHeight: 1.5 }}>
-              {pct >= 80 ? "Você demonstrou ótima compreensão do conteúdo." : pct >= 50 ? "Cada tentativa te deixa mais preparado." : "O mais importante é ter tentado. Continue!"}
+              {msgNota.sub}
             </p>
             <div style={{ height: 10, background: c.borda, borderRadius: 5, overflow: "hidden", marginBottom: 8 }}>
               <div style={{ height: "100%", width: `${pct}%`, background: cor, borderRadius: 5, transition: "width 1.2s ease" }} />
             </div>
             <p style={{ fontSize: "0.78rem", color: c.textoSub, margin: 0 }}>
-              {resultado.acertos} de {resultado.total} questões — {pct}%
+              {det?.quiz
+                ? `Quiz: ${det.quiz.a} de ${det.quiz.t} ${det.quiz.t === 1 ? "questão" : "questões"}${textoAtividade ? ` · ${textoAtividade}` : ""} — nota ${pct}%`
+                : `${formatarPontos(resultado.acertos)} de ${resultado.total} pontos — ${pct}%`}
             </p>
             {xpGanho && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 6, justifyContent: "center", marginTop: 12 }}>
@@ -1384,6 +1454,7 @@ export default function SubjectPage() {
               const notasAtuais = { ...notas, quiz: { a, t } };
               setNotas(notasAtuais);
               setEtapasConcluidas(prev => ({ ...prev, quiz: true }));
+              persistirEtapas({ ...etapasConcluidas, quiz: true }, notasAtuais);
               // Se todas as etapas estao completas, conclui a missao inteira com a nota SOMADA
               if (etapasConcluidas.leitura && etapasConcluidas.forca) {
                 finalizarOuRefazer(notasAtuais);
@@ -1406,6 +1477,7 @@ export default function SubjectPage() {
             const notasAtuais = { ...notas, forca: { a, t } };
             setNotas(notasAtuais);
             setEtapasConcluidas(prev => ({ ...prev, forca: true }));
+            persistirEtapas({ ...etapasConcluidas, forca: true }, notasAtuais);
             if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
               finalizarOuRefazer(notasAtuais);
             } else {
@@ -1554,6 +1626,7 @@ export default function SubjectPage() {
             onFechar={(leituraCompleta) => {
               if (leituraCompleta) {
                 setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
+                if (!etapasConcluidas.leitura) persistirEtapas({ ...etapasConcluidas, leitura: true }, notas);
                 setAviso(null);
               } else if (!etapasConcluidas.leitura) {
                 setAviso({ emoji: "📖", titulo: "Ainda falta um pouquinho da leitura", texto: "Leia o Resumo, veja os Tópicos (ou ouça o áudio) e fique alguns segundos por lá para liberar o Quiz e o Descobrir a Palavra." });
@@ -2093,8 +2166,10 @@ export default function SubjectPage() {
               <button
                 key={m.id || idx}
                 onClick={() => {
-                  setEtapasConcluidas({ leitura: false, quiz: false, forca: false });
-                  setNotas({ quiz: null, forca: null });
+                  // Retoma as etapas inteiras já salvas (missões antigas começam do zero)
+                  const salvas = etapasSalvas(m);
+                  setEtapasConcluidas(salvas.etapas);
+                  setNotas(salvas.notas);
                   // Começa a contar tempo e tentativas desta missão
                   inicioMissaoRef.current = Date.now();
                   tentativasRef.current = 0;
