@@ -79,12 +79,35 @@ service cloud.firestore {
     }
 
     // -- Missoes --
+    // Etapas inteiras ja concluidas (para retomar a missao de onde parou):
+    // exatamente leitura, quiz e forca, todas booleanas ("forca" = qualquer 3a atividade)
+    function etapasFeitasValido(e) {
+      return e is map &&
+        e.keys().hasOnly(['leitura', 'quiz', 'forca']) &&
+        e.keys().hasAll(['leitura', 'quiz', 'forca']) &&
+        e.leitura is bool && e.quiz is bool && e.forca is bool;
+    }
+    // Nota de uma etapa: {a, t} inteiros, 0 <= a <= t, 1 <= t <= 20
+    function notaEtapaValida(n) {
+      return n is map &&
+        n.keys().hasOnly(['a', 't']) && n.keys().hasAll(['a', 't']) &&
+        n.a is int && n.t is int &&
+        n.t >= 1 && n.t <= 20 && n.a >= 0 && n.a <= n.t;
+    }
+    function notasEtapasValido(n) {
+      return n is map &&
+        n.keys().hasOnly(['quiz', 'forca']) &&
+        (!('quiz' in n) || notaEtapaValida(n.quiz)) &&
+        (!('forca' in n) || notaEtapaValida(n.forca));
+    }
     match /missoes/{codigoAcesso}/geradas/{missaoId} {
       allow create: if acessoAtivoParaCrianca(codigoAcesso);
       allow read:   if acessoAtivoParaCrianca(codigoAcesso);
       allow update: if acessoAtivoParaCrianca(codigoAcesso) &&
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['feita', 'feitaEm']);
+          .hasOnly(['feita', 'feitaEm', 'etapasFeitas', 'notasEtapas']) &&
+        (!('etapasFeitas' in request.resource.data) || etapasFeitasValido(request.resource.data.etapasFeitas)) &&
+        (!('notasEtapas' in request.resource.data) || notasEtapasValido(request.resource.data.notasEtapas));
       allow delete: if false;
     }
 

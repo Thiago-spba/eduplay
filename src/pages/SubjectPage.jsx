@@ -15,6 +15,7 @@ import {
   salvarSessaoQuiz,
   registrarAcessoDiario,
   registrarXpBonus,
+  salvarEtapasMissao,
 } from "../services/db";
 import { AtividadeExtra, Explique, INFO_ATIVIDADE, ComoFazer } from "../components/AtividadesMissao";
 import VideoAula from "../components/VideoAula";
@@ -164,6 +165,21 @@ function somarNotas(notas) {
   const a = (quiz ? quiz.a : 0) + (ativ && ativ.t > 0 ? ativ.a / ativ.t : 0);
   const t = (quiz ? quiz.t : 0) + (ativ && ativ.t > 0 ? 1 : 0);
   return [Math.round(a * 100) / 100, t];
+}
+
+// ── Etapas salvas no documento da missão (etapasFeitas + notasEtapas) ──
+// Missões antigas não têm o campo: tudo começa pendente, como antes. Quiz ou 3ª etapa marcados
+// como feitos, mas sem a nota salva, voltam a pendentes (sem a nota não dá para somar a nota final).
+const notaValida = (n) => !!n && Number.isInteger(n.a) && Number.isInteger(n.t) && n.t > 0 && n.a >= 0 && n.a <= n.t;
+function etapasSalvas(m) {
+  const e = m?.etapasFeitas || {};
+  const n = m?.notasEtapas || {};
+  const quiz = e.quiz === true && notaValida(n.quiz);
+  const forca = e.forca === true && notaValida(n.forca);
+  return {
+    etapas: { leitura: e.leitura === true, quiz, forca },
+    notas: { quiz: quiz ? { a: n.quiz.a, t: n.quiz.t } : null, forca: forca ? { a: n.forca.a, t: n.forca.t } : null },
+  };
 }
 
 // Pontos com vírgula e sem casas desnecessárias (ex.: 3,75)
@@ -1018,6 +1034,19 @@ export default function SubjectPage() {
   // Pergunta do "explique": a da missão nova ou, nas antigas, a pergunta central
   const perguntaExplique = moduloSelecionado?.atividades?.explique?.pergunta || moduloSelecionado?.perguntaCentral || "O que você aprendeu nesta missão?";
 
+  // Salva no banco as etapas INTEIRAS concluídas (o progresso dentro de uma etapa não é salvo).
+  // Se falhar, a missão continua funcionando na tela, como antes — só registra o erro.
+  const persistirEtapas = (etapas, notasAtuais) => {
+    const id = moduloSelecionado?.id;
+    if (!id || !codigoAcesso) return;
+    const notasEtapas = {};
+    if (etapas.quiz && notaValida(notasAtuais?.quiz)) notasEtapas.quiz = { a: notasAtuais.quiz.a, t: notasAtuais.quiz.t };
+    if (etapas.forca && notaValida(notasAtuais?.forca)) notasEtapas.forca = { a: notasAtuais.forca.a, t: notasAtuais.forca.t };
+    salvarEtapasMissao(codigoAcesso, id, etapas, notasEtapas).catch((err) =>
+      console.error("Erro ao salvar etapas da missão:", err)
+    );
+  };
+
   // ── Concluir missão ──
   // Só conclui a missão se a nota somada (Quiz + atividade) for >= NOTA_MINIMA.
   // Caso contrário a missão continua pendente e a criança refaz o Quiz e a atividade
@@ -1035,6 +1064,8 @@ export default function SubjectPage() {
     }
     setEtapasConcluidas((prev) => ({ ...prev, quiz: false, forca: false }));
     setNotas({ quiz: null, forca: null });
+    // Zera também no banco: Quiz e 3ª etapa voltam a pendentes, a Leitura continua valendo
+    persistirEtapas({ leitura: etapasConcluidas.leitura, quiz: false, forca: false }, {});
     if (Array.isArray(reservaQuiz) && reservaQuiz.length) setUsarReserva((r) => !r);
     setAtividade(null);
     setAviso({
@@ -1423,6 +1454,7 @@ export default function SubjectPage() {
               const notasAtuais = { ...notas, quiz: { a, t } };
               setNotas(notasAtuais);
               setEtapasConcluidas(prev => ({ ...prev, quiz: true }));
+              persistirEtapas({ ...etapasConcluidas, quiz: true }, notasAtuais);
               // Se todas as etapas estao completas, conclui a missao inteira com a nota SOMADA
               if (etapasConcluidas.leitura && etapasConcluidas.forca) {
                 finalizarOuRefazer(notasAtuais);
@@ -1445,6 +1477,7 @@ export default function SubjectPage() {
             const notasAtuais = { ...notas, forca: { a, t } };
             setNotas(notasAtuais);
             setEtapasConcluidas(prev => ({ ...prev, forca: true }));
+            persistirEtapas({ ...etapasConcluidas, forca: true }, notasAtuais);
             if (etapasConcluidas.leitura && etapasConcluidas.quiz) {
               finalizarOuRefazer(notasAtuais);
             } else {
@@ -1593,6 +1626,7 @@ export default function SubjectPage() {
             onFechar={(leituraCompleta) => {
               if (leituraCompleta) {
                 setEtapasConcluidas(prev => ({ ...prev, leitura: true }));
+                if (!etapasConcluidas.leitura) persistirEtapas({ ...etapasConcluidas, leitura: true }, notas);
                 setAviso(null);
               } else if (!etapasConcluidas.leitura) {
                 setAviso({ emoji: "📖", titulo: "Ainda falta um pouquinho da leitura", texto: "Leia o Resumo, veja os Tópicos (ou ouça o áudio) e fique alguns segundos por lá para liberar o Quiz e o Descobrir a Palavra." });
@@ -2132,8 +2166,10 @@ export default function SubjectPage() {
               <button
                 key={m.id || idx}
                 onClick={() => {
-                  setEtapasConcluidas({ leitura: false, quiz: false, forca: false });
-                  setNotas({ quiz: null, forca: null });
+                  // Retoma as etapas inteiras já salvas (missões antigas começam do zero)
+                  const salvas = etapasSalvas(m);
+                  setEtapasConcluidas(salvas.etapas);
+                  setNotas(salvas.notas);
                   // Começa a contar tempo e tentativas desta missão
                   inicioMissaoRef.current = Date.now();
                   tentativasRef.current = 0;

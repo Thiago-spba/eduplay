@@ -216,7 +216,39 @@ export function ehFimDeSemanaSP(data = new Date()) {
   return dia === 0 || dia === 6;
 }
 
-/** Dias úteis (seg-sex) depois de isoA até isoB inclusive. Sexta -> segunda = 1 */
+// Feriados nacionais (lei federal). Nesses dias o Desafio do dia é opcional e não fazer
+// missão não quebra a sequência. Sexta-feira Santa muda todo ano: calculada pela Páscoa.
+const FERIADOS_NACIONAIS_FIXOS = [
+  "01-01", // Confraternização Universal
+  "04-21", // Tiradentes
+  "05-01", // Dia do Trabalho
+  "09-07", // Independência
+  "10-12", // Nossa Senhora Aparecida
+  "11-02", // Finados
+  "11-15", // Proclamação da República
+  "11-20", // Dia Nacional de Zumbi e da Consciência Negra
+  "12-25", // Natal
+];
+/** Sexta-feira Santa (AAAA-MM-DD) do ano — Páscoa pelo algoritmo de Meeus/Butcher, menos 2 dias */
+function sextaFeiraSanta(ano) {
+  const a = ano % 19, b = Math.floor(ano / 100), c = ano % 100;
+  const d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4), k = c % 4, l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const mes = Math.floor((h + l - 7 * m + 114) / 31), dia = ((h + l - 7 * m + 114) % 31) + 1;
+  const pascoa = new Date(Date.UTC(ano, mes - 1, dia - 2));
+  return pascoa.toISOString().slice(0, 10);
+}
+function ehFeriadoNacionalISO(iso) {
+  return FERIADOS_NACIONAIS_FIXOS.includes(iso.slice(5)) || iso === sextaFeiraSanta(Number(iso.slice(0, 4)));
+}
+/** Feriado nacional no fuso de SP — Desafio do dia opcional, sem quebrar a sequência */
+export function ehFeriadoNacionalSP(data = new Date()) {
+  return ehFeriadoNacionalISO(fmtDataSP(data));
+}
+
+/** Dias úteis (seg-sex, sem feriado nacional) depois de isoA até isoB inclusive. Sexta -> segunda = 1 */
 function diasUteisEntre(isoA, isoB) {
   const fim = new Date(isoB + "T12:00:00");
   const cursor = new Date(isoA + "T12:00:00");
@@ -224,7 +256,8 @@ function diasUteisEntre(isoA, isoB) {
   while (true) {
     cursor.setDate(cursor.getDate() + 1);
     if (cursor > fim) break;
-    if (cursor.getDay() !== 0 && cursor.getDay() !== 6) n++;
+    const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(cursor.getDate()).padStart(2, "0")}`;
+    if (cursor.getDay() !== 0 && cursor.getDay() !== 6 && !ehFeriadoNacionalISO(iso)) n++;
   }
   return n;
 }
@@ -425,6 +458,23 @@ export async function marcarMissaoFeita(codigoAcesso, missaoId) {
   await updateDoc(ref, {
     feita: true,
     feitaEm: serverTimestamp(),
+  });
+}
+
+/**
+ * Salva as etapas inteiras já concluídas da missão (e a nota de cada uma), para a criança
+ * continuar de onde parou se fechar o app. A chave "forca" vale para qualquer 3ª atividade.
+ * notasEtapas: { quiz?: {a, t}, forca?: {a, t} } — {} quando o Quiz e a 3ª etapa são zerados.
+ */
+export async function salvarEtapasMissao(codigoAcesso, missaoId, etapasFeitas, notasEtapas) {
+  const ref = doc(db, "missoes", codigoAcesso, "geradas", missaoId);
+  await updateDoc(ref, {
+    etapasFeitas: {
+      leitura: !!etapasFeitas.leitura,
+      quiz: !!etapasFeitas.quiz,
+      forca: !!etapasFeitas.forca,
+    },
+    notasEtapas,
   });
 }
 

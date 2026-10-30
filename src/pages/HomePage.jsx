@@ -9,7 +9,7 @@ import {
   getProgresso,
   verificarTrial,
 getCrianca, getResponsavel,
-  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP,
+  sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP, ehFeriadoNacionalSP,
   xpBonusDaSemana} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 import FimDeSemana from '../components/FimDeSemana';
@@ -181,6 +181,8 @@ export default function HomePage({ playerName }) {
   const feitasSemana = datasConclusao.filter((d) => d >= segundaSP).length;
   // Sábado e domingo: sem missões, só o convite para descansar
   const fimDeSemana = ehFimDeSemanaSP();
+  // Feriado nacional: o desafio aparece como opcional (pular não quebra a sequência)
+  const feriado = !fimDeSemana && ehFeriadoNacionalSP();
   // Voltou depois de 2+ dias úteis sem concluir missão e ainda não fez nenhuma hoje
   const voltouDepoisDeDias = !fimDeSemana && diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
   // Desafio relâmpago: 1 pergunta de uma missão de dia anterior (só em dia útil)
@@ -450,6 +452,7 @@ export default function HomePage({ playerName }) {
             desafio={desafioDoDia}
             codigoAcesso={codigoAcesso}
             jaFeitoHoje={desafioFeitoHoje}
+            opcional={feriado}
             c={c}
             onXp={(xp) =>
               setProgresso((p) => ({
