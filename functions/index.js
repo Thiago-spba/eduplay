@@ -1605,13 +1605,32 @@ async function processarLoteAutoMissoes() {
           disciplina: d.data().disciplina || '',
         })).filter(t => t.titulo)
 
+        // Estatisticas por materia para o equilibrio automatico
+        const todasSnap = await db.collection('missoes').doc(criancaId).collection('geradas')
+          .select('disciplina', 'feita', 'criadoEm', 'serie', 'bimestre')
+          .get()
+        const stats = {}
+        let ultimaDisciplina = null
+        let ultimaCriacao = 0
+        todasSnap.docs.forEach(d => {
+          const m = d.data()
+          if (!disciplinas.includes(m.disciplina)) return
+          const st = stats[m.disciplina] = stats[m.disciplina] || { feitas: 0, ultimaEm: 0, noBimestre: 0 }
+          const criado = m.criadoEm?.toMillis?.() || 0
+          if (m.feita) st.feitas++
+          if (m.serie === serie && m.bimestre === bimestre) st.noBimestre++
+          st.ultimaEm = Math.max(st.ultimaEm, criado)
+          if (criado > ultimaCriacao) { ultimaCriacao = criado; ultimaDisciplina = m.disciplina }
+        })
+
         for (let i = 0; i < faltam; i++) {
-          const disciplina = disciplinas[i % disciplinas.length]
+          const disciplina = escolherDisciplinaEquilibrada(disciplinas, stats, ultimaDisciplina)
           const tema = CURRICULO[disciplina]?.[serie]?.[bimestre] || disciplina
           try {
             // Gera missao via Anthropic com prompt completo
             const anthropic = new Anthropic({ apiKey: ANTHROPIC_KEY.value() })
             const curriculoTema = CURRICULO[disciplina]?.[serie]?.[bimestre] || tema
+            const foco = topicoDaVez(curriculoTema, stats[disciplina]?.noBimestre || 0)
             // Anti-repeticao especifica da MESMA materia (nao mistura com outras disciplinas)
             const titulosMesmaMateria = historicoTitulos
               .filter(t => t.disciplina === disciplina)
@@ -1627,7 +1646,7 @@ DADOS:
 - Disciplina: ${NOMES.disciplina[disciplina] || disciplina}
 - Serie: ${NOMES.serie[serie] || serie}
 - Bimestre: ${NOMES.bimestre[bimestre] || bimestre}
-- Curriculo: ${curriculoTema}${antiRep}
+- Curriculo: ${curriculoTema}${foco ? `\n- Foco desta missao (siga a ordem do bimestre, sem pular conteudo): ${foco}` : ''}${antiRep}
 
 Faixa etaria: 11-14 anos (6o ao 9o ano). Ajuste vocabulario e profundidade a serie indicada: 6o ano = frases curtas e exemplos do cotidiano; 9o ano = mais abstracao e conexoes entre conceitos. Tom: investigativo, desafiador, NAO infantilizado.
 A crianca e um "Agente Pesquisador" que investiga misterios.
@@ -1723,6 +1742,8 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
               criadoEm: admin.firestore.FieldValue.serverTimestamp()
             })
             historicoTitulos.unshift({ titulo: missao.titulo, disciplina })
+            stats[disciplina] = { ...(stats[disciplina] || { feitas: 0 }), ultimaEm: Date.now(), noBimestre: (stats[disciplina]?.noBimestre || 0) + 1 }
+            ultimaDisciplina = disciplina
             console.log(`[auto] missao gerada: ${disciplina} para ${criancaId}`)
           } catch (err) {
             console.error(`[auto] erro gerando ${disciplina}:`, err.message)
@@ -1732,6 +1753,22 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
         console.error('[auto] erro no responsavel', respDoc.id, err.message)
       }
     }
+}
+
+// Equilibrio automatico: materia com MENOS missoes concluidas; empate = a que esta ha
+// mais tempo sem missao; nunca repete a materia da ultima missao (salvo se for a unica)
+function escolherDisciplinaEquilibrada(disciplinas, stats, ultimaDisciplina) {
+  const candidatas = disciplinas.length > 1 ? disciplinas.filter(d => d !== ultimaDisciplina) : disciplinas
+  return [...candidatas].sort((a, b) =>
+    (stats[a]?.feitas || 0) - (stats[b]?.feitas || 0) ||
+    (stats[a]?.ultimaEm || 0) - (stats[b]?.ultimaEm || 0)
+  )[0]
+}
+
+// Topico da vez dentro do bimestre, na ordem em que aparece no curriculo
+function topicoDaVez(curriculoTema, qtdJaGeradas) {
+  const topicos = String(curriculoTema).split(':').pop().split(',').map(t => t.trim()).filter(Boolean)
+  return topicos.length ? topicos[qtdJaGeradas % topicos.length] : ''
 }
 
 // 1 gatilho só, rodando a cada 20 minutos entre 01h e 06h59 — a propria

@@ -205,6 +205,8 @@ export default function HomePage({ playerName }) {
   const fimDeSemana = ehFimDeSemanaSP();
   // Feriado nacional: o desafio aparece como opcional (pular não quebra a sequência)
   const feriado = !fimDeSemana && ehFeriadoNacionalSP();
+  // Dia só fica completo quando não sobra nenhuma missão pendente
+  const restamHoje = fimDeSemana ? 0 : missoesPendentesResto.length;
   // Voltou depois de 2+ dias úteis sem concluir missão e ainda não fez nenhuma hoje
   const voltouDepoisDeDias = !fimDeSemana && diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
   // Desafio relâmpago: 1 pergunta de uma missão de dia anterior (só em dia útil)
@@ -624,7 +626,9 @@ export default function HomePage({ playerName }) {
             marginBottom: 20,
           }}
         >
-          {diasSemana.map((d) => (
+          {diasSemana
+            .map((d) => (d.hoje && d.feito && restamHoje > 0 ? { ...d, feito: false, incompleto: true } : d))
+            .map((d) => (
             <div
               key={d.iso}
               style={{
@@ -672,7 +676,7 @@ export default function HomePage({ playerName }) {
                       fontWeight: 700,
                     }}
                   >
-                    •
+                    {d.incompleto ? "☆" : "•"}
                   </span>
                 ) : (
                   <span style={{ color: c.borda, fontSize: "0.9rem" }}>·</span>
@@ -690,6 +694,11 @@ export default function HomePage({ playerName }) {
             </div>
           ))}
         </div>
+        {restamHoje > 0 && feitasHoje > 0 && (
+          <p style={{ margin: "-12px 0 20px", fontSize: "0.8rem", fontWeight: 700, color: "#185FA5", textAlign: "center" }}>
+            Falta pouco! Ainda {restamHoje === 1 ? "resta 1 missão" : `restam ${restamHoje} missões`} hoje 🚀
+          </p>
+        )}
 
         {/* Badges (no fim de semana, sem convite para fazer missão) */}
         {(badges.length > 0 || !fimDeSemana) && (<>
