@@ -33,6 +33,9 @@ import {
 
 const MAX_MISSOES_DIA_DEFAULT = 3;
 const VERSAO_TERMOS = "1.0";
+// Depoimentos desligados (auditoria out/2026): os textos atuais não são de famílias reais
+// com autorização por escrito. Religar (true) só com depoimentos verdadeiros do piloto.
+const MOSTRAR_DEPOIMENTOS = false;
 
 const SERIES = [
   { id: "6ano", label: "6º ano" },
@@ -990,7 +993,8 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
         ))}
       </div>
 
-      {/* Depoimentos */}
+      {/* Depoimentos (desligados — ver MOSTRAR_DEPOIMENTOS) */}
+      {MOSTRAR_DEPOIMENTOS && (
       <div
         style={{
           background: c.card,
@@ -1061,6 +1065,7 @@ function CardAssinatura({ c, e, filho, functions, userPai }) {
           ))}
         </div>
       </div>
+      )}
 
       {/* Email */}
       <div
@@ -4158,7 +4163,7 @@ export default function PaisPage({ userPai, timer }) {
                       padding: 0,
                     }}
                   >
-                    ECA Digital (Lei 14.155/2021)
+                    ECA Digital (Lei 15.211/2025)
                   </button>
                 </span>
               </label>
@@ -4300,7 +4305,7 @@ export default function PaisPage({ userPai, timer }) {
                   margin: "0 0 16px",
                 }}
               >
-                🛡️ ECA Digital — Lei 14.155/2021
+                🛡️ ECA Digital — Lei 15.211/2025
               </h2>
               {[
                 [
@@ -7537,12 +7542,12 @@ export default function PaisPage({ userPai, timer }) {
                 <strong style={{ color: "#0F6E56" }}>
                   R$400/mês em cursinho
                 </strong>
-                , você investe menos de R$1 por dia com o mesmo resultado
-                pedagógico.
+                , você investe menos de R$1 por dia.
               </p>
             </div>
 
-            {/* Depoimentos expansiveis */}
+            {/* Depoimentos expansiveis (desligados — ver MOSTRAR_DEPOIMENTOS) */}
+            {MOSTRAR_DEPOIMENTOS && (
             <div
               style={{
                 background: c.card,
@@ -7587,6 +7592,7 @@ export default function PaisPage({ userPai, timer }) {
                 <DepoimentoCard key={i} d={d} i={i} c={c} e={e} />
               ))}
             </div>
+            )}
 
             {/* Botoes de pagamento */}
             <button

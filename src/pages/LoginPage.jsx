@@ -408,7 +408,7 @@ export default function LoginPage() {
             >
               O login com Google garante máxima segurança para os dados do seu
               filho, sem precisar criar e lembrar mais uma senha. Em
-              conformidade com o ECA Digital (Lei 14.155/2021).
+              conformidade com o ECA Digital (Lei 15.211/2025).
             </p>
           </div>
         </div>
