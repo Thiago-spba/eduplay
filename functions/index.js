@@ -579,7 +579,7 @@ REGRAS INVIOLÁVEIS:
       try {
         // 🛠️ CORREÇÃO DA REGRA INVIOLÁVEL: Modelo atualizado para a infraestrutura estável de 2026
         const msg = await client.messages.create({
-          model: 'claude-haiku-4-5-20251001', max_tokens: 6500, temperature: 0.5,
+          model: 'claude-haiku-4-5-20251001', max_tokens: 12000, temperature: 0.5,
           messages: [{ role: 'user', content: prompt + blocoExtras(tipoExtra) }],
         })
         resposta = msg.content[0].text
@@ -1646,8 +1646,16 @@ async function processarLoteAutoMissoes() {
           if (criado > ultimaCriacao) { ultimaCriacao = criado; ultimaDisciplina = m.disciplina }
         })
 
-        for (let i = 0; i < faltam; i++) {
-          const disciplina = escolherDisciplinaEquilibrada(disciplinas, stats, ultimaDisciplina)
+        // Novas tentativas: antes, se a IA devolvesse uma missao cortada ou reprovada no
+        // controle de qualidade, aquela vaga do dia simplesmente se perdia (a familia so e
+        // atendida uma vez por noite). Agora tenta de novo, ate 3 tentativas extras, e a
+        // materia que falhou fica de fora nesta noite para nao repetir o mesmo erro.
+        let geradasAgora = 0
+        const falharamAgora = new Set()
+        const maxTentativas = faltam + 3
+        for (let tentativa = 0; geradasAgora < faltam && tentativa < maxTentativas; tentativa++) {
+          const disponiveis = disciplinas.filter(d => !falharamAgora.has(d))
+          const disciplina = escolherDisciplinaEquilibrada(disponiveis.length ? disponiveis : disciplinas, stats, ultimaDisciplina)
           const tema = CURRICULO[disciplina]?.[serie]?.[bimestre] || disciplina
           try {
             // Gera missao via Anthropic com prompt completo
@@ -1724,7 +1732,7 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
             
             const msg = await anthropic.messages.create({
               model: 'claude-haiku-4-5-20251001',
-              max_tokens: 6500,
+              max_tokens: 12000,
               temperature: 0.5,
               messages: [{ role: 'user', content: prompt + blocoExtras(escolherTipoExtra(disciplina)) }]
             })
@@ -1735,7 +1743,8 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
               const json = texto.substring(texto.indexOf('{'), texto.lastIndexOf('}') + 1)
               missao = JSON.parse(json)
             } catch {
-              console.warn('[auto] parse falhou para', disciplina)
+              console.warn(`[auto] parse falhou para ${disciplina} (${criancaId}) — stop_reason: ${msg.stop_reason}${msg.stop_reason === 'max_tokens' ? ' (resposta cortada no limite de tokens)' : ''}`)
+              falharamAgora.add(disciplina)
               continue
             }
 
@@ -1744,6 +1753,7 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
             const problema = problemaDaMissao(missao, serie)
             if (problema) {
               console.warn(`[auto] missao invalida gerada para ${disciplina} (${criancaId}) — descartada: ${problema}`)
+              falharamAgora.add(disciplina)
               continue
             }
             limparExtras(missao, 'auto')
@@ -1767,9 +1777,11 @@ REGRAS: quiz com 4 opcoes. Escreva a explicacao ANTES (resolvendo passo a passo)
             historicoTitulos.unshift({ titulo: missao.titulo, disciplina })
             stats[disciplina] = { ...(stats[disciplina] || { feitas: 0 }), ultimaEm: Date.now(), noBimestre: (stats[disciplina]?.noBimestre || 0) + 1 }
             ultimaDisciplina = disciplina
-            console.log(`[auto] missao gerada: ${disciplina} para ${criancaId}`)
+            geradasAgora++
+            console.log(`[auto] missao gerada: ${disciplina} para ${criancaId} (${geradasAgora}/${faltam}, tentativa ${tentativa + 1})`)
           } catch (err) {
             console.error(`[auto] erro gerando ${disciplina}:`, err.message)
+            falharamAgora.add(disciplina)
           }
         }
       } catch (err) {
