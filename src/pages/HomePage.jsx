@@ -10,6 +10,7 @@ import {
   verificarTrial,
 getCrianca, getResponsavel,
   sequenciaAtual, diasDesdeUltimoEstudo, dataConclusaoSP, inicioSemanaSP, ehFimDeSemanaSP, ehFeriadoNacionalSP,
+  statusDiaSP,
   xpBonusDaSemana} from "../services/db";
 import ModalPremiacao from '../components/ModalPremiacao';
 import FimDeSemana from '../components/FimDeSemana';
@@ -207,6 +208,21 @@ export default function HomePage({ playerName }) {
   const feriado = !fimDeSemana && ehFeriadoNacionalSP();
   // Dia só fica completo quando não sobra nenhuma missão pendente
   const restamHoje = fimDeSemana ? 0 : missoesPendentesResto.length;
+  // Dias anteriores da semana que ficaram com missão pendente (aparecem com ☆ na faixa da semana)
+  const diasIncompletos = diasSemana
+    .filter((d) => !d.hoje && statusDiaSP(missoes, d.iso, progresso?.diasAtivos || []) === "incompleto")
+    .map((d) => d.label);
+  // Pendentes de dias anteriores: ficam no topo da lista, com selo "Ficou pendente de ontem"
+  const ehAtrasada = (m) => typeof m?.data === "string" && m.data < hojeSPData;
+  const ontemSPData = (() => {
+    const d = new Date(hojeSPData + "T12:00:00");
+    d.setDate(d.getDate() - 1);
+    return fmtDataSPLocal(d);
+  })();
+  const rotuloAtraso = (iso) => (iso === ontemSPData ? "de ontem" : `de ${iso.slice(8, 10)}/${iso.slice(5, 7)}`);
+  const pendentesLista = [...missoesPendentesResto].sort(
+    (a, b) => Number(ehAtrasada(b.missao)) - Number(ehAtrasada(a.missao)),
+  );
   // Voltou depois de 2+ dias úteis sem concluir missão e ainda não fez nenhuma hoje
   const voltouDepoisDeDias = !fimDeSemana && diasSemEstudar !== null && diasSemEstudar >= 2 && feitasHoje === 0;
   // Desafio relâmpago: 1 pergunta de uma missão de dia anterior (só em dia útil)
@@ -534,12 +550,17 @@ export default function HomePage({ playerName }) {
           {missoesPendentesResto.length > 0 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
               <style>{`details[open] .seta-home{transform:rotate(90deg)} summary::-webkit-details-marker{display:none}`}</style>
-              {missoesPendentesResto.map((item, idx) => (
+              {pendentesLista.map((item, idx) => (
                 <details key={idx} style={{ background: c.card, borderRadius: 20, border: `1.5px solid ${item.cor}55`, borderLeft: `5px solid ${item.cor}`, overflow: "hidden", animation: `edu-surgir 0.4s ease ${idx * 0.06}s backwards` }}>
                   <summary style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12, cursor: "pointer", listStyle: "none" }}>
                     <span className="seta-home" style={{ fontSize: "0.7rem", color: c.textoSub, transition: "transform 0.25s", flexShrink: 0 }}>▶</span>
                     <span style={{ fontSize: "1.3rem", flexShrink: 0 }}>{item.icone}</span>
                     <div style={{ flex: 1, minWidth: 0 }}>
+                      {ehAtrasada(item.missao) && (
+                        <p style={{ fontSize: "0.7rem", fontWeight: 800, color: e ? "#F5A623" : "#B26A00", margin: "0 0 3px", lineHeight: 1.3 }}>
+                          ⏳ Ficou pendente {rotuloAtraso(item.missao.data)}. Bora fechar? 💪
+                        </p>
+                      )}
                       <p style={{ fontSize: "0.7rem", fontWeight: 700, color: c.textoSub, margin: "0 0 2px" }}>{item.label}</p>
                       <p style={{ fontSize: "0.85rem", fontWeight: 700, color: c.texto, margin: 0, lineHeight: 1.3 }}>
                         {item.missao?.titulo || `Missão de ${item.label}`}
@@ -627,7 +648,7 @@ export default function HomePage({ playerName }) {
           }}
         >
           {diasSemana
-            .map((d) => (d.hoje && d.feito && restamHoje > 0 ? { ...d, feito: false, incompleto: true } : d))
+            .map((d) => (statusDiaSP(missoes, d.iso, progresso?.diasAtivos || []) === "incompleto" ? { ...d, feito: false, incompleto: true } : d))
             .map((d) => (
             <div
               key={d.iso}
@@ -650,12 +671,16 @@ export default function HomePage({ playerName }) {
                     ? c.verdeClaro
                     : d.hoje
                       ? "#E6F1FB"
-                      : "transparent",
+                      : d.incompleto
+                        ? "#FFF4D6"
+                        : "transparent",
                   border: d.feito
                     ? "1.5px solid #5DCAA5"
                     : d.hoje
                       ? "1.5px solid #378ADD"
-                      : `1.5px solid ${c.borda}`,
+                      : d.incompleto
+                        ? "1.5px solid #F5A623"
+                        : `1.5px solid ${c.borda}`,
                 }}
               >
                 {d.feito ? (
@@ -668,10 +693,10 @@ export default function HomePage({ playerName }) {
                   >
                     ✓
                   </span>
-                ) : d.hoje ? (
+                ) : d.hoje || d.incompleto ? (
                   <span
                     style={{
-                      color: "#185FA5",
+                      color: d.hoje ? "#185FA5" : "#B26A00",
                       fontSize: "0.9rem",
                       fontWeight: 700,
                     }}
@@ -697,6 +722,11 @@ export default function HomePage({ playerName }) {
         {restamHoje > 0 && feitasHoje > 0 && (
           <p style={{ margin: "-12px 0 20px", fontSize: "0.8rem", fontWeight: 700, color: "#185FA5", textAlign: "center" }}>
             Falta pouco! Ainda {restamHoje === 1 ? "resta 1 missão" : `restam ${restamHoje} missões`} hoje 🚀
+          </p>
+        )}
+        {diasIncompletos.length > 0 && (
+          <p style={{ margin: "-12px 0 20px", fontSize: "0.8rem", fontWeight: 700, color: e ? "#F5A623" : "#B26A00", textAlign: "center", lineHeight: 1.4 }}>
+            ☆ Faltaram missões em {diasIncompletos.join(", ")}. Termine as pendentes para completar o dia! 💪
           </p>
         )}
 

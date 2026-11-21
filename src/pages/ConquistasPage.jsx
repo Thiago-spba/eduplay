@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useTema } from "../context/ThemeContext";
 import BottomNav from "../components/BottomNav";
-import { getProgresso, getTodasMissoes, getCrianca, sequenciaAtual, diasDesdeUltimoEstudo } from "../services/db";
+import { getProgresso, getTodasMissoes, getCrianca, sequenciaAtual, diasDesdeUltimoEstudo, statusDiaSP } from "../services/db";
 
 const DISC = {
   historia: { label: "História", icone: "📜", cor: "#F5A623" },
@@ -722,6 +722,10 @@ export default function ConquistasPage() {
   const desbloqueadas = conquistas.filter((cq) => cq.ok).length;
   const msg = mensagens[msgIdx % mensagens.length];
   const { dias: semanaDias, idxHoje } = datasDaSemanaAtual();
+  // Dias anteriores da semana com missão pendente (aparecem com ☆ na faixa da semana)
+  const diasIncompletos = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].filter(
+    (_, i) => i !== idxHoje && statusDiaSP(missoesPorDisc, semanaDias[i], diasAtivos) === "incompleto",
+  );
 
   // Próximo desafio: disciplina menos explorada, como convite
   const qtdsDisc = Object.keys(DISC).map((d) => ({
@@ -1365,7 +1369,10 @@ export default function ConquistasPage() {
                 {["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"].map(
                   (dia, i) => {
                     const isHoje = i === idxHoje;
-                    const feito = diasAtivos.includes(semanaDias[i]);
+                    // ✓ só quando todas as missões do dia foram concluídas; ☆ se ficou alguma pendente
+                    const statusDia = statusDiaSP(missoesPorDisc, semanaDias[i], diasAtivos);
+                    const feito = statusDia === "completo";
+                    const incompleto = statusDia === "incompleto";
                     return (
                       <div key={i} style={{ textAlign: "center" }}>
                         <div
@@ -1392,26 +1399,48 @@ export default function ConquistasPage() {
                               ? isHoje
                                 ? "#FFD700"
                                 : "#0F6E56"
-                              : c.borda,
-                            border: isHoje && !feito ? "2px dashed #FFD700" : "none",
+                              : incompleto
+                                ? "#FFF4D6"
+                                : c.borda,
+                            border: isHoje && !feito
+                              ? "2px dashed #FFD700"
+                              : incompleto
+                                ? "2px solid #F5A623"
+                                : "none",
                             boxSizing: "border-box",
                             color: feito
                               ? isHoje
                                 ? "#633806"
                                 : "#E1F5EE"
-                              : c.textoSub,
+                              : incompleto
+                                ? "#B26A00"
+                                : c.textoSub,
                             animation: isHoje && feito
                               ? "edu-pulso-suave 2s ease-in-out infinite"
                               : "none",
                           }}
                         >
-                          {feito ? (isHoje ? "🔥" : "✓") : "—"}
+                          {feito ? (isHoje ? "🔥" : "✓") : incompleto ? "☆" : "—"}
                         </div>
                       </div>
                     );
                   },
                 )}
               </div>
+              {diasIncompletos.length > 0 && (
+                <p
+                  style={{
+                    fontSize: "0.78rem",
+                    fontWeight: 700,
+                    color: e ? "#F5A623" : "#B26A00",
+                    margin: "0 0 10px",
+                    textAlign: "center",
+                    lineHeight: 1.4,
+                  }}
+                >
+                  ☆ Faltaram missões em {diasIncompletos.join(", ")}. Termine as pendentes para completar o dia! 💪
+                </p>
+              )}
               {(dias > 0 || progresso?.recordeDias > 0) && (
                 <p
                   style={{

@@ -290,6 +290,20 @@ export function inicioSemanaSP() {
   return fmtDataSP(hoje);
 }
 
+/**
+ * Status de um dia na faixa da semana: "completo" (✓), "incompleto" (☆) ou null (nenhuma missão feita).
+ * O dia só fica completo quando TODAS as missões daquele dia foram concluídas (mesmo que depois).
+ * Hoje também fica incompleto enquanto sobrar qualquer missão pendente (exceto sábado/domingo).
+ * `missoes` pode ser a lista ou o objeto agrupado por disciplina.
+ */
+export function statusDiaSP(missoes, iso, diasAtivos = []) {
+  if (!diasAtivos.includes(iso)) return null;
+  const lista = Array.isArray(missoes) ? missoes : Object.values(missoes || {}).flat();
+  const ehHoje = iso === fmtDataSP(new Date());
+  const pendentes = lista.filter((m) => !m.feita && (ehHoje ? !ehFimDeSemanaSP() : m.data === iso));
+  return pendentes.length > 0 ? "incompleto" : "completo";
+}
+
 /** Registra dia de estudo (chamado só ao concluir missão) e atualiza sequência */
 export async function registrarAcessoDiario(codigoAcesso) {
   const fmtSP = (d) => d.toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
