@@ -70,6 +70,13 @@ function problemaDaForca(forca, serie) {
   if (forca.dicas.some(d => normQuiz(d).includes(pn))) return 'dica da forca entrega a palavra'
   return null
 }
+// Conta palavras de um texto (para os tetos de tamanho do resumo e do podcast)
+const contaPalavras = (t) => String(t || '').trim().split(/\s+/).filter(Boolean).length
+// Tetos de tamanho: alvo e resumo de 90 a 130 palavras e podcast de 150 a 200 (1min30 de audio).
+// O teto fica acima do alvo so para recusar o que foge muito, sem gastar tentativas a toda hora.
+const MAX_PALAVRAS_RESUMO = 200
+const MAX_PALAVRAS_PODCAST = 300
+
 // Retorna um texto descrevendo o problema da missao gerada, ou null se estiver ok
 function problemaDaMissao(m, serie) {
   if (!m || typeof m !== 'object') return 'missao vazia'
@@ -87,8 +94,10 @@ function problemaDaMissao(m, serie) {
   const pf = problemaDaForca(m.atividades?.forca, serie)
   if (pf) return pf
   if (typeof m.resumo !== 'string' || m.resumo.trim().length < 80) return 'resumo curto demais'
+  if (contaPalavras(m.resumo) > MAX_PALAVRAS_RESUMO) return `resumo longo demais (${contaPalavras(m.resumo)} palavras, maximo ${MAX_PALAVRAS_RESUMO})`
   if (!Array.isArray(m.topicos) || m.topicos.filter(x => typeof x === 'string' && x.trim().length >= 25).length < 3) return 'topicos sem explicacao'
-  if (typeof m.roteiroPodcast !== 'string' || m.roteiroPodcast.trim().length < 700) return 'roteiroPodcast curto demais'
+  if (typeof m.roteiroPodcast !== 'string' || m.roteiroPodcast.trim().length < 550) return 'roteiroPodcast curto demais'
+  if (contaPalavras(m.roteiroPodcast) > MAX_PALAVRAS_PODCAST) return `roteiroPodcast longo demais (${contaPalavras(m.roteiroPodcast)} palavras, maximo ${MAX_PALAVRAS_PODCAST})`
   return null
 }
 
