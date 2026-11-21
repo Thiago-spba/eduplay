@@ -39,6 +39,26 @@ const MOSTRAR_DEPOIMENTOS = false;
 // Desde out/2026 a 3ª atividade vale até 1 ponto proporcional, então a nota pode ter decimais (ex.: 3,75)
 const fmtPontos = (n) => String(Math.round((Number(n) || 0) * 100) / 100).replace(".", ",");
 
+/**
+ * Dias úteis (seg-sex) de atraso de uma missão pendente: 0 = de hoje (ou data desconhecida).
+ * Sábado e domingo não contam, porque nesses dias não há missão.
+ */
+function diasUteisAtraso(dataISO, hojeISO) {
+  if (!dataISO || typeof dataISO !== "string" || dataISO >= hojeISO) return 0;
+  const cursor = new Date(dataISO + "T12:00:00");
+  const fim = new Date(hojeISO + "T12:00:00");
+  let n = 0;
+  while (true) {
+    cursor.setDate(cursor.getDate() + 1);
+    if (cursor > fim) break;
+    const d = cursor.getDay();
+    if (d !== 0 && d !== 6) n++;
+  }
+  return n;
+}
+/** "13/11" a partir de "2026-11-13" */
+const fmtDiaMes = (iso) => (typeof iso === "string" && iso.length >= 10 ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "");
+
 const SERIES = [
   { id: "6ano", label: "6º ano" },
   { id: "7ano", label: "7º ano" },
@@ -5712,7 +5732,11 @@ export default function PaisPage({ userPai, timer }) {
             {/* Missoes pendentes */}
             {(() => {
               const todasMissoes = Object.values(missoesPorDisc).flat();
-              const pendentes = todasMissoes.filter((m) => !m.feita);
+              // Atrasadas primeiro (a mais antiga no topo), depois as de hoje
+              const pendentes = todasMissoes
+                .filter((m) => !m.feita)
+                .sort((a, b) => String(a.data || "9").localeCompare(String(b.data || "9")));
+              const qtdAtrasadas = pendentes.filter((m) => diasUteisAtraso(m.data, hojeSPPainel) > 0).length;
               const hoje = new Date().toLocaleDateString("pt-BR");
               const hojeStr = new Date().toLocaleDateString("pt-BR");
               // Concluídas hoje pela data de CONCLUSÃO (antes usava a data em que a missão foi criada)
@@ -5800,6 +5824,7 @@ export default function PaisPage({ userPai, timer }) {
                       >
                         {pendentes.length} pendente
                         {pendentes.length !== 1 ? "s" : ""}
+                        {qtdAtrasadas > 0 ? ` · ${qtdAtrasadas} atrasada${qtdAtrasadas !== 1 ? "s" : ""}` : ""}
                       </span>
                     </div>
                     {pendentes.length === 0 ? (
@@ -5884,6 +5909,13 @@ export default function PaisPage({ userPai, timer }) {
                         const d = DISCIPLINAS.find(
                           (dd) => dd.id === m.disciplina,
                         );
+                        // Atraso em dias úteis: 3+ vermelho, 1-2 laranja, 0 (de hoje) neutro
+                        const atraso = diasUteisAtraso(m.data, hojeSPPainel);
+                        const corAtraso = atraso >= 3 ? "#DC2626" : atraso > 0 ? "#F59E0B" : c.textoSub;
+                        const textoAtraso =
+                          atraso === 0
+                            ? "⏳ De hoje"
+                            : `${atraso >= 3 ? "🔴" : "🟠"} Atrasada há ${atraso} ${atraso === 1 ? "dia" : "dias"}`;
                         return (
                           <div
                             key={m.id || i}
@@ -5921,19 +5953,21 @@ export default function PaisPage({ userPai, timer }) {
                                 }}
                               >
                                 {d?.label}
+                                {atraso > 0 && fmtDiaMes(m.data) ? ` · de ${fmtDiaMes(m.data)}` : ""}
                               </p>
                             </div>
                             <span
                               style={{
                                 fontSize: "0.68rem",
                                 fontWeight: 800,
-                                color: "#F59E0B",
-                                background: "#F59E0B15",
+                                color: corAtraso,
+                                background: atraso > 0 ? `${corAtraso}15` : "transparent",
                                 padding: "3px 8px",
                                 borderRadius: 6,
+                                whiteSpace: "nowrap",
                               }}
                             >
-                              ⏳ Pendente
+                              {textoAtraso}
                             </span>
                           </div>
                         );
